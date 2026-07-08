@@ -3,7 +3,7 @@
 Date: 2026-07-08
 Branch: `codex/review-initial-benders-prototype`
 Code commit for review: `251ed57`
-PR: `pending`
+PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/1`
 
 ## Summary
 
