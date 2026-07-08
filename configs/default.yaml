@@ -1,0 +1,30 @@
+seed: 42
+
+instance:
+  num_warehouses: 3
+  num_products: 2
+  num_regions: 4
+  budget_factor: 0.58
+
+robust:
+  gamma_target: 2
+  max_scenarios: 5000
+  gamma_schedule: [0, 1, 2]
+
+benders:
+  max_iterations: 80
+  tol: 0.0001
+  initial_mip_gap: 0.08
+  final_mip_gap: 0.0001
+  time_limit: 120
+  output_flag: false
+
+experiment:
+  seeds: [42, 43, 44]
+  methods:
+    - monolithic
+    - standard_benders
+    - inexact_benders
+    - adaptive_gap_gamma_benders
+  instance_path: data/processed/instance.json
+  output_dir: outputs/experiments
