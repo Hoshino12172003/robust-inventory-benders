@@ -8,7 +8,7 @@ from gurobipy import GRB
 
 from .instance import InventoryInstance
 from .results import SolveResult
-from .scenarios import enumerate_budget_scenarios
+from .scenarios import enumerate_budget_scenarios, scenario_metadata
 
 
 def first_stage_cost_expr(instance: InventoryInstance, y: gp.tupledict, x: gp.tupledict) -> gp.LinExpr:
@@ -21,7 +21,9 @@ def solve_monolithic(config: dict[str, Any], instance: InventoryInstance) -> Sol
     robust_cfg = config.get("robust", {})
     benders_cfg = config.get("benders", {})
     gamma = int(robust_cfg.get("gamma_target", 0))
-    scenarios = enumerate_budget_scenarios(instance, gamma, int(robust_cfg.get("max_scenarios", 5000)))
+    max_scenarios = int(robust_cfg.get("max_scenarios", 5000))
+    exact_scenarios = bool(robust_cfg.get("exact_scenarios", True))
+    scenarios = enumerate_budget_scenarios(instance, gamma, max_scenarios, exact_scenarios=exact_scenarios)
 
     start = time.perf_counter()
     model = gp.Model("robust_inventory_monolithic")
@@ -100,5 +102,8 @@ def solve_monolithic(config: dict[str, Any], instance: InventoryInstance) -> Sol
         robust_cost=robust_cost,
         first_stage_cost=first_stage_value,
         gamma_target=gamma,
-        metadata={"num_scenarios": len(scenarios)},
+        metadata={
+            "num_scenarios": len(scenarios),
+            **scenario_metadata(instance, gamma, max_scenarios, exact_scenarios, len(scenarios)),
+        },
     )

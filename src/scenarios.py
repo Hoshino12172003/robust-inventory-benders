@@ -46,6 +46,7 @@ def enumerate_budget_scenarios(
     instance: InventoryInstance,
     gamma: int,
     max_scenarios: int = 5000,
+    exact_scenarios: bool = True,
 ) -> list[DemandScenario]:
     units = _all_units(instance)
     gamma = min(max(0, int(gamma)), len(units))
@@ -56,7 +57,26 @@ def enumerate_budget_scenarios(
             for active in combinations(units, k):
                 scenarios.append(_scenario_from_units(instance, active))
         return scenarios
+    if exact_scenarios:
+        raise ValueError("Exact scenario enumeration exceeds max_scenarios.")
     return candidate_budget_scenarios(instance, gamma, max_scenarios)
+
+
+def scenario_metadata(
+    instance: InventoryInstance,
+    gamma: int,
+    max_scenarios: int,
+    exact_scenarios: bool,
+    num_scenarios_used: int,
+) -> dict[str, int | bool | str]:
+    total = count_budget_scenarios(instance, gamma)
+    return {
+        "scenario_mode": "full" if total <= max_scenarios else "candidate",
+        "exact_scenarios": exact_scenarios,
+        "num_scenarios_used": num_scenarios_used,
+        "num_scenarios_total_estimated": total,
+        "max_scenarios": max_scenarios,
+    }
 
 
 def candidate_budget_scenarios(

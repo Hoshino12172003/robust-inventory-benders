@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.benders import solve_benders
 from src.instance import generate_instance
 from src.monolithic import solve_monolithic
-from src.scenarios import enumerate_budget_scenarios
+from src.scenarios import count_budget_scenarios, enumerate_budget_scenarios
 from src.subproblem import solve_recourse_subproblem
 
 
@@ -56,3 +56,45 @@ def test_adaptive_benders_converges() -> None:
     assert result.lower_bound is not None
     assert result.gap is not None
     assert result.gap <= 1e-3
+
+
+def test_exact_scenarios_full_enumeration_when_under_limit() -> None:
+    config = tiny_config()
+    instance = generate_instance(config, seed=10)
+    total = count_budget_scenarios(instance, 1)
+    scenarios = enumerate_budget_scenarios(instance, 1, max_scenarios=total, exact_scenarios=True)
+    assert len(scenarios) == total
+
+
+def test_exact_scenarios_raise_when_over_limit() -> None:
+    config = tiny_config()
+    instance = generate_instance(config, seed=11)
+    try:
+        enumerate_budget_scenarios(instance, 1, max_scenarios=1, exact_scenarios=True)
+    except ValueError as exc:
+        assert str(exc) == "Exact scenario enumeration exceeds max_scenarios."
+    else:
+        raise AssertionError("Expected exact scenario enumeration to fail when over max_scenarios.")
+
+
+def test_candidate_fallback_records_metadata() -> None:
+    config = tiny_config()
+    config["instance"] = {
+        "num_warehouses": 2,
+        "num_products": 2,
+        "num_regions": 3,
+        "budget_factor": 0.7,
+    }
+    config["robust"] = {
+        "gamma_target": 2,
+        "max_scenarios": 5,
+        "exact_scenarios": False,
+        "gamma_schedule": [0, 1, 2],
+    }
+    instance = generate_instance(config, seed=12)
+    result = solve_benders(config, instance, "standard_benders")
+    assert result.metadata["scenario_mode"] == "candidate"
+    assert result.metadata["exact_scenarios"] is False
+    assert result.metadata["num_scenarios_used"] <= 5
+    assert result.metadata["num_scenarios_total_estimated"] > 5
+    assert result.metadata["max_scenarios"] == 5

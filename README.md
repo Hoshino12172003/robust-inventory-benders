@@ -17,6 +17,28 @@ python -m src.cli experiment --config configs/experiment.yaml
 - `inexact_benders`: 固定目标 Gamma、固定主问题 MIPGap 的不精确 Benders。
 - `adaptive_gap_gamma_benders`: 参考 RL-iGBD 的离散动作思想，按 Benders 进展自适应选择主问题 MIPGap，并将 Gamma 从小预算推进到目标预算。
 
+## Scenario Modes
+
+The default paper-experiment setting is:
+
+```yaml
+robust:
+  exact_scenarios: true
+```
+
+Full mode is exact budgeted robust scenario enumeration. When `exact_scenarios: true`, the solver enumerates every binary demand-deviation scenario satisfying `sum z <= Gamma`. If the full scenario count exceeds `max_scenarios`, the run stops with an error instead of silently switching to an approximation.
+
+Candidate mode is heuristic / approximate. It is enabled only with:
+
+```yaml
+robust:
+  exact_scenarios: false
+```
+
+In candidate mode, if full enumeration exceeds `max_scenarios`, the code uses `candidate_budget_scenarios` as a reduced scenario set. Candidate mode must not be reported as an exact robust optimal solution in paper experiments.
+
+Solve result metadata records `scenario_mode`, `exact_scenarios`, `num_scenarios_used`, `num_scenarios_total_estimated`, and `max_scenarios`.
+
 ## RL-iGBD Reference
 
 `E:/浏览器文件/RL-iGBD-main/` 中的源码确认是论文 *Learning to control inexact Benders decomposition via reinforcement learning* 的实现。当前项目借鉴了其中的策略接口思想：

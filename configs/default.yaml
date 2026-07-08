@@ -9,6 +9,7 @@ instance:
 robust:
   gamma_target: 2
   max_scenarios: 5000
+  exact_scenarios: true
   gamma_schedule: [0, 1, 2]
 
 benders:
