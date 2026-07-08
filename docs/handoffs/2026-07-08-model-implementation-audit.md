@@ -3,7 +3,7 @@
 Date: 2026-07-08
 Branch: `codex/model-implementation-audit`
 Commit: `c3a7825`
-PR: `pending`
+PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/2`
 
 ## Summary
 
