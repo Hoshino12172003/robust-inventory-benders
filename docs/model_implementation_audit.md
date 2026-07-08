@@ -280,3 +280,13 @@ max_{d in U(Gamma)} Q(x,d)
 - 大规模：候选场景或自适应策略作为启发式加速；
 
 则当前代码方向是可以支撑投稿准备的。
+
+## 6. Development Decision
+
+当前代码在 full scenario enumeration 下，可视为精确求解论文模型的场景等价形式。
+
+`candidate_budget_scenarios` 只能作为 heuristic / approximate mode，不能作为完整预算鲁棒模型的精确求解结果来表述。
+
+后续投稿级实现建议新增 `robust_dual_milp` 子问题，使代码与论文第三部分的鲁棒对偶推导完全一致。
+
+下一步 PR 应先实现 `exact_scenarios` / `scenario_mode`，再实现 `robust_dual_subproblem`。
