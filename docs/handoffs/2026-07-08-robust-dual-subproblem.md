@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/robust-dual-subproblem`
-Commit: `eed24d1`
+Commit: `pending`
 PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 
 ## Summary
@@ -16,8 +16,12 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 - Kept scenario enumeration as a benchmark / validation / heuristic mode.
 - Updated Benders upper-bound logic so adaptive runs always update final UB using the target Gamma subproblem value.
 - Added final metadata for active and target subproblem values, active Gamma, target Gamma, UB validity, and selected subproblem mode.
+- Added robust dual `objective_bound` so non-optimal MILP solves can expose Gurobi's maximization upper bound.
+- Updated Benders UB handling: optimal robust dual target subproblems use incumbent objective; non-optimal target subproblems use `objective_bound` as a conservative UB when available; otherwise the iteration is marked with `valid_UB=False`.
+- Added iteration log and final metadata fields for subproblem status, MIP gap, objective bound, and whether the UB used a subproblem bound.
 - Updated configs and README to document the new default and mode meanings.
 - Added robust dual tests for full-enumeration agreement, cut exactness at the current point, cut validity at other points, and Benders integration.
+- PR #3 has been merged, and this PR has been retargeted to `main`.
 
 ## Verification
 
@@ -31,10 +35,8 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 
 - Check the robust dual MILP objective against the paper derivation.
 - Check the McCormick linearization bounds for `w = z * lambda` and `g = z * nu`.
-- Check whether Benders metadata and iteration log fields are sufficient for experiment audit.
-- Check whether the stacked PR base should remain PR #3 or be retargeted to `main` after PR #3 is merged.
+- Check whether Benders metadata and iteration log fields are sufficient for experiment audit, especially non-optimal robust dual subproblem cases.
 
 ## Next Steps
 
-- After PR #3 is merged, retarget this PR to `main` if it is created as a stacked PR.
 - Add larger experiment configs comparing `robust_dual_milp` against full scenario enumeration where full enumeration is tractable.

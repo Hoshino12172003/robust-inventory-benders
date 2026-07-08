@@ -21,6 +21,7 @@ class RobustDualSubproblemResult:
     x_coefficients: dict[tuple[int, int], float]
     runtime: float
     status: str
+    objective_bound: float | None
     mip_gap: float | None
 
     def cut_value(self, x_values: dict[tuple[int, int], float]) -> float:
@@ -147,6 +148,7 @@ def solve_robust_dual_subproblem(
     )
     x_coefficients = {(i, j): -mu_values[i, j] for i in instance.I for j in instance.J}
     mip_gap_value = float(model.MIPGap) if model.IsMIP and model.SolCount else None
+    objective_bound = float(model.ObjBound) if model.SolCount else None
 
     return RobustDualSubproblemResult(
         objective=float(model.ObjVal),
@@ -159,5 +161,6 @@ def solve_robust_dual_subproblem(
         x_coefficients=x_coefficients,
         runtime=time.perf_counter() - start,
         status=status,
+        objective_bound=objective_bound,
         mip_gap=mip_gap_value,
     )

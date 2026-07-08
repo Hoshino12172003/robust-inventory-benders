@@ -251,6 +251,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             target_scenario_name = target_cut.scenario_name
             active_scenario_mode = active_enum.scenario_mode
             target_scenario_mode = target_enum.scenario_mode
+            active_subproblem_status = "optimal"
+            target_subproblem_status = "optimal"
+            active_subproblem_mip_gap = None
+            target_subproblem_mip_gap = None
+            target_subproblem_objective_bound = target_cut.objective
         else:
             active_cut = solve_robust_dual(active_gamma, x_values, remaining)
             active_sub_time = active_cut.runtime
@@ -264,18 +269,37 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             target_scenario_name = "robust_dual_milp"
             active_scenario_mode = "not_applicable"
             target_scenario_mode = "not_applicable"
+            active_subproblem_status = active_cut.status
+            target_subproblem_status = target_cut.status
+            active_subproblem_mip_gap = active_cut.mip_gap
+            target_subproblem_mip_gap = target_cut.mip_gap
+            target_subproblem_objective_bound = target_cut.objective_bound
         subproblem_runtime += active_sub_time + target_sub_time
 
-        candidate_upper = first_stage + target_cut.objective
-        if candidate_upper < upper_bound:
+        ub_uses_subproblem_bound = False
+        valid_ub = True
+        conservative_target_cost = target_cut.objective
+        if settings.subproblem_mode == "robust_dual_milp" and target_cut.status != "optimal":
+            if target_cut.objective_bound is None:
+                valid_ub = False
+                conservative_target_cost = None
+            else:
+                conservative_target_cost = target_cut.objective_bound
+                ub_uses_subproblem_bound = True
+
+        candidate_upper = None if conservative_target_cost is None else first_stage + conservative_target_cost
+        if candidate_upper is not None and candidate_upper < upper_bound:
             upper_bound = candidate_upper
             best_first_stage = first_stage
-            best_robust_cost = target_cut.objective
+            best_robust_cost = conservative_target_cost
             best_objective = candidate_upper
 
         lower_bound = max(lower_bound, float(model.ObjBound))
         previous_gap = current_gap
-        gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+        if upper_bound < float("inf"):
+            gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+        else:
+            gap = 1.0
         current_gap = gap
         log.append(
             {
@@ -295,7 +319,14 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "target_worst_cost": target_cut.objective,
                 "active_subproblem_value": active_cut.objective,
                 "target_subproblem_value": target_cut.objective,
-                "valid_UB": True,
+                "active_subproblem_status": active_subproblem_status,
+                "target_subproblem_status": target_subproblem_status,
+                "active_subproblem_mip_gap": active_subproblem_mip_gap,
+                "target_subproblem_mip_gap": target_subproblem_mip_gap,
+                "target_subproblem_objective": target_cut.objective,
+                "target_subproblem_objective_bound": target_subproblem_objective_bound,
+                "ub_uses_subproblem_bound": ub_uses_subproblem_bound,
+                "valid_UB": valid_ub,
                 "active_gamma": active_gamma,
                 "gamma_target": settings.gamma_target,
                 "active_scenario": active_scenario_name,
@@ -368,6 +399,13 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "gamma_schedule": ",".join(str(v) for v in settings.gamma_schedule),
             "active_subproblem_value": last_log.get("active_subproblem_value"),
             "target_subproblem_value": last_log.get("target_subproblem_value"),
+            "active_subproblem_status": last_log.get("active_subproblem_status"),
+            "target_subproblem_status": last_log.get("target_subproblem_status"),
+            "active_subproblem_mip_gap": last_log.get("active_subproblem_mip_gap"),
+            "target_subproblem_mip_gap": last_log.get("target_subproblem_mip_gap"),
+            "target_subproblem_objective": last_log.get("target_subproblem_objective"),
+            "target_subproblem_objective_bound": last_log.get("target_subproblem_objective_bound"),
+            "ub_uses_subproblem_bound": last_log.get("ub_uses_subproblem_bound"),
             "valid_UB": last_log.get("valid_UB"),
             "active_gamma": last_log.get("active_gamma"),
             "gamma_target": settings.gamma_target,

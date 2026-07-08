@@ -59,6 +59,8 @@ def test_robust_dual_matches_full_scenario_enumeration() -> None:
     enumerated = full_enumeration_value(instance, x_values, gamma)
     robust_dual = solve_robust_dual_subproblem(instance, x_values, gamma, mip_gap=0.0)
 
+    assert robust_dual.objective_bound is not None
+    assert robust_dual.objective_bound >= robust_dual.objective - 1e-6
     assert abs(enumerated - robust_dual.objective) <= 1e-5
 
 
@@ -99,4 +101,8 @@ def test_benders_runs_with_robust_dual_milp() -> None:
     assert result.objective is not None
     assert result.status in {"optimal", "iteration_limit", "time_limit"}
     assert result.metadata["subproblem_mode"] == "robust_dual_milp"
+    assert "target_subproblem_status" in result.metadata
+    assert "target_subproblem_mip_gap" in result.metadata
+    assert "target_subproblem_objective_bound" in result.metadata
+    assert "ub_uses_subproblem_bound" in result.metadata
     assert result.gap is None or result.gap <= 1e-3 or result.status in {"iteration_limit", "time_limit"}
