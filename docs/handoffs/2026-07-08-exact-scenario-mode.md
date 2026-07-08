@@ -3,7 +3,7 @@
 Date: 2026-07-08
 Branch: `codex/exact-scenario-mode`
 Commit: `f95b9df`
-PR: `pending`
+PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/3`
 
 ## Summary
 
