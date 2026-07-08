@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/robust-dual-subproblem`
-Commit: `pending`
+Commit: `eed24d1`
 PR: `pending`
 
 ## Summary
