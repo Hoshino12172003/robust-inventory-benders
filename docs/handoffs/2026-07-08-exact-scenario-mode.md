@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/exact-scenario-mode`
-Commit: `pending`
+Commit: `f95b9df`
 PR: `pending`
 
 ## Summary
