@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/model-implementation-audit`
-Commit: `pending`
+Commit: `c3a7825`
 PR: `pending`
 
 ## Summary
