@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/exact-scenario-mode`
-Commit: `095ebf6`
+Commit: `pending`
 PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/3`
 
 ## Summary
@@ -23,11 +23,16 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/3`
 - Updated monolithic solve metadata while keeping monolithic as a small-scale exact benchmark that does not use candidate scenarios.
 - Updated README to distinguish exact full enumeration from heuristic candidate mode and to state that `exact_scenarios: true` is the paper-experiment default.
 - Added `tests/test_scenario_modes.py` for exact full enumeration, exact overflow failure, candidate fallback metadata, and Benders metadata.
+- Cleaned changed files by rewriting them as normal UTF-8 text without hidden / bidirectional Unicode control characters.
+- Checked README, `configs/default.yaml`, and `configs/experiment.yaml` YAML indentation for `exact_scenarios`.
+- Added `active_scenario_mode` and `target_scenario_mode` to the Benders iteration log for experiment audit.
 
 ## Verification
 
 - Ran `pytest tests -q`.
 - Result: 10 passed.
+- Hidden / bidirectional Unicode scan: no remaining hidden format/control characters found.
+- YAML indentation check: `exact_scenarios` is correctly nested under `robust`.
 
 ## Review Notes for ChatGPT
 

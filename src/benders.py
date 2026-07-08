@@ -235,6 +235,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "target_worst_cost": target_worst.objective,
                 "active_scenario": active_worst.scenario_name,
                 "target_scenario": target_worst.scenario_name,
+                "active_scenario_mode": active_enum.scenario_mode,
+                "target_scenario_mode": target_enum.scenario_mode,
                 "cuts": cuts,
             }
         )
