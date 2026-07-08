@@ -19,6 +19,16 @@ class DemandScenario:
         return len(self.active_units)
 
 
+@dataclass(frozen=True)
+class ScenarioEnumerationResult:
+    scenarios: list[DemandScenario]
+    scenario_mode: str
+    exact_scenarios: bool
+    num_scenarios_used: int
+    num_scenarios_total_estimated: int
+    max_scenarios: int
+
+
 def _all_units(instance: InventoryInstance) -> list[tuple[int, int]]:
     return [(r, j) for r in instance.R for j in instance.J]
 
@@ -46,7 +56,22 @@ def enumerate_budget_scenarios(
     instance: InventoryInstance,
     gamma: int,
     max_scenarios: int = 5000,
+    exact_scenarios: bool = True,
 ) -> list[DemandScenario]:
+    return enumerate_budget_scenarios_with_metadata(
+        instance,
+        gamma,
+        max_scenarios=max_scenarios,
+        exact_scenarios=exact_scenarios,
+    ).scenarios
+
+
+def enumerate_budget_scenarios_with_metadata(
+    instance: InventoryInstance,
+    gamma: int,
+    max_scenarios: int = 5000,
+    exact_scenarios: bool = True,
+) -> ScenarioEnumerationResult:
     units = _all_units(instance)
     gamma = min(max(0, int(gamma)), len(units))
     total = count_budget_scenarios(instance, gamma)
@@ -55,8 +80,28 @@ def enumerate_budget_scenarios(
         for k in range(gamma + 1):
             for active in combinations(units, k):
                 scenarios.append(_scenario_from_units(instance, active))
-        return scenarios
-    return candidate_budget_scenarios(instance, gamma, max_scenarios)
+        return ScenarioEnumerationResult(
+            scenarios=scenarios,
+            scenario_mode="full",
+            exact_scenarios=exact_scenarios,
+            num_scenarios_used=len(scenarios),
+            num_scenarios_total_estimated=total,
+            max_scenarios=max_scenarios,
+        )
+    if exact_scenarios:
+        raise ValueError(
+            "Exact scenario enumeration exceeds max_scenarios. "
+            "Increase max_scenarios or set exact_scenarios=False."
+        )
+    scenarios = candidate_budget_scenarios(instance, gamma, max_scenarios)
+    return ScenarioEnumerationResult(
+        scenarios=scenarios,
+        scenario_mode="candidate",
+        exact_scenarios=False,
+        num_scenarios_used=len(scenarios),
+        num_scenarios_total_estimated=total,
+        max_scenarios=max_scenarios,
+    )
 
 
 def candidate_budget_scenarios(
