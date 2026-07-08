@@ -91,6 +91,7 @@ def test_candidate_fallback_records_metadata() -> None:
         "exact_scenarios": False,
         "gamma_schedule": [0, 1, 2],
     }
+    config["algorithm"] = {"subproblem_mode": "scenario_enumeration"}
     instance = generate_instance(config, seed=12)
     result = solve_benders(config, instance, "standard_benders")
     assert result.metadata["scenario_mode_target"] == "candidate"

@@ -12,6 +12,9 @@ robust:
   exact_scenarios: true
   gamma_schedule: [0, 1, 2]
 
+algorithm:
+  subproblem_mode: robust_dual_milp
+
 benders:
   max_iterations: 80
   tol: 0.0001

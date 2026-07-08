@@ -51,6 +51,18 @@ robust:
 
 Solve result metadata records the target scenario mode, exact-scenario flag, number of scenarios used, estimated full scenario count, `max_scenarios`, and whether any heuristic candidate scenarios were used.
 
+## Benders subproblem modes
+
+The default paper-experiment setting is:
+
+```yaml
+algorithm:
+  subproblem_mode: robust_dual_milp
+```
+
+- `robust_dual_milp`: solves the robust dual MILP subproblem derived from the paper model. This directly evaluates `Q^R(x; Gamma)` and is the recommended default for main experiments.
+- `scenario_enumeration`: evaluates recourse over full or candidate demand scenarios. This mode remains available for small-scale exact benchmarks, validation against `robust_dual_milp`, and heuristic large-scale experiments.
+
 ## RL-iGBD Reference
 
 `E:/浏览器文件/RL-iGBD-main/` 中的源码确认是论文 *Learning to control inexact Benders decomposition via reinforcement learning* 的实现。当前项目借鉴了其中的策略接口思想：
