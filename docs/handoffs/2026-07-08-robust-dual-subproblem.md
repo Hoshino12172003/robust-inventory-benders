@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/robust-dual-subproblem`
-Commit: `pending`
+Commit: `87255b2`
 PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 
 ## Summary
