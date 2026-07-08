@@ -10,7 +10,7 @@ from gurobipy import GRB
 from .instance import InventoryInstance
 from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState, RLInspiredGapPolicy
 from .results import SolveResult
-from .scenarios import DemandScenario, enumerate_budget_scenarios, scenario_metadata
+from .scenarios import DemandScenario, ScenarioEnumerationResult, enumerate_budget_scenarios_with_metadata
 from .subproblem import SubproblemResult, solve_recourse_subproblem
 
 
@@ -135,14 +135,15 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         raise ValueError(f"Unknown Benders method: {method}")
 
     settings = _settings(config, method)
-    target_scenarios = enumerate_budget_scenarios(
+    target_enum = enumerate_budget_scenarios_with_metadata(
         instance,
         settings.gamma_target,
         settings.max_scenarios,
         exact_scenarios=settings.exact_scenarios,
     )
-    scenario_cache = {
-        gamma: enumerate_budget_scenarios(
+    target_scenarios = target_enum.scenarios
+    scenario_cache: dict[int, ScenarioEnumerationResult] = {
+        gamma: enumerate_budget_scenarios_with_metadata(
             instance,
             gamma,
             settings.max_scenarios,
@@ -197,9 +198,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         y_values = {i: float(y[i].X) for i in instance.I}
         first_stage = _first_stage_value(instance, y_values, x_values)
 
-        active_worst, active_sub_time = _solve_worst_recourse(
-            instance, scenario_cache[active_gamma], x_values, settings.output_flag
-        )
+        active_enum = scenario_cache[active_gamma]
+        active_scenarios = active_enum.scenarios
+        active_worst, active_sub_time = _solve_worst_recourse(instance, active_scenarios, x_values, settings.output_flag)
         target_worst, target_sub_time = _solve_worst_recourse(
             instance, target_scenarios, x_values, settings.output_flag
         )
@@ -250,6 +251,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     if upper_bound < float("inf") and lower_bound > -float("inf"):
         final_gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
 
+    scenario_modes_by_gamma = ",".join(
+        f"{gamma}:{enum.scenario_mode}" for gamma, enum in sorted(scenario_cache.items())
+    )
+    heuristic_scenarios = any(enum.scenario_mode == "candidate" for enum in scenario_cache.values())
+
     return SolveResult(
         method=method,
         status=status,
@@ -266,15 +272,15 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         first_stage_cost=best_first_stage,
         gamma_target=settings.gamma_target,
         metadata={
+            "scenario_mode_target": target_enum.scenario_mode,
+            "exact_scenarios": settings.exact_scenarios,
+            "num_target_scenarios_used": target_enum.num_scenarios_used,
+            "num_target_scenarios_total_estimated": target_enum.num_scenarios_total_estimated,
+            "max_scenarios": target_enum.max_scenarios,
+            "scenario_modes_by_gamma": scenario_modes_by_gamma,
+            "heuristic_scenarios": heuristic_scenarios,
             "num_target_scenarios": len(target_scenarios),
             "gamma_schedule": ",".join(str(v) for v in settings.gamma_schedule),
-            **scenario_metadata(
-                instance,
-                settings.gamma_target,
-                settings.max_scenarios,
-                settings.exact_scenarios,
-                len(target_scenarios),
-            ),
         },
         iteration_log=log,
     )

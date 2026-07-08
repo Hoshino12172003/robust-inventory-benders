@@ -17,27 +17,39 @@ python -m src.cli experiment --config configs/experiment.yaml
 - `inexact_benders`: 固定目标 Gamma、固定主问题 MIPGap 的不精确 Benders。
 - `adaptive_gap_gamma_benders`: 参考 RL-iGBD 的离散动作思想，按 Benders 进展自适应选择主问题 MIPGap，并将 Gamma 从小预算推进到目标预算。
 
-## Scenario Modes
+## Scenario enumeration modes
 
-The default paper-experiment setting is:
+1. `exact_scenarios: true`
+
+This mode fully enumerates the budgeted uncertainty set `U(Gamma)`. It is the default setting for paper experiments and exact benchmarks. If the full scenario count exceeds `max_scenarios`, the program raises an error instead of silently switching to an approximation.
 
 ```yaml
 robust:
   exact_scenarios: true
 ```
 
-Full mode is exact budgeted robust scenario enumeration. When `exact_scenarios: true`, the solver enumerates every binary demand-deviation scenario satisfying `sum z <= Gamma`. If the full scenario count exceeds `max_scenarios`, the run stops with an error instead of silently switching to an approximation.
+2. `exact_scenarios: false`
 
-Candidate mode is heuristic / approximate. It is enabled only with:
+This mode allows `candidate_budget_scenarios` when full enumeration exceeds `max_scenarios`. It is a heuristic / approximate mode for larger exploratory runs. Candidate mode must not be reported as an exact robust optimum in paper experiments.
 
 ```yaml
 robust:
   exact_scenarios: false
 ```
 
-In candidate mode, if full enumeration exceeds `max_scenarios`, the code uses `candidate_budget_scenarios` as a reduced scenario set. Candidate mode must not be reported as an exact robust optimal solution in paper experiments.
+3. `monolithic`
 
-Solve result metadata records `scenario_mode`, `exact_scenarios`, `num_scenarios_used`, `num_scenarios_total_estimated`, and `max_scenarios`.
+The monolithic method is intended for small-scale exact validation. It uses full scenario enumeration and should be treated as an exact benchmark, not as a heuristic candidate-scenario solver.
+
+```yaml
+robust:
+  gamma_target: 2
+  gamma_schedule: [0, 1, 2]
+  max_scenarios: 5000
+  exact_scenarios: true
+```
+
+Solve result metadata records the target scenario mode, exact-scenario flag, number of scenarios used, estimated full scenario count, `max_scenarios`, and whether any heuristic candidate scenarios were used.
 
 ## RL-iGBD Reference
 

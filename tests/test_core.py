@@ -72,7 +72,7 @@ def test_exact_scenarios_raise_when_over_limit() -> None:
     try:
         enumerate_budget_scenarios(instance, 1, max_scenarios=1, exact_scenarios=True)
     except ValueError as exc:
-        assert str(exc) == "Exact scenario enumeration exceeds max_scenarios."
+        assert "Exact scenario enumeration exceeds max_scenarios" in str(exc)
     else:
         raise AssertionError("Expected exact scenario enumeration to fail when over max_scenarios.")
 
@@ -93,8 +93,9 @@ def test_candidate_fallback_records_metadata() -> None:
     }
     instance = generate_instance(config, seed=12)
     result = solve_benders(config, instance, "standard_benders")
-    assert result.metadata["scenario_mode"] == "candidate"
+    assert result.metadata["scenario_mode_target"] == "candidate"
     assert result.metadata["exact_scenarios"] is False
-    assert result.metadata["num_scenarios_used"] <= 5
-    assert result.metadata["num_scenarios_total_estimated"] > 5
+    assert result.metadata["num_target_scenarios_used"] <= 5
+    assert result.metadata["num_target_scenarios_total_estimated"] > 5
     assert result.metadata["max_scenarios"] == 5
+    assert result.metadata["heuristic_scenarios"] is True
