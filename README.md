@@ -63,6 +63,27 @@ algorithm:
 - `robust_dual_milp`: solves the robust dual MILP subproblem derived from the paper model. This directly evaluates `Q^R(x; Gamma)` and is the recommended default for main experiments.
 - `scenario_enumeration`: evaluates recourse over full or candidate demand scenarios. This mode remains available for small-scale exact benchmarks, validation against `robust_dual_milp`, and heuristic large-scale experiments.
 
+## Cut selection strategy
+
+This section is kept as plain UTF-8 text with normal line breaks and no hidden Unicode control characters.
+
+The project supports Benders cut selection based on the violation of the candidate cut at the current master solution:
+
+```text
+v_k = cut_rhs(x^k) - theta^k
+```
+
+When `cut_selection_enabled: true`, a candidate cut is added if `v_k >= delta_cut`, up to the configured numerical tolerance. With `delta_cut: 0.0`, the behavior is close to standard Benders cut addition because cuts with positive violation are retained. Larger `delta_cut` values can reduce the number of cuts in the master problem, but may increase the number of iterations.
+
+```yaml
+algorithm:
+  cut_selection_enabled: true
+  delta_cut: 0.0
+  cut_violation_tol: 1.0e-8
+```
+
+For `robust_dual_milp`, cuts are generated only from the incumbent feasible dual solution through `cut.constant` and `cut.x_coefficients`. The `objective_bound` field is used only for conservative upper-bound updates when the robust dual MILP is not solved to optimality; it is not used for cut generation.
+
 ## RL-iGBD Reference
 
 `E:/浏览器文件/RL-iGBD-main/` 中的源码确认是论文 *Learning to control inexact Benders decomposition via reinforcement learning* 的实现。当前项目借鉴了其中的策略接口思想：

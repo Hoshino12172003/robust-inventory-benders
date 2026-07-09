@@ -23,6 +23,9 @@ class BendersSettings:
     max_scenarios: int
     exact_scenarios: bool
     subproblem_mode: str
+    cut_selection_enabled: bool
+    delta_cut: float
+    cut_violation_tol: float
     max_iterations: int
     tol: float
     initial_mip_gap: float
@@ -52,6 +55,9 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         max_scenarios=int(robust_cfg.get("max_scenarios", 5000)),
         exact_scenarios=bool(robust_cfg.get("exact_scenarios", True)),
         subproblem_mode=subproblem_mode,
+        cut_selection_enabled=bool(algorithm_cfg.get("cut_selection_enabled", True)),
+        delta_cut=float(algorithm_cfg.get("delta_cut", 0.0)),
+        cut_violation_tol=float(algorithm_cfg.get("cut_violation_tol", 1e-8)),
         max_iterations=int(benders_cfg.get("max_iterations", 80)),
         tol=float(benders_cfg.get("tol", 1e-4)),
         initial_mip_gap=float(benders_cfg.get("initial_mip_gap", 0.08)),
@@ -192,6 +198,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     best_robust_cost = None
     best_objective = None
     cuts = 0
+    cuts_skipped = 0
     master_runtime = 0.0
     subproblem_runtime = 0.0
     log: list[dict[str, Any]] = []
@@ -301,6 +308,43 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         else:
             gap = 1.0
         current_gap = gap
+        # Cut selection uses incumbent cut coefficients; objective bounds are only for UB updates.
+        theta_current = float(theta.X)
+        cut_rhs_current = active_cut.cut_value(x_values)
+        cut_violation = cut_rhs_current - theta_current
+        cut_added = False
+        cut_skip_reason = None
+        cut_add_reason = None
+        if settings.subproblem_mode == "robust_dual_milp" and active_cut.status not in {
+            "optimal",
+            "time_limit",
+            "suboptimal",
+        }:
+            add_cut = False
+            cut_skip_reason = "no_incumbent"
+        elif not settings.cut_selection_enabled:
+            add_cut = True
+        else:
+            add_cut = cut_violation >= settings.delta_cut - settings.cut_violation_tol
+            if not add_cut:
+                cut_skip_reason = "low_violation"
+                if (
+                    active_gamma == settings.gamma_target
+                    and gap > settings.tol
+                    and cut_violation > settings.cut_violation_tol
+                ):
+                    add_cut = True
+                    cut_skip_reason = None
+                    cut_add_reason = "forced_target_progress"
+
+        if add_cut:
+            _add_cut(model, x, theta, active_cut, cuts)
+            cuts += 1
+            cut_added = True
+        else:
+            cuts_skipped += 1
+
+        # No unconditional cut addition after this point; skipped cuts stay skipped.
         log.append(
             {
                 "iteration": iteration + 1,
@@ -313,7 +357,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "log_gap": policy_state.log_gap,
                 "gap_improvement": policy_state.gap_improvement,
                 "master_objective": float(model.ObjVal),
-                "theta": float(theta.X),
+                "theta": theta_current,
                 "first_stage_cost": first_stage,
                 "active_worst_cost": active_cut.objective,
                 "target_worst_cost": target_cut.objective,
@@ -333,12 +377,18 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "target_scenario": target_scenario_name,
                 "active_scenario_mode": active_scenario_mode,
                 "target_scenario_mode": target_scenario_mode,
+                "cut_selection_enabled": settings.cut_selection_enabled,
+                "delta_cut": settings.delta_cut,
+                "cut_rhs_current": cut_rhs_current,
+                "cut_violation": cut_violation,
+                "cut_added": cut_added,
+                "cut_skip_reason": cut_skip_reason,
+                "cut_add_reason": cut_add_reason,
+                "cuts_added_total": cuts,
+                "cuts_skipped_total": cuts_skipped,
                 "cuts": cuts,
             }
         )
-
-        _add_cut(model, x, theta, active_cut, cuts)
-        cuts += 1
 
         if active_gamma == settings.gamma_target and gap <= settings.tol:
             status = "optimal"
@@ -397,6 +447,14 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         metadata={
             "subproblem_mode": settings.subproblem_mode,
             "gamma_schedule": ",".join(str(v) for v in settings.gamma_schedule),
+            "cut_selection_enabled": settings.cut_selection_enabled,
+            "delta_cut": settings.delta_cut,
+            "cut_violation_tol": settings.cut_violation_tol,
+            "cuts_added_total": cuts,
+            "cuts_skipped_total": cuts_skipped,
+            "last_cut_violation": last_log.get("cut_violation"),
+            "last_cut_added": last_log.get("cut_added"),
+            "last_cut_skip_reason": last_log.get("cut_skip_reason"),
             "active_subproblem_value": last_log.get("active_subproblem_value"),
             "target_subproblem_value": last_log.get("target_subproblem_value"),
             "active_subproblem_status": last_log.get("active_subproblem_status"),
