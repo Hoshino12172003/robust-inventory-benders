@@ -37,7 +37,12 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/5`
 - Result: 5 passed.
 - Ran `pytest tests -q`.
 - Result: 19 passed.
-- Hidden / bidirectional Unicode scan: clean.
+- Added and ran `scripts/check_hidden_unicode.py` across all git tracked files.
+- Initial scan found U+FEFF at the beginning of `.gitignore`, `requirements.txt`, and `src/__init__.py`.
+- Ran `python scripts/check_hidden_unicode.py --fix` to delete those hidden characters.
+- Second scan result: `No hidden Unicode characters found.`
+- Ran `git diff --check`.
+- Result: no whitespace or conflict-marker errors.
 
 ## Review Notes for ChatGPT
 
