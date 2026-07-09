@@ -65,7 +65,7 @@ algorithm:
 
 ## Cut selection strategy
 
-This section is kept as plain UTF-8 text without hidden Unicode control characters.
+This section is kept as plain UTF-8 text with normal line breaks and no hidden Unicode control characters.
 
 The project supports Benders cut selection based on the violation of the candidate cut at the current master solution:
 

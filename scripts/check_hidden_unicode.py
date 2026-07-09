@@ -29,6 +29,7 @@ EXPLICIT_CODEPOINTS = BIDI_CONTROL_CODEPOINTS | ZERO_WIDTH_CODEPOINTS | {0x00A0}
 SKIP_PARTS = {".git", "__pycache__", ".pytest_cache"}
 
 
+# This scanner removes only hidden/control characters and preserves normal text.
 def git_tracked_files() -> list[Path]:
     result = subprocess.run(
         ["git", "ls-files"],
