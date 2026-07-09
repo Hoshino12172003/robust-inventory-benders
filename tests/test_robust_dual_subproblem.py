@@ -101,8 +101,11 @@ def test_benders_runs_with_robust_dual_milp() -> None:
     assert result.objective is not None
     assert result.status in {"optimal", "iteration_limit", "time_limit"}
     assert result.metadata["subproblem_mode"] == "robust_dual_milp"
+    assert "active_subproblem_status" in result.metadata
     assert "target_subproblem_status" in result.metadata
+    assert "active_subproblem_mip_gap" in result.metadata
     assert "target_subproblem_mip_gap" in result.metadata
     assert "target_subproblem_objective_bound" in result.metadata
     assert "ub_uses_subproblem_bound" in result.metadata
+    assert "valid_UB" in result.metadata
     assert result.gap is None or result.gap <= 1e-3 or result.status in {"iteration_limit", "time_limit"}

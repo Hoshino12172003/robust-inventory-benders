@@ -21,6 +21,7 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 - Added iteration log and final metadata fields for subproblem status, MIP gap, objective bound, and whether the UB used a subproblem bound.
 - Updated configs and README to document the new default and mode meanings.
 - Added robust dual tests for full-enumeration agreement, cut exactness at the current point, cut validity at other points, and Benders integration.
+- Extended robust dual Benders metadata tests to cover active/target subproblem status, MIP gap, objective bound, UB bound usage, and `valid_UB`.
 - PR #3 has been merged, and this PR has been retargeted to `main`.
 
 ## Verification
