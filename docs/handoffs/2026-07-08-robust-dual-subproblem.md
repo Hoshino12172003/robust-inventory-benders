@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Branch: `codex/robust-dual-subproblem`
-Commit: `4c90c99`
+Commit: `pending`
 PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 
 ## Summary
@@ -22,6 +22,8 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 - Updated configs and README to document the new default and mode meanings.
 - Added robust dual tests for full-enumeration agreement, cut exactness at the current point, cut validity at other points, and Benders integration.
 - Extended robust dual Benders metadata tests to cover active/target subproblem status, MIP gap, objective bound, UB bound usage, and `valid_UB`.
+- Reorganized the robust dual Benders metadata test around a single `required_metadata` list.
+- Re-cleaned all PR changed files to remove hidden / bidirectional Unicode control characters.
 - PR #3 has been merged, and this PR has been retargeted to `main`.
 
 ## Verification
@@ -30,7 +32,7 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/4`
 - Result: 4 passed.
 - Ran `pytest tests -q`.
 - Result: 14 passed.
-- Hidden / bidirectional Unicode scan: no remaining hidden format/control characters found in changed files.
+- Hidden / bidirectional Unicode scan: no remaining hidden format/control characters found in PR changed files.
 
 ## Review Notes for ChatGPT
 
