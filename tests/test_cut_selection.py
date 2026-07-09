@@ -58,6 +58,8 @@ def test_high_delta_cut_selection_skips_low_violation_cut() -> None:
 
     result = solve_benders(config, instance, "adaptive_gap_gamma_benders")
 
+    assert result.cuts == 0
+    assert result.metadata["cuts_added_total"] == 0
     assert result.metadata["cuts_skipped_total"] >= 1
     assert any(not row["cut_added"] for row in result.iteration_log)
     assert any(row["cut_skip_reason"] == "low_violation" for row in result.iteration_log)

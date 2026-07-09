@@ -344,6 +344,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         else:
             cuts_skipped += 1
 
+        # No unconditional cut addition after this point; skipped cuts must remain skipped.
         log.append(
             {
                 "iteration": iteration + 1,
