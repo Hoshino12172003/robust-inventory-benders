@@ -10,6 +10,7 @@ from gurobipy import GRB
 from .instance import InventoryInstance
 from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState, RLInspiredGapPolicy
 from .results import SolveResult
+from .robust_dual_subproblem import RobustDualSubproblemResult, solve_robust_dual_subproblem
 from .scenarios import DemandScenario, ScenarioEnumerationResult, enumerate_budget_scenarios_with_metadata
 from .subproblem import SubproblemResult, solve_recourse_subproblem
 
@@ -21,6 +22,7 @@ class BendersSettings:
     gamma_schedule: list[int]
     max_scenarios: int
     exact_scenarios: bool
+    subproblem_mode: str
     max_iterations: int
     tol: float
     initial_mip_gap: float
@@ -30,6 +32,7 @@ class BendersSettings:
 
 
 def _settings(config: dict[str, Any], method: str) -> BendersSettings:
+    algorithm_cfg = config.get("algorithm", {})
     robust_cfg = config.get("robust", {})
     benders_cfg = config.get("benders", {})
     gamma_target = int(robust_cfg.get("gamma_target", 0))
@@ -39,12 +42,16 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         schedule.append(gamma_target)
     if method in {"standard_benders", "inexact_benders"}:
         schedule = [gamma_target]
+    subproblem_mode = str(algorithm_cfg.get("subproblem_mode", "robust_dual_milp"))
+    if subproblem_mode not in {"scenario_enumeration", "robust_dual_milp"}:
+        raise ValueError(f"Unknown subproblem_mode: {subproblem_mode}")
     return BendersSettings(
         method=method,
         gamma_target=gamma_target,
         gamma_schedule=schedule,
         max_scenarios=int(robust_cfg.get("max_scenarios", 5000)),
         exact_scenarios=bool(robust_cfg.get("exact_scenarios", True)),
+        subproblem_mode=subproblem_mode,
         max_iterations=int(benders_cfg.get("max_iterations", 80)),
         tol=float(benders_cfg.get("tol", 1e-4)),
         initial_mip_gap=float(benders_cfg.get("initial_mip_gap", 0.08)),
@@ -122,11 +129,18 @@ def _solve_worst_recourse(
     return worst, time.perf_counter() - start
 
 
-def _add_cut(model: gp.Model, x: gp.tupledict, theta: gp.Var, cut: SubproblemResult, cut_index: int) -> None:
+def _add_cut(
+    model: gp.Model,
+    x: gp.tupledict,
+    theta: gp.Var,
+    cut: SubproblemResult | RobustDualSubproblemResult,
+    cut_index: int,
+) -> None:
+    cut_name = getattr(cut, "scenario_name", "robust_dual")
     model.addConstr(
         theta
         >= cut.constant + gp.quicksum(cut.x_coefficients[i, j] * x[i, j] for i, j in cut.x_coefficients),
-        name=f"benders_cut[{cut_index}]_{cut.scenario_name}",
+        name=f"benders_cut[{cut_index}]_{cut_name}",
     )
 
 
@@ -135,22 +149,40 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         raise ValueError(f"Unknown Benders method: {method}")
 
     settings = _settings(config, method)
-    target_enum = enumerate_budget_scenarios_with_metadata(
-        instance,
-        settings.gamma_target,
-        settings.max_scenarios,
-        exact_scenarios=settings.exact_scenarios,
-    )
-    target_scenarios = target_enum.scenarios
-    scenario_cache: dict[int, ScenarioEnumerationResult] = {
-        gamma: enumerate_budget_scenarios_with_metadata(
+    target_enum: ScenarioEnumerationResult | None = None
+    target_scenarios: list[DemandScenario] = []
+    scenario_cache: dict[int, ScenarioEnumerationResult] = {}
+    if settings.subproblem_mode == "scenario_enumeration":
+        target_enum = enumerate_budget_scenarios_with_metadata(
             instance,
-            gamma,
+            settings.gamma_target,
             settings.max_scenarios,
             exact_scenarios=settings.exact_scenarios,
         )
-        for gamma in sorted(set(settings.gamma_schedule + [settings.gamma_target]))
-    }
+        target_scenarios = target_enum.scenarios
+        scenario_cache = {
+            gamma: enumerate_budget_scenarios_with_metadata(
+                instance,
+                gamma,
+                settings.max_scenarios,
+                exact_scenarios=settings.exact_scenarios,
+            )
+            for gamma in sorted(set(settings.gamma_schedule + [settings.gamma_target]))
+        }
+
+    def solve_robust_dual(
+        gamma: int,
+        x_current: dict[tuple[int, int], float],
+        remaining_time: float,
+    ) -> RobustDualSubproblemResult:
+        return solve_robust_dual_subproblem(
+            instance,
+            x_current,
+            gamma,
+            time_limit=remaining_time,
+            mip_gap=settings.final_mip_gap,
+            output_flag=settings.output_flag,
+        )
 
     start = time.perf_counter()
     model, y, x, theta = _build_master(instance, settings.output_flag)
@@ -198,24 +230,76 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         y_values = {i: float(y[i].X) for i in instance.I}
         first_stage = _first_stage_value(instance, y_values, x_values)
 
-        active_enum = scenario_cache[active_gamma]
-        active_scenarios = active_enum.scenarios
-        active_worst, active_sub_time = _solve_worst_recourse(instance, active_scenarios, x_values, settings.output_flag)
-        target_worst, target_sub_time = _solve_worst_recourse(
-            instance, target_scenarios, x_values, settings.output_flag
-        )
+        if settings.subproblem_mode == "scenario_enumeration":
+            if target_enum is None:
+                raise RuntimeError("Scenario enumeration metadata is not initialized.")
+            active_enum = scenario_cache[active_gamma]
+            active_scenarios = active_enum.scenarios
+            active_cut, active_sub_time = _solve_worst_recourse(
+                instance,
+                active_scenarios,
+                x_values,
+                settings.output_flag,
+            )
+            target_cut, target_sub_time = _solve_worst_recourse(
+                instance,
+                target_scenarios,
+                x_values,
+                settings.output_flag,
+            )
+            active_scenario_name = active_cut.scenario_name
+            target_scenario_name = target_cut.scenario_name
+            active_scenario_mode = active_enum.scenario_mode
+            target_scenario_mode = target_enum.scenario_mode
+            active_subproblem_status = "optimal"
+            target_subproblem_status = "optimal"
+            active_subproblem_mip_gap = None
+            target_subproblem_mip_gap = None
+            target_subproblem_objective_bound = target_cut.objective
+        else:
+            active_cut = solve_robust_dual(active_gamma, x_values, remaining)
+            active_sub_time = active_cut.runtime
+            if active_gamma == settings.gamma_target:
+                target_cut = active_cut
+                target_sub_time = 0.0
+            else:
+                target_cut = solve_robust_dual(settings.gamma_target, x_values, remaining)
+                target_sub_time = target_cut.runtime
+            active_scenario_name = "robust_dual_milp"
+            target_scenario_name = "robust_dual_milp"
+            active_scenario_mode = "not_applicable"
+            target_scenario_mode = "not_applicable"
+            active_subproblem_status = active_cut.status
+            target_subproblem_status = target_cut.status
+            active_subproblem_mip_gap = active_cut.mip_gap
+            target_subproblem_mip_gap = target_cut.mip_gap
+            target_subproblem_objective_bound = target_cut.objective_bound
         subproblem_runtime += active_sub_time + target_sub_time
 
-        candidate_upper = first_stage + target_worst.objective
-        if candidate_upper < upper_bound:
+        ub_uses_subproblem_bound = False
+        valid_ub = True
+        conservative_target_cost = target_cut.objective
+        if settings.subproblem_mode == "robust_dual_milp" and target_cut.status != "optimal":
+            if target_cut.objective_bound is None:
+                valid_ub = False
+                conservative_target_cost = None
+            else:
+                conservative_target_cost = target_cut.objective_bound
+                ub_uses_subproblem_bound = True
+
+        candidate_upper = None if conservative_target_cost is None else first_stage + conservative_target_cost
+        if candidate_upper is not None and candidate_upper < upper_bound:
             upper_bound = candidate_upper
             best_first_stage = first_stage
-            best_robust_cost = target_worst.objective
+            best_robust_cost = conservative_target_cost
             best_objective = candidate_upper
 
         lower_bound = max(lower_bound, float(model.ObjBound))
         previous_gap = current_gap
-        gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+        if upper_bound < float("inf"):
+            gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+        else:
+            gap = 1.0
         current_gap = gap
         log.append(
             {
@@ -231,17 +315,29 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "master_objective": float(model.ObjVal),
                 "theta": float(theta.X),
                 "first_stage_cost": first_stage,
-                "active_worst_cost": active_worst.objective,
-                "target_worst_cost": target_worst.objective,
-                "active_scenario": active_worst.scenario_name,
-                "target_scenario": target_worst.scenario_name,
-                "active_scenario_mode": active_enum.scenario_mode,
-                "target_scenario_mode": target_enum.scenario_mode,
+                "active_worst_cost": active_cut.objective,
+                "target_worst_cost": target_cut.objective,
+                "active_subproblem_value": active_cut.objective,
+                "target_subproblem_value": target_cut.objective,
+                "active_subproblem_status": active_subproblem_status,
+                "target_subproblem_status": target_subproblem_status,
+                "active_subproblem_mip_gap": active_subproblem_mip_gap,
+                "target_subproblem_mip_gap": target_subproblem_mip_gap,
+                "target_subproblem_objective": target_cut.objective,
+                "target_subproblem_objective_bound": target_subproblem_objective_bound,
+                "ub_uses_subproblem_bound": ub_uses_subproblem_bound,
+                "valid_UB": valid_ub,
+                "active_gamma": active_gamma,
+                "gamma_target": settings.gamma_target,
+                "active_scenario": active_scenario_name,
+                "target_scenario": target_scenario_name,
+                "active_scenario_mode": active_scenario_mode,
+                "target_scenario_mode": target_scenario_mode,
                 "cuts": cuts,
             }
         )
 
-        _add_cut(model, x, theta, active_worst, cuts)
+        _add_cut(model, x, theta, active_cut, cuts)
         cuts += 1
 
         if active_gamma == settings.gamma_target and gap <= settings.tol:
@@ -253,10 +349,35 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     if upper_bound < float("inf") and lower_bound > -float("inf"):
         final_gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
 
-    scenario_modes_by_gamma = ",".join(
-        f"{gamma}:{enum.scenario_mode}" for gamma, enum in sorted(scenario_cache.items())
-    )
-    heuristic_scenarios = any(enum.scenario_mode == "candidate" for enum in scenario_cache.values())
+    last_log = log[-1] if log else {}
+    if settings.subproblem_mode == "scenario_enumeration":
+        if target_enum is None:
+            raise RuntimeError("Scenario enumeration metadata is not initialized.")
+        scenario_modes_by_gamma = ",".join(
+            f"{gamma}:{enum.scenario_mode}" for gamma, enum in sorted(scenario_cache.items())
+        )
+        heuristic_scenarios = any(enum.scenario_mode == "candidate" for enum in scenario_cache.values())
+        scenario_metadata: dict[str, Any] = {
+            "scenario_mode_target": target_enum.scenario_mode,
+            "exact_scenarios": settings.exact_scenarios,
+            "num_target_scenarios_used": target_enum.num_scenarios_used,
+            "num_target_scenarios_total_estimated": target_enum.num_scenarios_total_estimated,
+            "max_scenarios": target_enum.max_scenarios,
+            "scenario_modes_by_gamma": scenario_modes_by_gamma,
+            "heuristic_scenarios": heuristic_scenarios,
+            "num_target_scenarios": len(target_scenarios),
+        }
+    else:
+        scenario_metadata = {
+            "scenario_mode_target": "not_applicable",
+            "exact_scenarios": "not_applicable",
+            "num_target_scenarios_used": "not_applicable",
+            "num_target_scenarios_total_estimated": "not_applicable",
+            "max_scenarios": settings.max_scenarios,
+            "scenario_modes_by_gamma": "not_applicable",
+            "heuristic_scenarios": False,
+            "num_target_scenarios": "not_applicable",
+        }
 
     return SolveResult(
         method=method,
@@ -274,15 +395,21 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         first_stage_cost=best_first_stage,
         gamma_target=settings.gamma_target,
         metadata={
-            "scenario_mode_target": target_enum.scenario_mode,
-            "exact_scenarios": settings.exact_scenarios,
-            "num_target_scenarios_used": target_enum.num_scenarios_used,
-            "num_target_scenarios_total_estimated": target_enum.num_scenarios_total_estimated,
-            "max_scenarios": target_enum.max_scenarios,
-            "scenario_modes_by_gamma": scenario_modes_by_gamma,
-            "heuristic_scenarios": heuristic_scenarios,
-            "num_target_scenarios": len(target_scenarios),
+            "subproblem_mode": settings.subproblem_mode,
             "gamma_schedule": ",".join(str(v) for v in settings.gamma_schedule),
+            "active_subproblem_value": last_log.get("active_subproblem_value"),
+            "target_subproblem_value": last_log.get("target_subproblem_value"),
+            "active_subproblem_status": last_log.get("active_subproblem_status"),
+            "target_subproblem_status": last_log.get("target_subproblem_status"),
+            "active_subproblem_mip_gap": last_log.get("active_subproblem_mip_gap"),
+            "target_subproblem_mip_gap": last_log.get("target_subproblem_mip_gap"),
+            "target_subproblem_objective": last_log.get("target_subproblem_objective"),
+            "target_subproblem_objective_bound": last_log.get("target_subproblem_objective_bound"),
+            "ub_uses_subproblem_bound": last_log.get("ub_uses_subproblem_bound"),
+            "valid_UB": last_log.get("valid_UB"),
+            "active_gamma": last_log.get("active_gamma"),
+            "gamma_target": settings.gamma_target,
+            **scenario_metadata,
         },
         iteration_log=log,
     )
