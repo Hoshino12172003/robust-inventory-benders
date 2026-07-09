@@ -7,7 +7,7 @@ import unicodedata
 from pathlib import Path
 
 
-ALLOWED_CONTROL_CODEPOINTS = {0x09, 0x0A, 0x0D}
+ALLOWED_CONTROL_CODEPOINTS = {0x09, 0x0A}
 BIDI_CONTROL_CODEPOINTS = {
     0x202A,
     0x202B,
