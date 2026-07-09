@@ -14,6 +14,7 @@ robust:
 
 algorithm:
   subproblem_mode: robust_dual_milp
+  # With delta_cut = 0, cut selection keeps the standard positive-violation behavior.
   cut_selection_enabled: true
   delta_cut: 0.0
   cut_violation_tol: 1.0e-8

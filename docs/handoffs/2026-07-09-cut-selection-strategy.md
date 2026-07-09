@@ -30,6 +30,7 @@ PR: `https://github.com/Hoshino12172003/robust-inventory-benders/pull/5`
 - Updated default and experiment configs.
 - Added README documentation for the cut selection strategy.
 - Added `tests/test_cut_selection.py`.
+- Re-touched GitHub-flagged files with visible ASCII-only cleanup notes after deterministic scanning.
 
 ## Verification
 

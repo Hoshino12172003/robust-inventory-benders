@@ -308,6 +308,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         else:
             gap = 1.0
         current_gap = gap
+        # Cut selection uses incumbent cut coefficients; objective bounds are only for UB updates.
         theta_current = float(theta.X)
         cut_rhs_current = active_cut.cut_value(x_values)
         cut_violation = cut_rhs_current - theta_current

@@ -4,6 +4,7 @@ from src.benders import solve_benders
 from src.instance import generate_instance
 
 
+# Tests keep cut selection audit fields visible without changing algorithm behavior.
 def cut_selection_config() -> dict:
     return {
         "seed": 31,
