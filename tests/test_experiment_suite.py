@@ -51,6 +51,8 @@ def test_tiny_experiment_suite_runs(tmp_path: Path) -> None:
         "objective",
         "runtime",
         "cuts_added_total",
+        "first_stage_cost",
+        "inventory_cost",
         "instance_path",
     }
     assert required_fields.issubset(rows[0].keys())
@@ -74,7 +76,16 @@ def test_summary_csv_is_generated(tmp_path: Path) -> None:
 
     assert outputs["summary"].exists()
     assert rows
-    assert {"method", "mean_runtime", "num_success"}.issubset(rows[0].keys())
+    assert {
+        "method",
+        "mean_runtime",
+        "num_completed",
+        "completed_rate",
+        "num_solved",
+        "solved_rate",
+        "num_success",
+        "success_rate",
+    }.issubset(rows[0].keys())
 
 
 def test_ablation_variant_mapping(tmp_path: Path) -> None:
@@ -123,9 +134,26 @@ def test_ablation_variant_mapping(tmp_path: Path) -> None:
     assert rows["full"]["cut_selection_enabled"] == "True"
     assert rows["no_adaptive_gap"]["adaptive_gap_enabled"] == "False"
     assert rows["no_gamma_continuation"]["gamma_continuation_enabled"] == "False"
+    assert rows["no_gamma_continuation"]["gamma_schedule"] == rows["no_gamma_continuation"]["gamma_target"]
     assert rows["no_cut_selection"]["cut_selection_enabled"] == "False"
     assert rows["standard"]["adaptive_gap_enabled"] == "False"
     assert rows["standard"]["gamma_continuation_enabled"] == "False"
+    assert rows["standard"]["cut_selection_enabled"] == "False"
+
+
+def test_correctness_summary_missing_references_are_not_ok(tmp_path: Path) -> None:
+    config = tiny_experiment_config(tmp_path)
+    config["experiment_name"] = "small_correctness"
+    config["methods"] = ["standard_benders", "proposed_adaptive_benders"]
+
+    outputs = run_experiment_suite(config)
+    correctness_path = outputs["output_dir"] / "correctness_summary.csv"
+    rows = _read_csv(correctness_path)
+
+    assert rows
+    assert rows[0]["status"] == "missing_monolithic"
+    assert "abs_diff_monolithic_vs_proposed" in rows[0]
+    assert "rel_diff_scenario_vs_proposed" in rows[0]
 
 
 def test_formal_experiment_configs_exist_and_parse() -> None:

@@ -66,6 +66,7 @@ RESULT_FIELDS = [
     "target_subproblem_objective_bound",
     "total_shortage",
     "service_violation",
+    "first_stage_cost",
     "inventory_cost",
     "worst_case_cost",
     "error_message",
@@ -78,6 +79,10 @@ SUMMARY_FIELDS = [
     "method",
     "variant_name",
     "num_runs",
+    "num_completed",
+    "completed_rate",
+    "num_solved",
+    "solved_rate",
     "num_success",
     "success_rate",
     "mean_objective",
@@ -95,7 +100,8 @@ SUMMARY_FIELDS = [
     "runtime_saving_vs_standard",
 ]
 
-SUCCESS_STATUSES = {"optimal", "iteration_limit", "time_limit"}
+COMPLETED_STATUSES = {"optimal", "iteration_limit", "time_limit"}
+SOLVE_TOLERANCE = 1e-4
 
 
 def _as_list(value: Any, default: list[Any] | None = None) -> list[Any]:
@@ -358,7 +364,8 @@ def _result_row(
         # TODO: derive second-stage shortage/service metrics from stored worst-case recourse solutions.
         "total_shortage": meta.get("total_shortage"),
         "service_violation": meta.get("service_violation"),
-        "inventory_cost": result.first_stage_cost,
+        "first_stage_cost": result.first_stage_cost,
+        "inventory_cost": meta.get("inventory_cost"),
         "worst_case_cost": result.robust_cost,
         "error_message": error_message or meta.get("error_message"),
         "instance_path": str(instance_path),
@@ -426,25 +433,26 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     standard_runtime: dict[tuple[str, str], float] = {}
     for (exp_name, size_name, method, _variant), rows in groups.items():
         if method == "standard_benders":
-            runtimes = [float(r["runtime"]) for r in rows if r.get("status") in SUCCESS_STATUSES and r.get("runtime") not in (None, "")]
+            runtimes = [float(r["runtime"]) for r in rows if _is_completed(r) and r.get("runtime") not in (None, "")]
             mean_runtime = _mean(runtimes)
             if mean_runtime and mean_runtime > 0:
                 standard_runtime[(exp_name, size_name)] = mean_runtime
 
     summaries = []
     for (exp_name, size_name, method, variant_name), rows in sorted(groups.items()):
-        successful = [row for row in rows if row.get("status") in SUCCESS_STATUSES]
-        objectives = [float(r["objective"]) for r in successful if r.get("objective") not in (None, "")]
-        runtimes = [float(r["runtime"]) for r in successful if r.get("runtime") not in (None, "")]
-        gaps = [float(r["final_gap"]) for r in successful if r.get("final_gap") not in (None, "")]
-        iterations = [float(r["iterations"]) for r in successful if r.get("iterations") not in (None, "")]
-        cuts_added = [float(r["cuts_added_total"]) for r in successful if r.get("cuts_added_total") not in (None, "")]
-        cuts_skipped = [float(r["cuts_skipped_total"]) for r in successful if r.get("cuts_skipped_total") not in (None, "")]
-        master_time = [float(r["master_time"]) for r in successful if r.get("master_time") not in (None, "")]
-        subproblem_time = [float(r["subproblem_time"]) for r in successful if r.get("subproblem_time") not in (None, "")]
+        completed = [row for row in rows if _is_completed(row)]
+        solved = [row for row in rows if _is_solved(row)]
+        objectives = [float(r["objective"]) for r in completed if r.get("objective") not in (None, "")]
+        runtimes = [float(r["runtime"]) for r in completed if r.get("runtime") not in (None, "")]
+        gaps = [float(r["final_gap"]) for r in completed if r.get("final_gap") not in (None, "")]
+        iterations = [float(r["iterations"]) for r in completed if r.get("iterations") not in (None, "")]
+        cuts_added = [float(r["cuts_added_total"]) for r in completed if r.get("cuts_added_total") not in (None, "")]
+        cuts_skipped = [float(r["cuts_skipped_total"]) for r in completed if r.get("cuts_skipped_total") not in (None, "")]
+        master_time = [float(r["master_time"]) for r in completed if r.get("master_time") not in (None, "")]
+        subproblem_time = [float(r["subproblem_time"]) for r in completed if r.get("subproblem_time") not in (None, "")]
         valid_ub_values = [
             1.0 if r.get("valid_UB") in {True, "True", "true", 1} else 0.0
-            for r in successful
+            for r in completed
             if r.get("valid_UB") not in (None, "")
         ]
         mean_runtime = _mean(runtimes)
@@ -458,8 +466,12 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "method": method,
                 "variant_name": variant_name,
                 "num_runs": len(rows),
-                "num_success": len(successful),
-                "success_rate": len(successful) / len(rows) if rows else 0.0,
+                "num_completed": len(completed),
+                "completed_rate": len(completed) / len(rows) if rows else 0.0,
+                "num_solved": len(solved),
+                "solved_rate": len(solved) / len(rows) if rows else 0.0,
+                "num_success": len(solved),
+                "success_rate": len(solved) / len(rows) if rows else 0.0,
                 "mean_objective": _mean(objectives),
                 "std_objective": _std(objectives),
                 "mean_runtime": mean_runtime,
@@ -476,6 +488,21 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return summaries
+
+
+def _is_completed(row: dict[str, Any]) -> bool:
+    return row.get("status") in COMPLETED_STATUSES and row.get("objective") not in (None, "")
+
+
+def _is_solved(row: dict[str, Any]) -> bool:
+    if row.get("objective") in (None, ""):
+        return False
+    if row.get("status") == "optimal":
+        return True
+    gap = row.get("final_gap")
+    if gap in (None, ""):
+        return False
+    return float(gap) <= SOLVE_TOLERANCE
 
 
 def _correctness_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -495,6 +522,8 @@ def _correctness_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         proposed_obj = proposed.get("objective")
         diff_mono_standard = _diff(mono_obj, standard_obj)
         diff_scen_standard = _diff(scen_obj, standard_obj)
+        diff_mono_proposed = _diff(mono_obj, proposed_obj)
+        diff_scen_proposed = _diff(scen_obj, proposed_obj)
         rows.append(
             {
                 "seed": seed,
@@ -507,7 +536,17 @@ def _correctness_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "rel_diff_monolithic_vs_standard": diff_mono_standard[1],
                 "abs_diff_scenario_vs_robust_dual": diff_scen_standard[0],
                 "rel_diff_scenario_vs_robust_dual": diff_scen_standard[1],
-                "status": "ok" if _within_tolerance(diff_mono_standard) and _within_tolerance(diff_scen_standard) else "check",
+                "abs_diff_monolithic_vs_proposed": diff_mono_proposed[0],
+                "rel_diff_monolithic_vs_proposed": diff_mono_proposed[1],
+                "abs_diff_scenario_vs_proposed": diff_scen_proposed[0],
+                "rel_diff_scenario_vs_proposed": diff_scen_proposed[1],
+                "status": _correctness_status(
+                    mono_obj,
+                    scen_obj,
+                    standard_obj,
+                    proposed_obj,
+                    [diff_mono_standard, diff_scen_standard, diff_mono_proposed, diff_scen_proposed],
+                ),
             }
         )
     return rows
@@ -524,8 +563,26 @@ def _diff(lhs: Any, rhs: Any) -> tuple[float | None, float | None]:
 def _within_tolerance(diff: tuple[float | None, float | None]) -> bool:
     abs_diff, rel_diff = diff
     if abs_diff is None or rel_diff is None:
-        return True
+        return False
     return abs_diff <= 1e-4 or rel_diff <= 1e-4
+
+
+def _correctness_status(
+    monolithic_objective: Any,
+    scenario_benders_objective: Any,
+    standard_benders_objective: Any,
+    proposed_objective: Any,
+    diffs: list[tuple[float | None, float | None]],
+) -> str:
+    if monolithic_objective in (None, ""):
+        return "missing_monolithic"
+    if scenario_benders_objective in (None, ""):
+        return "missing_scenario_benders"
+    if standard_benders_objective in (None, ""):
+        return "missing_robust_dual_benders"
+    if proposed_objective in (None, ""):
+        return "missing_proposed"
+    return "ok" if all(_within_tolerance(diff) for diff in diffs) else "check"
 
 
 def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
@@ -582,6 +639,10 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
                 "rel_diff_monolithic_vs_standard",
                 "abs_diff_scenario_vs_robust_dual",
                 "rel_diff_scenario_vs_robust_dual",
+                "abs_diff_monolithic_vs_proposed",
+                "rel_diff_monolithic_vs_proposed",
+                "abs_diff_scenario_vs_proposed",
+                "rel_diff_scenario_vs_proposed",
                 "status",
             ],
         )

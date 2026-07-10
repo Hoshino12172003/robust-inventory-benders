@@ -16,6 +16,10 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 - Updated README with experiment-suite usage and scope.
 - Cleaned README, this handoff, and experiment configs for hidden Unicode / bidi / zero-width / NBSP characters.
 - Removed local filesystem references from README and kept the RL/PPO note to one sentence.
+- Refined experiment summary metrics to distinguish completed runs from solved runs.
+- Fixed `correctness_summary.csv` so missing reference objectives are not marked as `ok`.
+- Added proposed-method correctness differences against monolithic and scenario Benders references.
+- Added `first_stage_cost` to `results.csv` and stopped using `inventory_cost` for total first-stage cost.
 
 ## Formal Experiment Configs
 
@@ -31,6 +35,8 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 - `results.csv`: one row per method / variant / instance / seed run.
 - `summary.csv`: aggregated success rate, runtime, gap, iteration, cut, and UB-validity statistics.
 - `correctness_summary.csv`: exact-vs-Benders comparison for `small_correctness`.
+
+`completed_rate` tracks runs with a usable incumbent / result. `solved_rate` tracks runs that are optimal or within the final-gap tolerance. The legacy `success_rate` field follows the stricter solved definition.
 
 ## Experiment Methods
 
@@ -63,6 +69,8 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 ## PR Notes
 
 - This PR adds `tests/test_experiment_suite.py`.
+- This PR refines completed vs solved status metrics.
+- This PR fixes correctness-summary missing-reference handling.
 - This PR does not introduce RL/PPO.
 - This PR does not change the mathematical model.
 - This PR does not change the robust dual MILP core algorithm.

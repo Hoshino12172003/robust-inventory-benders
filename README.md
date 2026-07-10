@@ -121,12 +121,14 @@ Each suite run writes outputs under `experiments/results/<experiment_name>/`:
 
 `summary.csv` reports success rate, mean objective, mean runtime, mean final gap, mean iterations, mean cut counts, mean master/subproblem time, valid-UB rate, and speedup versus `standard_benders` when available.
 
+`completed_rate` means a run ended with a usable incumbent / result: `optimal`, `iteration_limit`, or `time_limit` with an objective value. `solved_rate` means the run reached `optimal` status or the final Benders gap is within the configured tolerance. The legacy `success_rate` field is kept for compatibility and follows the stricter solved definition. A `time_limit` or `iteration_limit` row should not be interpreted as a strict solve unless its final gap also satisfies the tolerance.
+
 ### Experiment Scope
 
 - `monolithic_gurobi` is only intended for small exact validation.
 - `scenario_benders_full` uses `exact_scenarios: true`; if full enumeration exceeds `max_scenarios`, the run is recorded as skipped instead of falling back to candidate scenarios.
 - Candidate scenarios are heuristic and must not be used as an exact robust baseline.
-- Tests use very small instances only to keep CI fast. Formal configurations include small, medium, medium-large, and large settings for paper experiments.
+- Tests use very small instances only to verify the pipeline quickly. Formal configurations, not test fixtures, should be used for paper experiments and include small, medium, medium-large, and large settings.
 
 ## Optional Plotting
 
