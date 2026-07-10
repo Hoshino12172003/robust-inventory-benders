@@ -1,0 +1,83 @@
+# PR #6 Handoff: Experiment Suite
+
+## Summary
+
+This PR adds a reproducible experiment suite for correctness validation, baseline comparison, ablation study, sensitivity analysis, and scalability analysis.
+
+## Main Changes
+
+- Added `src/experiment_suite.py`.
+- Added formal experiment configs under `experiments/configs/`.
+- Added result output support for `results.csv`, `summary.csv`, and `correctness_summary.csv`.
+- Added `experiments/scripts/plot_results.py` for optional matplotlib plots.
+- Added `tests/test_experiment_suite.py`.
+- Extended instance generation with `demand_scale`, `capacity_factor`, `cost_scale`, and `service_level`.
+- Added `python -m src.cli experiment-suite --config ...`.
+- Updated README with experiment-suite usage and scope.
+- Cleaned README, this handoff, and experiment configs for hidden Unicode / bidi / zero-width / NBSP characters.
+- Removed local filesystem references from README and kept the RL/PPO note to one sentence.
+- Refined experiment summary metrics to distinguish completed runs from solved runs.
+- Fixed `correctness_summary.csv` so missing reference objectives are not marked as `ok`.
+- Added proposed-method correctness differences against monolithic and scenario Benders references.
+- Added `first_stage_cost` to `results.csv` and stopped using `inventory_cost` for total first-stage cost.
+
+## Formal Experiment Configs
+
+- `small_correctness.yaml` supports small exact validation.
+- `baseline_comparison.yaml` includes small + medium.
+- `ablation_study.yaml` is medium-focused and also includes medium-large.
+- `sensitivity_gamma.yaml` varies `Gamma` on medium instances.
+- `sensitivity_service.yaml` varies service levels on medium instances.
+- `scalability.yaml` includes small + medium + large.
+
+## Outputs
+
+- `results.csv`: one row per method / variant / instance / seed run.
+- `summary.csv`: aggregated success rate, runtime, gap, iteration, cut, and UB-validity statistics.
+- `correctness_summary.csv`: exact-vs-Benders comparison for `small_correctness`.
+
+`completed_rate` tracks runs with a usable incumbent / result. `solved_rate` tracks runs that are optimal or within the final-gap tolerance. The legacy `success_rate` field follows the stricter solved definition.
+
+## Experiment Methods
+
+- `monolithic_gurobi`
+- `standard_benders`
+- `static_inexact_benders`
+- `adaptive_gamma_benders`
+- `adaptive_gap_benders`
+- `adaptive_cut_benders`
+- `proposed_adaptive_benders`
+- `scenario_benders_full`
+
+## Scope Notes
+
+- This PR does not introduce RL/PPO.
+- This PR does not change the mathematical model.
+- This PR does not change the robust dual MILP core algorithm.
+- `monolithic_gurobi` and `scenario_benders_full` are exact full-enumeration methods and are skipped when the full scenario count exceeds `max_scenarios`.
+- Candidate scenarios remain heuristic and are not used as exact robust baselines.
+
+## Verification
+
+- `python scripts/check_hidden_unicode.py`: `No hidden Unicode characters found.`
+- `python -m py_compile src/experiment_suite.py`: passed.
+- `python -m py_compile tests/test_experiment_suite.py`: passed.
+- `python -m py_compile experiments/scripts/plot_results.py`: passed.
+- `pytest tests/test_experiment_suite.py -q`: `5 passed`
+- `pytest tests -q`: `24 passed`
+
+## PR Notes
+
+- This PR adds `tests/test_experiment_suite.py`.
+- This PR refines completed vs solved status metrics.
+- This PR fixes correctness-summary missing-reference handling.
+- This PR does not introduce RL/PPO.
+- This PR does not change the mathematical model.
+- This PR does not change the robust dual MILP core algorithm.
+
+## Next Steps
+
+- Run the formal `small_correctness` experiment locally and inspect `correctness_summary.csv`.
+- Run `baseline_comparison` on small and medium instances before drafting the computational-results section.
+- Use `ablation_study` to quantify the contribution of adaptive gap, Gamma continuation, and cut selection.
+- Keep large-scale runs outside CI because they are intended for paper experiments, not unit tests.

@@ -1,0 +1,23 @@
+experiment_name: scalability
+output_dir: experiments/results/scalability
+random_seeds: [0, 1, 2]
+instance_sizes: [small, medium, large]
+methods:
+  - standard_benders
+  - proposed_adaptive_benders
+time_limit: 300
+mip_gap: 0.05
+final_mip_gap: 0.0001
+max_iterations: 120
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+alpha_values: [0.9]
+delta_cut_values: [0.0]
+delta_cut: 0.0
+max_scenarios: 5000
+exact_scenarios: true
+subproblem_mode: robust_dual_milp
+budget_factor: 0.7
+capacity_factor: 1.25
+cost_scale: 1.0
+demand_scale: 1.0
