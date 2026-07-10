@@ -14,6 +14,8 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 - Extended instance generation with `demand_scale`, `capacity_factor`, `cost_scale`, and `service_level`.
 - Added `python -m src.cli experiment-suite --config ...`.
 - Updated README with experiment-suite usage and scope.
+- Cleaned README, this handoff, and experiment configs for hidden Unicode / bidi / zero-width / NBSP characters.
+- Removed local filesystem references from README and kept the RL/PPO note to one sentence.
 
 ## Formal Experiment Configs
 
@@ -52,6 +54,9 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 ## Verification
 
 - `python scripts/check_hidden_unicode.py`: `No hidden Unicode characters found.`
+- `python -m py_compile src/experiment_suite.py`: passed.
+- `python -m py_compile tests/test_experiment_suite.py`: passed.
+- `python -m py_compile experiments/scripts/plot_results.py`: passed.
 - `pytest tests/test_experiment_suite.py -q`: `5 passed`
 - `pytest tests -q`: `24 passed`
 

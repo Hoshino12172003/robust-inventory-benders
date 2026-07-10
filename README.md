@@ -19,7 +19,7 @@ python -m src.cli solve --method adaptive_gap_gamma_benders --instance data/proc
 python -m src.cli experiment --config configs/experiment.yaml
 ```
 
-## Core Methods
+## Methods
 
 - `monolithic`: full-scenario robust monolithic benchmark for small exact validation.
 - `standard_benders`: fixed target `Gamma`, exact or near-exact master solve, no cut selection.
@@ -28,7 +28,7 @@ python -m src.cli experiment --config configs/experiment.yaml
 
 The experiment suite exposes paper-facing names such as `standard_benders`, `static_inexact_benders`, `adaptive_gamma_benders`, `adaptive_gap_benders`, `adaptive_cut_benders`, `proposed_adaptive_benders`, `monolithic_gurobi`, and `scenario_benders_full`.
 
-## Scenario Enumeration Modes
+## Scenario Modes
 
 1. `exact_scenarios: true`
 
@@ -52,7 +52,7 @@ robust:
 
 The monolithic method is intended for small-scale exact validation. It uses full scenario enumeration and should be treated as an exact benchmark, not as a heuristic candidate-scenario solver.
 
-## Benders Subproblem Modes
+## Subproblem Modes
 
 The default paper-experiment setting is:
 
