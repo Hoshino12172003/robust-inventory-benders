@@ -15,6 +15,21 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 - Added `python -m src.cli experiment-suite --config ...`.
 - Updated README with experiment-suite usage and scope.
 
+## Formal Experiment Configs
+
+- `small_correctness.yaml` supports small exact validation.
+- `baseline_comparison.yaml` includes small + medium.
+- `ablation_study.yaml` is medium-focused and also includes medium-large.
+- `sensitivity_gamma.yaml` varies `Gamma` on medium instances.
+- `sensitivity_service.yaml` varies service levels on medium instances.
+- `scalability.yaml` includes small + medium + large.
+
+## Outputs
+
+- `results.csv`: one row per method / variant / instance / seed run.
+- `summary.csv`: aggregated success rate, runtime, gap, iteration, cut, and UB-validity statistics.
+- `correctness_summary.csv`: exact-vs-Benders comparison for `small_correctness`.
+
 ## Experiment Methods
 
 - `monolithic_gurobi`
@@ -39,6 +54,13 @@ This PR adds a reproducible experiment suite for correctness validation, baselin
 - `python scripts/check_hidden_unicode.py`: `No hidden Unicode characters found.`
 - `pytest tests/test_experiment_suite.py -q`: `5 passed`
 - `pytest tests -q`: `24 passed`
+
+## PR Notes
+
+- This PR adds `tests/test_experiment_suite.py`.
+- This PR does not introduce RL/PPO.
+- This PR does not change the mathematical model.
+- This PR does not change the robust dual MILP core algorithm.
 
 ## Next Steps
 
