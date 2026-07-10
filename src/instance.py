@@ -55,25 +55,32 @@ def generate_instance(config: dict[str, Any], seed: int | None = None) -> Invent
     n_j = int(instance_cfg.get("num_products", 2))
     n_r = int(instance_cfg.get("num_regions", 4))
     budget_factor = float(instance_cfg.get("budget_factor", 0.58))
+    demand_scale = float(instance_cfg.get("demand_scale", 1.0))
+    capacity_factor = float(instance_cfg.get("capacity_factor", 1.18))
+    cost_scale = float(instance_cfg.get("cost_scale", 1.0))
+    service_level_override = instance_cfg.get("service_level")
 
-    base_demand = rng.integers(35, 95, size=(n_r, n_j)).astype(float)
+    base_demand = (rng.integers(35, 95, size=(n_r, n_j)).astype(float) * demand_scale).round(2)
     demand_deviation = np.maximum(5.0, np.round(base_demand * rng.uniform(0.15, 0.45, size=(n_r, n_j)), 2))
     total_product_demand = base_demand.sum(axis=0)
 
-    fixed_cost = rng.integers(120, 280, size=n_i).astype(float)
-    inventory_cost = rng.uniform(1.4, 4.2, size=(n_i, n_j)).round(2)
+    fixed_cost = (rng.integers(120, 280, size=n_i).astype(float) * cost_scale).round(2)
+    inventory_cost = (rng.uniform(1.4, 4.2, size=(n_i, n_j)) * cost_scale).round(2)
     volume = rng.uniform(0.8, 1.8, size=n_j).round(2)
     capacity = rng.uniform(0.55, 0.9, size=n_i)
-    capacity = np.round(capacity / capacity.sum() * float(total_product_demand.sum()) * 1.18, 2)
+    capacity = np.round(capacity / capacity.sum() * float(total_product_demand.sum()) * capacity_factor, 2)
     inventory_ub = np.zeros((n_i, n_j))
     for i in range(n_i):
         for j in range(n_j):
             inventory_ub[i, j] = round(min(capacity[i] / volume[j], total_product_demand[j] * 1.35), 2)
 
-    transport_cost = rng.uniform(0.6, 5.5, size=(n_i, n_r, n_j)).round(2)
-    shortage_penalty = rng.uniform(10.0, 20.0, size=(n_r, n_j)).round(2)
+    transport_cost = (rng.uniform(0.6, 5.5, size=(n_i, n_r, n_j)) * cost_scale).round(2)
+    shortage_penalty = (rng.uniform(10.0, 20.0, size=(n_r, n_j)) * cost_scale).round(2)
     service_penalty = (shortage_penalty.max(axis=0) * rng.uniform(1.5, 2.2, size=n_j)).round(2)
-    service_level = rng.uniform(0.82, 0.94, size=n_j).round(2)
+    if service_level_override is None:
+        service_level = rng.uniform(0.82, 0.94, size=n_j).round(2)
+    else:
+        service_level = np.full(n_j, float(service_level_override)).round(2)
 
     full_open_cost = float(fixed_cost.sum() + (inventory_cost * inventory_ub * 0.45).sum())
     budget = round(full_open_cost * budget_factor, 2)
