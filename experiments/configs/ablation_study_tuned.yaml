@@ -1,0 +1,47 @@
+experiment_name: ablation_study
+output_dir: experiments/results_tuned/ablation_study
+random_seeds: [0, 1, 2, 3, 4]
+instance_sizes: [medium]
+variants:
+  - full
+  - no_adaptive_gap
+  - no_gamma_continuation
+  - no_cut_selection
+  - standard
+variant_settings:
+  full:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+  no_adaptive_gap:
+    adaptive_gap_enabled: false
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+  no_gamma_continuation:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    cut_selection_enabled: true
+  no_cut_selection:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: false
+  standard:
+    adaptive_gap_enabled: false
+    gamma_continuation_enabled: false
+    cut_selection_enabled: false
+time_limit: 600
+mip_gap: 0.05
+final_mip_gap: 0.0001
+max_iterations: 300
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+alpha_values: [0.9]
+delta_cut_values: [1000000000000.0]
+delta_cut: 1000000000000.0
+max_scenarios: 5000
+exact_scenarios: true
+subproblem_mode: robust_dual_milp
+budget_factor: 0.7
+capacity_factor: 1.25
+cost_scale: 1.0
+demand_scale: 1.0
