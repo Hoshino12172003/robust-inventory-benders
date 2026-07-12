@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.experiment_suite import run_experiment_suite
+from src.experiment_suite import _apply_variant_config, _base_config, run_experiment_suite
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -176,6 +176,72 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     assert configs["final_evaluation_template.yaml"]["random_seeds"] == list(range(10, 20))
     selected = configs["selected_algorithm_parameters.yaml"]
     assert selected["selection_status"] == "pending_parameter_screens"
+
+
+def test_round2_tuning_configs_exist_and_parse() -> None:
+    config_dir = Path("experiments/configs")
+    wide = yaml.safe_load(
+        (config_dir / "screen_relative_cut_wide.yaml").read_text(encoding="utf-8")
+    )
+    master_gamma = yaml.safe_load(
+        (config_dir / "screen_master_gamma.yaml").read_text(encoding="utf-8")
+    )
+    confirm = yaml.safe_load(
+        (config_dir / "confirm_equal_time_medium.yaml").read_text(encoding="utf-8")
+    )
+
+    for config in (wide, master_gamma, confirm):
+        assert config["random_seeds"] == [0, 1, 2]
+        assert config["instance_sizes"] == ["medium"]
+        assert config["save_iteration_log"] is True
+
+    thresholds = [
+        wide["variant_settings"][name]["relative_cut_threshold"]
+        for name in wide["variants"]
+    ]
+    assert thresholds == [0.0, 0.05, 0.10, 0.20, 0.30, 0.50]
+    assert wide["adaptive_subproblem_gap_enabled"] is True
+    assert wide["max_cuts_per_iteration"] == 2
+    assert wide["max_iterations"] == 300
+    assert wide["time_limit"] == 180
+
+    staged = master_gamma["variant_settings"]["staged_gamma"]["gamma_schedule"]
+    assert staged[:10] == [0] * 10
+    assert staged[10:30] == [1] * 20
+    assert staged[30:] == [2]
+    assert master_gamma["relative_cut_threshold"] is None
+
+    assert confirm["methods"] == ["standard_benders", "proposed_adaptive_benders"]
+    assert confirm["time_limit"] == 60
+    assert confirm["max_iterations"] == 2000
+    assert confirm["parameters_must_be_fixed_from"].endswith(
+        "selected_algorithm_parameters.yaml"
+    )
+
+
+def test_round2_staged_gamma_variant_is_applied() -> None:
+    exp_config = {
+        "gamma_target": 2,
+        "gamma_schedule": [0, 1, 2],
+        "subproblem_mode": "robust_dual_milp",
+        "mip_gap": 0.05,
+        "final_mip_gap": 0.0001,
+    }
+    config = _base_config(exp_config, "very_small", seed=0)
+    staged = [0] * 10 + [1] * 20 + [2]
+    _, flags, resolved = _apply_variant_config(
+        config,
+        "proposed_adaptive_benders",
+        {
+            "adaptive_gap_enabled": True,
+            "gamma_continuation_enabled": True,
+            "cut_selection_enabled": True,
+            "gamma_schedule": staged,
+        },
+    )
+
+    assert flags["gamma_continuation_enabled"] is True
+    assert resolved["robust"]["gamma_schedule"] == staged
 
 
 def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> None:

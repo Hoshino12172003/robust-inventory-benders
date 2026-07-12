@@ -1,0 +1,17 @@
+experiment_name: confirm_equal_time_medium
+output_dir: experiments/results_diagnostics_round2/confirm_equal_time_medium
+random_seeds: [0, 1, 2]
+instance_sizes: [medium]
+methods: [standard_benders, proposed_adaptive_benders]
+save_iteration_log: true
+time_limit: 60
+max_iterations: 2000
+tol: 0.0001
+mip_gap: 0.05
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+subproblem_mode: robust_dual_milp
+max_scenarios: 5000
+exact_scenarios: true
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml

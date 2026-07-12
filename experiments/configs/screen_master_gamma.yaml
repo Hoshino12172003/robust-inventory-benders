@@ -1,0 +1,78 @@
+experiment_name: screen_master_gamma
+output_dir: experiments/results_diagnostics_round2/screen_master_gamma
+random_seeds: [0, 1, 2]
+instance_sizes: [medium]
+variants:
+  - current_full
+  - adaptive_gap_002
+  - adaptive_gap_001
+  - exact_master
+  - staged_gamma
+  - no_gamma_continuation
+variant_settings:
+  current_full:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    initial_mip_gap: 0.05
+    gamma_schedule: [0, 1, 2]
+  adaptive_gap_002:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    initial_mip_gap: 0.02
+    final_mip_gap: 0.0001
+    gamma_schedule: [0, 1, 2]
+  adaptive_gap_001:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    initial_mip_gap: 0.01
+    final_mip_gap: 0.0001
+    gamma_schedule: [0, 1, 2]
+  exact_master:
+    adaptive_gap_enabled: false
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    final_mip_gap: 0.0001
+    gamma_schedule: [0, 1, 2]
+  staged_gamma:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    initial_mip_gap: 0.02
+    gamma_schedule: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+  no_gamma_continuation:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    cut_selection_enabled: true
+    initial_mip_gap: 0.02
+    gamma_schedule: [2]
+save_iteration_log: true
+time_limit: 180
+max_iterations: 300
+tol: 0.0001
+mip_gap: 0.05
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+subproblem_mode: robust_dual_milp
+cut_selection_mode: relative
+relative_cut_threshold: null
+cut_violation_tol: 1.0e-8
+final_exact_gap: 0.01
+cut_stall_patience: 5
+adaptive_subproblem_gap_enabled: true
+subproblem_gap_schedule:
+  - global_gap_above: 0.10
+    mip_gap: 0.05
+  - global_gap_above: 0.05
+    mip_gap: 0.02
+  - global_gap_above: 0.01
+    mip_gap: 0.005
+  - global_gap_above: 0.00
+    mip_gap: 0.0001
+max_cuts_per_iteration: 2
+subproblem_time_budget_per_iteration: 120
+max_scenarios: 5000
+exact_scenarios: true

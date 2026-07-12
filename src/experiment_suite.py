@@ -312,6 +312,8 @@ def _apply_variant_config(
     ):
         if key in variant:
             config["algorithm"][key] = variant[key]
+    if flags["gamma_continuation_enabled"] and "gamma_schedule" in variant:
+        config["robust"]["gamma_schedule"] = [int(value) for value in variant["gamma_schedule"]]
     for key in ("max_iterations", "tol", "initial_mip_gap", "final_mip_gap", "time_limit"):
         if key in variant:
             config["benders"][key] = variant[key]
