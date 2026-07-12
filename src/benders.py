@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 import time
-from typing import Any
+from typing import Any, Callable
 
 import gurobipy as gp
 from gurobipy import GRB
@@ -25,13 +26,30 @@ class BendersSettings:
     subproblem_mode: str
     cut_selection_enabled: bool
     delta_cut: float
+    cut_selection_mode: str
+    relative_cut_threshold: float
     cut_violation_tol: float
+    final_exact_gap: float
+    cut_stall_patience: int
+    adaptive_subproblem_gap_enabled: bool
+    subproblem_gap_schedule: list[dict[str, float]]
+    max_cuts_per_iteration: int
+    subproblem_time_budget_per_iteration: float | None
     max_iterations: int
     tol: float
     initial_mip_gap: float
     final_mip_gap: float
     time_limit: float
     output_flag: bool
+
+
+@dataclass(frozen=True)
+class AdditionalCutBatch:
+    cuts: list[RobustDualSubproblemResult]
+    runtime: float
+    nonoptimal_count: int
+    without_incumbent_count: int
+    duplicate_patterns_rejected: int
 
 
 def _settings(config: dict[str, Any], method: str) -> BendersSettings:
@@ -48,6 +66,19 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
     subproblem_mode = str(algorithm_cfg.get("subproblem_mode", "robust_dual_milp"))
     if subproblem_mode not in {"scenario_enumeration", "robust_dual_milp"}:
         raise ValueError(f"Unknown subproblem_mode: {subproblem_mode}")
+    cut_selection_mode = str(algorithm_cfg.get("cut_selection_mode", "absolute"))
+    if cut_selection_mode not in {"absolute", "relative"}:
+        raise ValueError(f"Unknown cut_selection_mode: {cut_selection_mode}")
+    raw_subproblem_schedule = algorithm_cfg.get("subproblem_gap_schedule") or [
+        {"global_gap_above": 0.0, "mip_gap": float(benders_cfg.get("final_mip_gap", 1e-4))}
+    ]
+    subproblem_schedule = [
+        {
+            "global_gap_above": float(item["global_gap_above"]),
+            "mip_gap": max(0.0, float(item["mip_gap"])),
+        }
+        for item in raw_subproblem_schedule
+    ]
     return BendersSettings(
         method=method,
         gamma_target=gamma_target,
@@ -57,13 +88,145 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         subproblem_mode=subproblem_mode,
         cut_selection_enabled=bool(algorithm_cfg.get("cut_selection_enabled", True)),
         delta_cut=float(algorithm_cfg.get("delta_cut", 0.0)),
+        cut_selection_mode=cut_selection_mode,
+        relative_cut_threshold=float(algorithm_cfg.get("relative_cut_threshold", 1e-4)),
         cut_violation_tol=float(algorithm_cfg.get("cut_violation_tol", 1e-8)),
+        final_exact_gap=float(algorithm_cfg.get("final_exact_gap", 1e-2)),
+        cut_stall_patience=max(1, int(algorithm_cfg.get("cut_stall_patience", 5))),
+        adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
+        subproblem_gap_schedule=subproblem_schedule,
+        max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
+        subproblem_time_budget_per_iteration=(
+            float(algorithm_cfg["subproblem_time_budget_per_iteration"])
+            if algorithm_cfg.get("subproblem_time_budget_per_iteration") is not None
+            else None
+        ),
         max_iterations=int(benders_cfg.get("max_iterations", 80)),
         tol=float(benders_cfg.get("tol", 1e-4)),
         initial_mip_gap=float(benders_cfg.get("initial_mip_gap", 0.08)),
         final_mip_gap=float(benders_cfg.get("final_mip_gap", 1e-4)),
         time_limit=float(benders_cfg.get("time_limit", 120)),
         output_flag=bool(benders_cfg.get("output_flag", False)),
+    )
+
+
+def calculate_cut_violations(rhs: float, theta: float) -> tuple[float, float]:
+    """Return nonnegative absolute and scale-independent cut violations."""
+    absolute = max(0.0, float(rhs) - float(theta))
+    normalized = absolute / max(1.0, abs(float(theta)), abs(float(rhs)))
+    return absolute, normalized
+
+
+def select_subproblem_mip_gap(
+    global_gap: float | None,
+    has_finite_upper_bound: bool,
+    schedule: list[dict[str, float]],
+    final_exact_gap: float,
+) -> float:
+    if not schedule:
+        raise ValueError("subproblem_gap_schedule must not be empty")
+    coarsest = max(item["mip_gap"] for item in schedule)
+    tightest = min(item["mip_gap"] for item in schedule)
+    if not has_finite_upper_bound or global_gap is None:
+        return coarsest
+    if global_gap <= final_exact_gap:
+        return tightest
+    for item in sorted(schedule, key=lambda row: row["global_gap_above"], reverse=True):
+        if global_gap > item["global_gap_above"]:
+            return item["mip_gap"]
+    return tightest
+
+
+def relative_cut_decision(
+    absolute_violation: float,
+    normalized_violation: float,
+    threshold: float,
+    tolerance: float,
+    active_gamma: int,
+    gamma_target: int,
+    global_gap: float,
+    final_exact_gap: float,
+) -> tuple[bool, str | None, str | None]:
+    if absolute_violation <= tolerance:
+        return False, "not_violated", None
+    if normalized_violation >= threshold:
+        return True, None, None
+    if active_gamma == gamma_target and global_gap <= final_exact_gap:
+        return True, None, "final_exact_phase"
+    return False, "low_relative_violation", None
+
+
+def _pattern_key(cut: RobustDualSubproblemResult) -> tuple[int, ...]:
+    return tuple(int(round(cut.z_values[key])) for key in sorted(cut.z_values))
+
+
+def _cut_key(cut: SubproblemResult | RobustDualSubproblemResult, digits: int = 8) -> tuple[float, ...]:
+    coefficients = tuple(round(cut.x_coefficients[key], digits) for key in sorted(cut.x_coefficients))
+    return (round(cut.constant, digits), *coefficients)
+
+
+def target_upper_cost(
+    subproblem_mode: str,
+    target_cut: SubproblemResult | RobustDualSubproblemResult,
+) -> tuple[float | None, bool, bool]:
+    """Return target robust cost, UB validity, and whether a MILP bound was used."""
+    if subproblem_mode == "scenario_enumeration":
+        return float(target_cut.objective), True, False
+    objective_bound = target_cut.objective_bound
+    if objective_bound is None or not math.isfinite(float(objective_bound)):
+        return None, False, False
+    return float(objective_bound), True, True
+
+
+def calculate_global_gap(upper_bound: float, lower_bound: float) -> float:
+    return max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+
+
+def generate_additional_robust_cuts(
+    primary_cut: RobustDualSubproblemResult,
+    max_cuts_per_iteration: int,
+    time_budget: float,
+    solve_extra: Callable[
+        [list[dict[tuple[int, int], int]], float],
+        RobustDualSubproblemResult,
+    ],
+) -> AdditionalCutBatch:
+    if max_cuts_per_iteration <= 1 or not primary_cut.has_incumbent or time_budget <= 1e-3:
+        return AdditionalCutBatch([], 0.0, 0, 0, 0)
+
+    excluded_patterns = [{key: int(round(value)) for key, value in primary_cut.z_values.items()}]
+    seen_patterns = {_pattern_key(primary_cut)}
+    cuts: list[RobustDualSubproblemResult] = []
+    runtime = 0.0
+    nonoptimal_count = 0
+    without_incumbent_count = 0
+    duplicate_patterns = 0
+
+    for _ in range(1, max_cuts_per_iteration):
+        remaining = time_budget - runtime
+        if remaining <= 1e-3:
+            break
+        extra_cut = solve_extra(excluded_patterns, remaining)
+        runtime += extra_cut.runtime
+        if extra_cut.status != "optimal":
+            nonoptimal_count += 1
+        if not extra_cut.has_incumbent:
+            without_incumbent_count += 1
+            break
+        pattern = _pattern_key(extra_cut)
+        if pattern in seen_patterns:
+            duplicate_patterns += 1
+            break
+        seen_patterns.add(pattern)
+        excluded_patterns.append({key: int(round(value)) for key, value in extra_cut.z_values.items()})
+        cuts.append(extra_cut)
+
+    return AdditionalCutBatch(
+        cuts=cuts,
+        runtime=runtime,
+        nonoptimal_count=nonoptimal_count,
+        without_incumbent_count=without_incumbent_count,
+        duplicate_patterns_rejected=duplicate_patterns,
     )
 
 
@@ -180,14 +343,17 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         gamma: int,
         x_current: dict[tuple[int, int], float],
         remaining_time: float,
+        requested_mip_gap: float,
+        excluded_patterns: list[dict[tuple[int, int], int]] | None = None,
     ) -> RobustDualSubproblemResult:
         return solve_robust_dual_subproblem(
             instance,
             x_current,
             gamma,
             time_limit=remaining_time,
-            mip_gap=settings.final_mip_gap,
+            mip_gap=requested_mip_gap,
             output_flag=settings.output_flag,
+            excluded_patterns=excluded_patterns,
         )
 
     start = time.perf_counter()
@@ -199,6 +365,15 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     best_objective = None
     cuts = 0
     cuts_skipped = 0
+    duplicate_cuts_rejected = 0
+    duplicate_patterns_rejected = 0
+    additional_subproblem_time = 0.0
+    subproblem_nonoptimal = 0
+    subproblem_without_incumbent = 0
+    requested_subproblem_gaps: list[float] = []
+    cuts_generated_counts: list[int] = []
+    known_cut_keys: set[tuple[float, ...]] = set()
+    iterations_without_useful_cut = 0
     master_runtime = 0.0
     subproblem_runtime = 0.0
     log: list[dict[str, Any]] = []
@@ -227,7 +402,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
 
         master_start = time.perf_counter()
         model.optimize()
-        master_runtime += time.perf_counter() - master_start
+        master_elapsed = time.perf_counter() - master_start
+        master_runtime += master_elapsed
 
         if model.Status not in {GRB.OPTIMAL, GRB.TIME_LIMIT, GRB.SUBOPTIMAL} or model.SolCount == 0:
             status = f"gurobi_status_{model.Status}"
@@ -236,6 +412,17 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         x_values = {(i, j): float(x[i, j].X) for i in instance.I for j in instance.J}
         y_values = {i: float(y[i].X) for i in instance.I}
         first_stage = _first_stage_value(instance, y_values, x_values)
+        requested_subproblem_gap = (
+            select_subproblem_mip_gap(
+                current_gap,
+                upper_bound < float("inf"),
+                settings.subproblem_gap_schedule,
+                settings.final_exact_gap,
+            )
+            if settings.adaptive_subproblem_gap_enabled
+            else settings.final_mip_gap
+        )
+        requested_subproblem_gaps.append(requested_subproblem_gap)
 
         if settings.subproblem_mode == "scenario_enumeration":
             if target_enum is None:
@@ -263,15 +450,47 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             active_subproblem_mip_gap = None
             target_subproblem_mip_gap = None
             target_subproblem_objective_bound = target_cut.objective
+            active_candidates: list[SubproblemResult | RobustDualSubproblemResult] = [active_cut]
         else:
-            active_cut = solve_robust_dual(active_gamma, x_values, remaining)
+            active_cut = solve_robust_dual(active_gamma, x_values, remaining, requested_subproblem_gap)
             active_sub_time = active_cut.runtime
             if active_gamma == settings.gamma_target:
                 target_cut = active_cut
                 target_sub_time = 0.0
             else:
-                target_cut = solve_robust_dual(settings.gamma_target, x_values, remaining)
+                target_remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
+                target_cut = solve_robust_dual(
+                    settings.gamma_target,
+                    x_values,
+                    target_remaining,
+                    requested_subproblem_gap,
+                )
                 target_sub_time = target_cut.runtime
+            active_candidates = [active_cut] if active_cut.has_incumbent else []
+            global_remaining = max(0.0, settings.time_limit - (time.perf_counter() - start))
+            total_subproblem_budget = min(
+                global_remaining,
+                settings.subproblem_time_budget_per_iteration or global_remaining,
+            )
+            additional_budget = max(0.0, total_subproblem_budget - active_sub_time - target_sub_time)
+            additional_batch = generate_additional_robust_cuts(
+                active_cut,
+                settings.max_cuts_per_iteration,
+                additional_budget,
+                lambda excluded, extra_remaining: solve_robust_dual(
+                    active_gamma,
+                    x_values,
+                    extra_remaining,
+                    requested_subproblem_gap,
+                    excluded_patterns=excluded,
+                ),
+            )
+            iteration_additional_subproblem_time = additional_batch.runtime
+            additional_subproblem_time += iteration_additional_subproblem_time
+            subproblem_nonoptimal += additional_batch.nonoptimal_count
+            subproblem_without_incumbent += additional_batch.without_incumbent_count
+            duplicate_patterns_rejected += additional_batch.duplicate_patterns_rejected
+            active_candidates.extend(additional_batch.cuts)
             active_scenario_name = "robust_dual_milp"
             target_scenario_name = "robust_dual_milp"
             active_scenario_mode = "not_applicable"
@@ -281,19 +500,23 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             active_subproblem_mip_gap = active_cut.mip_gap
             target_subproblem_mip_gap = target_cut.mip_gap
             target_subproblem_objective_bound = target_cut.objective_bound
-        subproblem_runtime += active_sub_time + target_sub_time
+            for evaluated_cut in {id(active_cut): active_cut, id(target_cut): target_cut}.values():
+                if evaluated_cut.status != "optimal":
+                    subproblem_nonoptimal += 1
+                if not evaluated_cut.has_incumbent:
+                    subproblem_without_incumbent += 1
+        if settings.subproblem_mode == "scenario_enumeration":
+            iteration_additional_subproblem_time = 0.0
+        iteration_subproblem_time = active_sub_time + target_sub_time + iteration_additional_subproblem_time
+        subproblem_runtime += iteration_subproblem_time
 
-        ub_uses_subproblem_bound = False
-        valid_ub = True
-        conservative_target_cost = target_cut.objective
-        if settings.subproblem_mode == "robust_dual_milp" and target_cut.status != "optimal":
-            if target_cut.objective_bound is None:
-                valid_ub = False
-                conservative_target_cost = None
-            else:
-                conservative_target_cost = target_cut.objective_bound
-                ub_uses_subproblem_bound = True
+        conservative_target_cost, valid_ub, ub_uses_subproblem_bound = target_upper_cost(
+            settings.subproblem_mode,
+            target_cut,
+        )
 
+        previous_lower_bound = lower_bound
+        previous_upper_bound = upper_bound
         candidate_upper = None if conservative_target_cost is None else first_stage + conservative_target_cost
         if candidate_upper is not None and candidate_upper < upper_bound:
             upper_bound = candidate_upper
@@ -304,60 +527,144 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         lower_bound = max(lower_bound, float(model.ObjBound))
         previous_gap = current_gap
         if upper_bound < float("inf"):
-            gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+            gap = calculate_global_gap(upper_bound, lower_bound)
         else:
             gap = 1.0
         current_gap = gap
-        # Cut selection uses incumbent cut coefficients; objective bounds are only for UB updates.
         theta_current = float(theta.X)
-        cut_rhs_current = active_cut.cut_value(x_values)
-        cut_violation = cut_rhs_current - theta_current
-        cut_added = False
-        cut_skip_reason = None
-        cut_add_reason = None
-        if settings.subproblem_mode == "robust_dual_milp" and active_cut.status not in {
-            "optimal",
-            "time_limit",
-            "suboptimal",
-        }:
+        cut_decisions: list[dict[str, Any]] = []
+        for candidate_cut in active_candidates:
+            cut_rhs = candidate_cut.cut_value(x_values)
+            raw_violation = cut_rhs - theta_current
+            absolute_violation, normalized_violation = calculate_cut_violations(cut_rhs, theta_current)
+            duplicate = settings.max_cuts_per_iteration > 1 and _cut_key(candidate_cut) in known_cut_keys
             add_cut = False
-            cut_skip_reason = "no_incumbent"
-        elif not settings.cut_selection_enabled:
-            add_cut = True
-        else:
-            add_cut = cut_violation >= settings.delta_cut - settings.cut_violation_tol
-            if not add_cut:
-                cut_skip_reason = "low_violation"
-                if (
-                    active_gamma == settings.gamma_target
-                    and gap > settings.tol
-                    and cut_violation > settings.cut_violation_tol
-                ):
-                    add_cut = True
-                    cut_skip_reason = None
-                    cut_add_reason = "forced_target_progress"
+            skip_reason = None
+            add_reason = None
+            if duplicate:
+                skip_reason = "duplicate_cut"
+                duplicate_cuts_rejected += 1
+            elif not settings.cut_selection_enabled:
+                add_cut = True
+            elif settings.cut_selection_mode == "absolute":
+                add_cut = raw_violation >= settings.delta_cut - settings.cut_violation_tol
+                if not add_cut:
+                    skip_reason = "low_violation"
+                    if (
+                        active_gamma == settings.gamma_target
+                        and gap > settings.tol
+                        and raw_violation > settings.cut_violation_tol
+                    ):
+                        add_cut = True
+                        skip_reason = None
+                        add_reason = "forced_target_progress"
+            else:
+                add_cut, skip_reason, add_reason = relative_cut_decision(
+                    absolute_violation,
+                    normalized_violation,
+                    settings.relative_cut_threshold,
+                    settings.cut_violation_tol,
+                    active_gamma,
+                    settings.gamma_target,
+                    gap,
+                    settings.final_exact_gap,
+                )
+            cut_decisions.append(
+                {
+                    "cut": candidate_cut,
+                    "rhs": cut_rhs,
+                    "raw_violation": raw_violation,
+                    "absolute_violation": absolute_violation,
+                    "normalized_violation": normalized_violation,
+                    "add": add_cut,
+                    "skip_reason": skip_reason,
+                    "add_reason": add_reason,
+                }
+            )
 
-        if add_cut:
-            _add_cut(model, x, theta, active_cut, cuts)
-            cuts += 1
-            cut_added = True
-        else:
+        if (
+            settings.cut_selection_enabled
+            and settings.cut_selection_mode == "relative"
+            and not any(decision["add"] for decision in cut_decisions)
+            and iterations_without_useful_cut + 1 >= settings.cut_stall_patience
+        ):
+            eligible = [
+                decision
+                for decision in cut_decisions
+                if decision["absolute_violation"] > settings.cut_violation_tol
+                and decision["skip_reason"] != "duplicate_cut"
+            ]
+            if eligible:
+                forced = max(eligible, key=lambda decision: decision["normalized_violation"])
+                forced["add"] = True
+                forced["skip_reason"] = None
+                forced["add_reason"] = "stall_patience"
+
+        cuts_added_this_iteration = 0
+        cuts_skipped_this_iteration = 0
+        for decision in cut_decisions:
+            if decision["add"]:
+                candidate_cut = decision["cut"]
+                _add_cut(model, x, theta, candidate_cut, cuts)
+                cuts += 1
+                cuts_added_this_iteration += 1
+                known_cut_keys.add(_cut_key(candidate_cut))
+            else:
+                cuts_skipped += 1
+                cuts_skipped_this_iteration += 1
+        if not active_candidates:
             cuts_skipped += 1
-
-        # No unconditional cut addition after this point; skipped cuts stay skipped.
+            cuts_skipped_this_iteration += 1
+        if cuts_added_this_iteration:
+            iterations_without_useful_cut = 0
+        else:
+            iterations_without_useful_cut += 1
+        cuts_generated_this_iteration = len(active_candidates)
+        cuts_generated_counts.append(cuts_generated_this_iteration)
+        primary_decision = cut_decisions[0] if cut_decisions else None
+        cut_rhs_current = primary_decision["rhs"] if primary_decision else None
+        cut_violation = primary_decision["raw_violation"] if primary_decision else None
+        absolute_cut_violation = primary_decision["absolute_violation"] if primary_decision else None
+        normalized_cut_violation = primary_decision["normalized_violation"] if primary_decision else None
+        cut_added = bool(primary_decision and primary_decision["add"])
+        cut_skip_reason = primary_decision["skip_reason"] if primary_decision else "no_incumbent"
+        cut_add_reason = primary_decision["add_reason"] if primary_decision else None
+        forced_cut_added = any(decision["add_reason"] is not None for decision in cut_decisions)
+        forced_cut_reason = next(
+            (decision["add_reason"] for decision in cut_decisions if decision["add_reason"] is not None),
+            None,
+        )
+        lb_improvement = (
+            None if previous_lower_bound == -float("inf") else max(0.0, lower_bound - previous_lower_bound)
+        )
+        ub_improvement = (
+            None if previous_upper_bound == float("inf") else max(0.0, previous_upper_bound - upper_bound)
+        )
         log.append(
             {
                 "iteration": iteration + 1,
                 "gamma": active_gamma,
                 "mip_gap": selected_mip_gap,
+                "requested_master_mip_gap": selected_mip_gap,
                 "realized_master_gap": float(model.MIPGap) if model.IsMIP else 0.0,
+                "achieved_master_mip_gap": float(model.MIPGap) if model.IsMIP else 0.0,
+                "master_status": int(model.Status),
+                "master_best_bound": float(model.ObjBound),
+                "master_time": master_elapsed,
                 "lower_bound": lower_bound,
+                "LB": lower_bound,
                 "upper_bound": upper_bound,
+                "UB": upper_bound,
                 "gap": gap,
+                "global_gap": gap,
+                "lb_improvement": lb_improvement,
+                "ub_improvement": ub_improvement,
+                "elapsed_time": time.perf_counter() - start,
                 "log_gap": policy_state.log_gap,
                 "gap_improvement": policy_state.gap_improvement,
                 "master_objective": float(model.ObjVal),
                 "theta": theta_current,
+                "theta_current": theta_current,
                 "first_stage_cost": first_stage,
                 "active_worst_cost": active_cut.objective,
                 "target_worst_cost": target_cut.objective,
@@ -369,6 +676,15 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "target_subproblem_mip_gap": target_subproblem_mip_gap,
                 "target_subproblem_objective": target_cut.objective,
                 "target_subproblem_objective_bound": target_subproblem_objective_bound,
+                "target_robust_evaluation_used": True,
+                "subproblem_requested_mip_gap": requested_subproblem_gap,
+                "subproblem_achieved_mip_gap": active_subproblem_mip_gap,
+                "subproblem_status": active_subproblem_status,
+                "subproblem_incumbent_objective": active_cut.objective,
+                "subproblem_objective_bound": getattr(active_cut, "objective_bound", active_cut.objective),
+                "subproblem_time": iteration_subproblem_time,
+                "additional_subproblem_time": iteration_additional_subproblem_time,
+                "subproblem_has_incumbent": getattr(active_cut, "has_incumbent", True),
                 "ub_uses_subproblem_bound": ub_uses_subproblem_bound,
                 "valid_UB": valid_ub,
                 "active_gamma": active_gamma,
@@ -381,23 +697,30 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "delta_cut": settings.delta_cut,
                 "cut_rhs_current": cut_rhs_current,
                 "cut_violation": cut_violation,
+                "absolute_cut_violation": absolute_cut_violation,
+                "normalized_cut_violation": normalized_cut_violation,
                 "cut_added": cut_added,
                 "cut_skip_reason": cut_skip_reason,
                 "cut_add_reason": cut_add_reason,
                 "cuts_added_total": cuts,
                 "cuts_skipped_total": cuts_skipped,
+                "cuts_generated_this_iteration": cuts_generated_this_iteration,
+                "cuts_added_this_iteration": cuts_added_this_iteration,
+                "cuts_skipped_this_iteration": cuts_skipped_this_iteration,
+                "forced_cut_added": forced_cut_added,
+                "forced_cut_reason": forced_cut_reason,
                 "cuts": cuts,
             }
         )
 
-        if active_gamma == settings.gamma_target and gap <= settings.tol:
+        if active_gamma == settings.gamma_target and valid_ub and gap <= settings.tol:
             status = "optimal"
             break
 
     runtime = time.perf_counter() - start
     final_gap = None
     if upper_bound < float("inf") and lower_bound > -float("inf"):
-        final_gap = max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+        final_gap = calculate_global_gap(upper_bound, lower_bound)
 
     last_log = log[-1] if log else {}
     if settings.subproblem_mode == "scenario_enumeration":
@@ -449,10 +772,15 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "gamma_schedule": ",".join(str(v) for v in settings.gamma_schedule),
             "cut_selection_enabled": settings.cut_selection_enabled,
             "delta_cut": settings.delta_cut,
+            "cut_selection_mode": settings.cut_selection_mode,
+            "relative_cut_threshold": settings.relative_cut_threshold,
             "cut_violation_tol": settings.cut_violation_tol,
+            "final_exact_gap": settings.final_exact_gap,
+            "cut_stall_patience": settings.cut_stall_patience,
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
             "last_cut_violation": last_log.get("cut_violation"),
+            "last_normalized_cut_violation": last_log.get("normalized_cut_violation"),
             "last_cut_added": last_log.get("cut_added"),
             "last_cut_skip_reason": last_log.get("cut_skip_reason"),
             "active_subproblem_value": last_log.get("active_subproblem_value"),
@@ -467,6 +795,24 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "valid_UB": last_log.get("valid_UB"),
             "active_gamma": last_log.get("active_gamma"),
             "gamma_target": settings.gamma_target,
+            "adaptive_subproblem_gap_enabled": settings.adaptive_subproblem_gap_enabled,
+            "subproblem_gap_schedule": settings.subproblem_gap_schedule,
+            "last_subproblem_requested_mip_gap": last_log.get("subproblem_requested_mip_gap"),
+            "last_subproblem_achieved_mip_gap": last_log.get("subproblem_achieved_mip_gap"),
+            "mean_subproblem_requested_mip_gap": (
+                sum(requested_subproblem_gaps) / len(requested_subproblem_gaps)
+                if requested_subproblem_gaps
+                else None
+            ),
+            "num_subproblem_nonoptimal": subproblem_nonoptimal,
+            "num_subproblem_without_incumbent": subproblem_without_incumbent,
+            "max_cuts_per_iteration": settings.max_cuts_per_iteration,
+            "mean_cuts_generated_per_iteration": (
+                sum(cuts_generated_counts) / len(cuts_generated_counts) if cuts_generated_counts else None
+            ),
+            "duplicate_cuts_rejected": duplicate_cuts_rejected,
+            "duplicate_patterns_rejected": duplicate_patterns_rejected,
+            "additional_subproblem_time": additional_subproblem_time,
             **scenario_metadata,
         },
         iteration_log=log,

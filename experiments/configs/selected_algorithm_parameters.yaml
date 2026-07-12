@@ -1,0 +1,16 @@
+experiment_name: selected_algorithm_parameters
+output_dir: experiments/results_diagnostics/selection_not_run
+random_seeds: [0, 1, 2]
+selection_status: pending_parameter_screens
+selection_date: null
+tuning_seeds_used: [0, 1, 2]
+cut_selection_mode: null
+adaptive_subproblem_gap_enabled: null
+relative_cut_threshold: null
+cut_violation_tol: 1.0e-8
+final_exact_gap: 0.01
+cut_stall_patience: 5
+subproblem_gap_schedule: null
+max_cuts_per_iteration: null
+subproblem_time_budget_per_iteration: null
+selection_rationale: Pending diagnostic and screening runs; final evaluation must not run yet.

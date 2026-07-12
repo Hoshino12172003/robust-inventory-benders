@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import pytest
 import yaml
 
 from src.experiment_suite import run_experiment_suite
@@ -170,3 +171,100 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     assert "medium" in configs["baseline_comparison.yaml"]["instance_sizes"]
     assert "medium" in configs["ablation_study.yaml"]["instance_sizes"]
     assert "large" in configs["scalability.yaml"]["instance_sizes"]
+    assert configs["diagnostic_medium.yaml"]["save_iteration_log"] is True
+    assert configs["screen_relative_cut.yaml"]["random_seeds"] == [0, 1, 2]
+    assert configs["final_evaluation_template.yaml"]["random_seeds"] == list(range(10, 20))
+    selected = configs["selected_algorithm_parameters.yaml"]
+    assert selected["selection_status"] == "pending_parameter_screens"
+
+
+def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> None:
+    config = tiny_experiment_config(tmp_path)
+    config["save_iteration_log"] = True
+    outputs = run_experiment_suite(config)
+    rows = _read_csv(outputs["results"])
+    assert rows
+    assert rows[0]["iteration_log_path"]
+    log_path = Path(rows[0]["iteration_log_path"])
+    assert log_path.exists()
+    log_rows = _read_csv(log_path)
+    assert log_rows
+    for field in (
+        "requested_master_mip_gap",
+        "achieved_master_mip_gap",
+        "subproblem_requested_mip_gap",
+        "normalized_cut_violation",
+        "forced_cut_added",
+    ):
+        assert field in log_rows[0]
+    for field in ("reached_gap_5pct", "time_to_gap_1pct", "subproblem_time_share"):
+        assert field in rows[0]
+
+
+def test_selected_parameters_are_applied_and_resolved(tmp_path: Path) -> None:
+    selected_path = tmp_path / "selected.yaml"
+    selected = {
+        "selection_status": "selected",
+        "cut_selection_mode": "relative",
+        "adaptive_subproblem_gap_enabled": True,
+        "relative_cut_threshold": 0.0007,
+        "cut_violation_tol": 2.0e-8,
+        "final_exact_gap": 0.02,
+        "cut_stall_patience": 3,
+        "subproblem_gap_schedule": [
+            {"global_gap_above": 0.1, "mip_gap": 0.07},
+            {"global_gap_above": 0.0, "mip_gap": 0.0002},
+        ],
+        "max_cuts_per_iteration": 2,
+        "subproblem_time_budget_per_iteration": None,
+    }
+    selected_path.write_text(yaml.safe_dump(selected, sort_keys=False), encoding="utf-8")
+    config = tiny_experiment_config(tmp_path)
+    config["methods"] = [
+        "standard_benders",
+        "static_inexact_benders",
+        "proposed_adaptive_benders",
+    ]
+    config["parameters_must_be_fixed_from"] = str(selected_path)
+
+    outputs = run_experiment_suite(config)
+    resolved = yaml.safe_load(outputs["resolved_config"].read_text(encoding="utf-8"))
+    for field, value in selected.items():
+        if field != "selection_status":
+            assert resolved[field] == value
+
+    rows = {row["method"]: row for row in _read_csv(outputs["results"])}
+    proposed = rows["proposed_adaptive_benders"]
+    assert proposed["cut_selection_mode"] == "relative"
+    assert proposed["adaptive_subproblem_gap_enabled"] == "True"
+    assert float(proposed["relative_cut_threshold"]) == pytest.approx(0.0007)
+    assert float(proposed["cut_violation_tol"]) == pytest.approx(2.0e-8)
+    assert float(proposed["final_exact_gap"]) == pytest.approx(0.02)
+    assert int(proposed["cut_stall_patience"]) == 3
+    assert int(proposed["max_cuts_per_iteration"]) == 2
+    assert "0.07" in proposed["subproblem_gap_schedule"]
+
+    standard = rows["standard_benders"]
+    assert standard["cut_selection_enabled"] == "False"
+    assert standard["adaptive_subproblem_gap_enabled"] == "False"
+    assert int(standard["max_cuts_per_iteration"]) == 1
+    assert standard["gamma_schedule"] == standard["gamma_target"]
+    assert "1e-05" in standard["subproblem_gap_schedule"]
+
+    static = rows["static_inexact_benders"]
+    assert static["cut_selection_enabled"] == "False"
+    assert static["adaptive_subproblem_gap_enabled"] == "False"
+    assert int(static["max_cuts_per_iteration"]) == 1
+    assert static["gamma_schedule"] == static["gamma_target"]
+
+
+def test_selected_parameters_reject_missing_values(tmp_path: Path) -> None:
+    selected_path = tmp_path / "selected_missing.yaml"
+    selected_path.write_text(
+        yaml.safe_dump({"selection_status": "selected", "relative_cut_threshold": 0.001}),
+        encoding="utf-8",
+    )
+    config = tiny_experiment_config(tmp_path)
+    config["parameters_must_be_fixed_from"] = str(selected_path)
+    with pytest.raises(ValueError, match="Selected algorithm parameters are missing"):
+        run_experiment_suite(config)

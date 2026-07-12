@@ -28,6 +28,19 @@ INSTANCE_SIZES: dict[str, dict[str, int]] = {
     "large": {"num_warehouses": 8, "num_products": 8, "num_regions": 12},
 }
 
+SELECTED_ALGORITHM_FIELDS = (
+    "cut_selection_mode",
+    "adaptive_subproblem_gap_enabled",
+    "relative_cut_threshold",
+    "cut_violation_tol",
+    "final_exact_gap",
+    "cut_stall_patience",
+    "subproblem_gap_schedule",
+    "max_cuts_per_iteration",
+    "subproblem_time_budget_per_iteration",
+)
+NULLABLE_SELECTED_ALGORITHM_FIELDS = {"subproblem_time_budget_per_iteration"}
+
 RESULT_FIELDS = [
     "experiment_name",
     "instance_name",
@@ -54,6 +67,22 @@ RESULT_FIELDS = [
     "gamma_continuation_enabled",
     "cut_selection_enabled",
     "delta_cut",
+    "cut_selection_mode",
+    "relative_cut_threshold",
+    "cut_violation_tol",
+    "final_exact_gap",
+    "cut_stall_patience",
+    "adaptive_subproblem_gap_enabled",
+    "subproblem_gap_schedule",
+    "last_subproblem_requested_mip_gap",
+    "last_subproblem_achieved_mip_gap",
+    "num_subproblem_nonoptimal",
+    "num_subproblem_without_incumbent",
+    "max_cuts_per_iteration",
+    "mean_cuts_generated_per_iteration",
+    "duplicate_cuts_rejected",
+    "duplicate_patterns_rejected",
+    "additional_subproblem_time",
     "exact_scenarios",
     "scenario_mode_target",
     "heuristic_scenarios",
@@ -71,6 +100,21 @@ RESULT_FIELDS = [
     "worst_case_cost",
     "error_message",
     "instance_path",
+    "iteration_log_path",
+    "reached_gap_5pct",
+    "reached_gap_1pct",
+    "reached_gap_05pct",
+    "reached_gap_01pct",
+    "time_to_gap_5pct",
+    "time_to_gap_1pct",
+    "time_to_gap_05pct",
+    "time_to_gap_01pct",
+    "iteration_to_gap_5pct",
+    "iteration_to_gap_1pct",
+    "iteration_to_gap_05pct",
+    "iteration_to_gap_01pct",
+    "subproblem_time_share",
+    "mean_lb_improvement_per_iteration",
 ]
 
 SUMMARY_FIELDS = [
@@ -98,6 +142,59 @@ SUMMARY_FIELDS = [
     "mean_valid_UB_rate",
     "speedup_vs_standard_benders",
     "runtime_saving_vs_standard",
+    "gap_5pct_rate",
+    "gap_1pct_rate",
+    "gap_05pct_rate",
+    "gap_01pct_rate",
+    "mean_time_to_gap_5pct",
+    "mean_time_to_gap_1pct",
+    "mean_time_to_gap_05pct",
+    "mean_time_to_gap_01pct",
+    "mean_subproblem_time_share",
+    "mean_lb_improvement_per_iteration",
+]
+
+ITERATION_LOG_FIELDS = [
+    "iteration",
+    "instance_name",
+    "seed",
+    "method",
+    "variant_name",
+    "active_gamma",
+    "gamma_target",
+    "requested_master_mip_gap",
+    "achieved_master_mip_gap",
+    "master_status",
+    "master_objective",
+    "master_best_bound",
+    "master_time",
+    "LB",
+    "UB",
+    "global_gap",
+    "lb_improvement",
+    "ub_improvement",
+    "target_robust_evaluation_used",
+    "subproblem_requested_mip_gap",
+    "subproblem_achieved_mip_gap",
+    "subproblem_status",
+    "subproblem_incumbent_objective",
+    "subproblem_objective_bound",
+    "subproblem_time",
+    "subproblem_has_incumbent",
+    "cut_rhs_current",
+    "theta_current",
+    "absolute_cut_violation",
+    "normalized_cut_violation",
+    "cut_added",
+    "cut_skip_reason",
+    "cuts_generated_this_iteration",
+    "cuts_added_this_iteration",
+    "cuts_skipped_this_iteration",
+    "cuts_added_total",
+    "cuts_skipped_total",
+    "forced_cut_added",
+    "forced_cut_reason",
+    "elapsed_time",
 ]
 
 COMPLETED_STATUSES = {"optimal", "iteration_limit", "time_limit"}
@@ -131,7 +228,7 @@ def _std(values: list[float]) -> float | None:
 def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({field: _csv_value(row.get(field)) for field in fields})
@@ -165,6 +262,16 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "cut_selection_enabled": bool(exp_cfg.get("cut_selection_enabled", True)),
             "delta_cut": float(exp_cfg.get("delta_cut", 0.0)),
             "cut_violation_tol": float(exp_cfg.get("cut_violation_tol", 1e-8)),
+            "cut_selection_mode": str(exp_cfg.get("cut_selection_mode", "absolute")),
+            "relative_cut_threshold": float(exp_cfg.get("relative_cut_threshold", 1e-4)),
+            "final_exact_gap": float(exp_cfg.get("final_exact_gap", 1e-2)),
+            "cut_stall_patience": int(exp_cfg.get("cut_stall_patience", 5)),
+            "adaptive_subproblem_gap_enabled": bool(
+                exp_cfg.get("adaptive_subproblem_gap_enabled", False)
+            ),
+            "subproblem_gap_schedule": exp_cfg.get("subproblem_gap_schedule"),
+            "max_cuts_per_iteration": int(exp_cfg.get("max_cuts_per_iteration", 1)),
+            "subproblem_time_budget_per_iteration": exp_cfg.get("subproblem_time_budget_per_iteration"),
         },
         "benders": {
             "max_iterations": int(exp_cfg.get("max_iterations", 80)),
@@ -192,6 +299,22 @@ def _apply_variant_config(
     gamma_target = int(config["robust"]["gamma_target"])
 
     config["algorithm"]["cut_selection_enabled"] = flags["cut_selection_enabled"]
+    for key in (
+        "cut_selection_mode",
+        "relative_cut_threshold",
+        "cut_violation_tol",
+        "final_exact_gap",
+        "cut_stall_patience",
+        "adaptive_subproblem_gap_enabled",
+        "subproblem_gap_schedule",
+        "max_cuts_per_iteration",
+        "subproblem_time_budget_per_iteration",
+    ):
+        if key in variant:
+            config["algorithm"][key] = variant[key]
+    for key in ("max_iterations", "tol", "initial_mip_gap", "final_mip_gap", "time_limit"):
+        if key in variant:
+            config["benders"][key] = variant[key]
     if not flags["gamma_continuation_enabled"]:
         config["robust"]["gamma_schedule"] = [gamma_target]
     if not flags["adaptive_gap_enabled"]:
@@ -202,11 +325,23 @@ def _apply_variant_config(
     if method == "standard_benders":
         solver_method = "standard_benders"
         config["algorithm"]["cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
+        config["algorithm"]["subproblem_gap_schedule"] = [
+            {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
+        ]
+        config["algorithm"]["max_cuts_per_iteration"] = 1
+        config["algorithm"]["subproblem_time_budget_per_iteration"] = None
         config["robust"]["gamma_schedule"] = [gamma_target]
         config["benders"]["initial_mip_gap"] = float(config["benders"]["final_mip_gap"])
     elif method == "static_inexact_benders":
         solver_method = "inexact_benders"
         config["algorithm"]["cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
+        config["algorithm"]["subproblem_gap_schedule"] = [
+            {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
+        ]
+        config["algorithm"]["max_cuts_per_iteration"] = 1
+        config["algorithm"]["subproblem_time_budget_per_iteration"] = None
         config["robust"]["gamma_schedule"] = [gamma_target]
     elif method == "adaptive_gamma_benders":
         solver_method = "adaptive_gap_gamma_benders"
@@ -309,6 +444,33 @@ def _solve_experiment_method(
     return result, flags
 
 
+def _time_to_gap_metrics(result: SolveResult) -> dict[str, Any]:
+    metrics: dict[str, Any] = {}
+    thresholds = [("5pct", 0.05), ("1pct", 0.01), ("05pct", 0.005), ("01pct", 0.001)]
+    for label, threshold in thresholds:
+        reached = next(
+            (
+                row
+                for row in result.iteration_log
+                if row.get("global_gap") is not None and float(row["global_gap"]) <= threshold
+            ),
+            None,
+        )
+        metrics[f"reached_gap_{label}"] = reached is not None
+        metrics[f"time_to_gap_{label}"] = reached.get("elapsed_time") if reached else None
+        metrics[f"iteration_to_gap_{label}"] = reached.get("iteration") if reached else None
+    metrics["subproblem_time_share"] = (
+        result.subproblem_runtime / result.runtime if result.runtime > 0 else None
+    )
+    improvements = [
+        float(row["lb_improvement"])
+        for row in result.iteration_log
+        if row.get("lb_improvement") is not None
+    ]
+    metrics["mean_lb_improvement_per_iteration"] = _mean(improvements)
+    return metrics
+
+
 def _result_row(
     exp_name: str,
     size_name: str,
@@ -348,6 +510,22 @@ def _result_row(
         "gamma_continuation_enabled": flags.get("gamma_continuation_enabled"),
         "cut_selection_enabled": meta.get("cut_selection_enabled", flags.get("cut_selection_enabled")),
         "delta_cut": meta.get("delta_cut"),
+        "cut_selection_mode": meta.get("cut_selection_mode"),
+        "relative_cut_threshold": meta.get("relative_cut_threshold"),
+        "cut_violation_tol": meta.get("cut_violation_tol"),
+        "final_exact_gap": meta.get("final_exact_gap"),
+        "cut_stall_patience": meta.get("cut_stall_patience"),
+        "adaptive_subproblem_gap_enabled": meta.get("adaptive_subproblem_gap_enabled"),
+        "subproblem_gap_schedule": meta.get("subproblem_gap_schedule"),
+        "last_subproblem_requested_mip_gap": meta.get("last_subproblem_requested_mip_gap"),
+        "last_subproblem_achieved_mip_gap": meta.get("last_subproblem_achieved_mip_gap"),
+        "num_subproblem_nonoptimal": meta.get("num_subproblem_nonoptimal"),
+        "num_subproblem_without_incumbent": meta.get("num_subproblem_without_incumbent"),
+        "max_cuts_per_iteration": meta.get("max_cuts_per_iteration"),
+        "mean_cuts_generated_per_iteration": meta.get("mean_cuts_generated_per_iteration"),
+        "duplicate_cuts_rejected": meta.get("duplicate_cuts_rejected"),
+        "duplicate_patterns_rejected": meta.get("duplicate_patterns_rejected"),
+        "additional_subproblem_time": meta.get("additional_subproblem_time"),
         "exact_scenarios": meta.get("exact_scenarios"),
         "scenario_mode_target": meta.get("scenario_mode_target", meta.get("scenario_mode")),
         "heuristic_scenarios": meta.get("heuristic_scenarios"),
@@ -369,6 +547,7 @@ def _result_row(
         "worst_case_cost": result.robust_cost,
         "error_message": error_message or meta.get("error_message"),
         "instance_path": str(instance_path),
+        **_time_to_gap_metrics(result),
     }
 
 
@@ -402,7 +581,20 @@ def _failure_row(
 def _variant_specs(exp_cfg: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
     if "variants" in exp_cfg:
         variants = exp_cfg.get("variant_settings", {})
-        return [(name, "proposed_adaptive_benders", variants.get(name, {})) for name in exp_cfg["variants"]]
+        method_names = {
+            "standard_benders",
+            "static_inexact_benders",
+            "adaptive_gamma_benders",
+            "adaptive_gap_benders",
+            "adaptive_cut_benders",
+            "proposed_adaptive_benders",
+            "scenario_benders_full",
+            "monolithic_gurobi",
+        }
+        return [
+            (name, name if name in method_names else "proposed_adaptive_benders", variants.get(name, {}))
+            for name in exp_cfg["variants"]
+        ]
     methods = exp_cfg.get("methods") or _as_list(exp_cfg.get("method"), ["proposed_adaptive_benders"])
     return [(str(method), str(method), {}) for method in methods]
 
@@ -455,6 +647,35 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             for r in completed
             if r.get("valid_UB") not in (None, "")
         ]
+        gap_reach_rates = {
+            label: _mean(
+                [
+                    1.0 if r.get(f"reached_gap_{label}") in {True, "True", "true", 1} else 0.0
+                    for r in rows
+                ]
+            )
+            for label in ("5pct", "1pct", "05pct", "01pct")
+        }
+        mean_times_to_gap = {
+            label: _mean(
+                [
+                    float(r[f"time_to_gap_{label}"])
+                    for r in rows
+                    if r.get(f"time_to_gap_{label}") not in (None, "")
+                ]
+            )
+            for label in ("5pct", "1pct", "05pct", "01pct")
+        }
+        subproblem_shares = [
+            float(r["subproblem_time_share"])
+            for r in completed
+            if r.get("subproblem_time_share") not in (None, "")
+        ]
+        lb_improvements = [
+            float(r["mean_lb_improvement_per_iteration"])
+            for r in completed
+            if r.get("mean_lb_improvement_per_iteration") not in (None, "")
+        ]
         mean_runtime = _mean(runtimes)
         base_runtime = standard_runtime.get((exp_name, size_name))
         speedup = base_runtime / mean_runtime if base_runtime and mean_runtime and mean_runtime > 0 else None
@@ -485,6 +706,16 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "mean_valid_UB_rate": _mean(valid_ub_values),
                 "speedup_vs_standard_benders": speedup,
                 "runtime_saving_vs_standard": saving,
+                "gap_5pct_rate": gap_reach_rates["5pct"],
+                "gap_1pct_rate": gap_reach_rates["1pct"],
+                "gap_05pct_rate": gap_reach_rates["05pct"],
+                "gap_01pct_rate": gap_reach_rates["01pct"],
+                "mean_time_to_gap_5pct": mean_times_to_gap["5pct"],
+                "mean_time_to_gap_1pct": mean_times_to_gap["1pct"],
+                "mean_time_to_gap_05pct": mean_times_to_gap["05pct"],
+                "mean_time_to_gap_01pct": mean_times_to_gap["01pct"],
+                "mean_subproblem_time_share": _mean(subproblem_shares),
+                "mean_lb_improvement_per_iteration": _mean(lb_improvements),
             }
         )
     return summaries
@@ -585,12 +816,82 @@ def _correctness_status(
     return "ok" if all(_within_tolerance(diff) for diff in diffs) else "check"
 
 
+def _safe_filename(value: str) -> str:
+    return "".join(character if character.isalnum() or character in {"-", "_"} else "_" for character in value)
+
+
+def _write_iteration_log(
+    output_dir: Path,
+    experiment_name: str,
+    instance_name: str,
+    seed: int,
+    method: str,
+    variant_name: str,
+    iteration_log: list[dict[str, Any]],
+) -> Path:
+    filename = _safe_filename(
+        f"{experiment_name}__{instance_name}__seed_{seed}__{method}__{variant_name}"
+    )
+    path = output_dir / "iteration_logs" / f"{filename}.csv"
+    rows = []
+    for source in iteration_log:
+        row = dict(source)
+        row.update(
+            {
+                "instance_name": instance_name,
+                "seed": seed,
+                "method": method,
+                "variant_name": variant_name,
+            }
+        )
+        rows.append(row)
+    _write_csv(path, rows, ITERATION_LOG_FIELDS)
+    return path
+
+
 def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
+    config = deepcopy(config)
     exp_name = str(config.get("experiment_name", "experiment_suite"))
+    selected_parameters_path = config.get("parameters_must_be_fixed_from")
+    if selected_parameters_path:
+        selected = load_config(str(selected_parameters_path))
+        if selected.get("selection_status") != "selected":
+            raise ValueError(
+                "Final evaluation is locked until selected_algorithm_parameters.yaml has selection_status: selected."
+            )
+        absent = [field for field in SELECTED_ALGORITHM_FIELDS if field not in selected]
+        if absent:
+            raise ValueError(f"Selected algorithm parameters are missing: {', '.join(absent)}")
+        missing = [
+            field
+            for field in SELECTED_ALGORITHM_FIELDS
+            if field not in NULLABLE_SELECTED_ALGORITHM_FIELDS and selected.get(field) is None
+        ]
+        if missing:
+            raise ValueError(f"Selected algorithm parameters are missing: {', '.join(missing)}")
+        if selected["cut_selection_mode"] not in {"absolute", "relative"}:
+            raise ValueError("Selected cut_selection_mode must be 'absolute' or 'relative'.")
+        if (
+            selected["cut_selection_mode"] != "relative"
+            and selected.get("relative_cut_threshold") is not None
+        ):
+            raise ValueError(
+                "relative_cut_threshold requires selected cut_selection_mode='relative'."
+            )
+        if not isinstance(selected["adaptive_subproblem_gap_enabled"], bool):
+            raise ValueError("Selected adaptive_subproblem_gap_enabled must be true or false.")
+        for field in SELECTED_ALGORITHM_FIELDS:
+            config[field] = deepcopy(selected[field])
     output_dir = Path(str(config.get("output_dir", f"experiments/results/{exp_name}")))
     instances_dir = output_dir / "instances"
     output_dir.mkdir(parents=True, exist_ok=True)
     instances_dir.mkdir(parents=True, exist_ok=True)
+    resolved_config_path = output_dir / "resolved_config.yaml"
+    resolved_config_path.write_text(
+        yaml.safe_dump(config, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+        newline="\n",
+    )
 
     results: list[dict[str, Any]] = []
     variants = _variant_specs(config)
@@ -607,6 +908,17 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
                 method_cfg = deepcopy(run_cfg)
                 result, flags = _solve_experiment_method(method_cfg, instance, method, variant)
                 row = _result_row(exp_name, size_name, seed, method, variant_name, result, flags, instance, instance_path)
+                if bool(config.get("save_iteration_log", False)):
+                    iteration_log_path = _write_iteration_log(
+                        output_dir,
+                        exp_name,
+                        instance.name,
+                        seed,
+                        method,
+                        variant_name,
+                        result.iteration_log,
+                    )
+                    row["iteration_log_path"] = str(iteration_log_path)
                 if gamma_override is not None:
                     row["gamma_target"] = gamma_override
                 if alpha_value is not None:
@@ -646,7 +958,12 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
                 "status",
             ],
         )
-    return {"results": results_path, "summary": summary_path, "output_dir": output_dir}
+    return {
+        "results": results_path,
+        "summary": summary_path,
+        "resolved_config": resolved_config_path,
+        "output_dir": output_dir,
+    }
 
 
 def main() -> None:

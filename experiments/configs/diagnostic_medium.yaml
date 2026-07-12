@@ -1,0 +1,44 @@
+experiment_name: diagnostic_medium
+output_dir: experiments/results_diagnostics/diagnostic_medium
+random_seeds: [0, 1, 2]
+instance_sizes: [medium]
+variants: [standard_benders, proposed_adaptive_benders, no_adaptive_gap, no_gamma_continuation, no_cut_selection]
+variant_settings:
+  standard_benders:
+    adaptive_gap_enabled: false
+    gamma_continuation_enabled: false
+    cut_selection_enabled: false
+  proposed_adaptive_benders:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+  no_adaptive_gap:
+    adaptive_gap_enabled: false
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+  no_gamma_continuation:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    cut_selection_enabled: true
+  no_cut_selection:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: false
+save_iteration_log: true
+time_limit: 600
+max_iterations: 300
+tol: 0.0001
+mip_gap: 0.05
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+subproblem_mode: robust_dual_milp
+cut_selection_mode: relative
+relative_cut_threshold: 0.0001
+cut_violation_tol: 1.0e-8
+final_exact_gap: 0.01
+cut_stall_patience: 5
+adaptive_subproblem_gap_enabled: false
+max_cuts_per_iteration: 1
+max_scenarios: 5000
+exact_scenarios: true
