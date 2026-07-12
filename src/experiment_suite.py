@@ -312,6 +312,8 @@ def _apply_variant_config(
     ):
         if key in variant:
             config["algorithm"][key] = variant[key]
+    if flags["gamma_continuation_enabled"] and "gamma_schedule" in variant:
+        config["robust"]["gamma_schedule"] = [int(value) for value in variant["gamma_schedule"]]
     for key in ("max_iterations", "tol", "initial_mip_gap", "final_mip_gap", "time_limit"):
         if key in variant:
             config["benders"][key] = variant[key]
@@ -882,6 +884,14 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
             raise ValueError("Selected adaptive_subproblem_gap_enabled must be true or false.")
         for field in SELECTED_ALGORITHM_FIELDS:
             config[field] = deepcopy(selected[field])
+    if (
+        config.get("cut_selection_mode") == "relative"
+        and config.get("relative_cut_threshold") is None
+    ):
+        raise ValueError(
+            "relative_cut_threshold must be selected before running "
+            "screen_master_gamma.yaml. Run screen_relative_cut_wide.yaml first."
+        )
     output_dir = Path(str(config.get("output_dir", f"experiments/results/{exp_name}")))
     instances_dir = output_dir / "instances"
     output_dir.mkdir(parents=True, exist_ok=True)
