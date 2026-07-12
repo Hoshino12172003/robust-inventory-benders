@@ -1,0 +1,48 @@
+experiment_name: screen_relative_cut
+output_dir: experiments/results_diagnostics/screen_relative_cut
+random_seeds: [0, 1, 2]
+instance_sizes: [medium]
+variants: [threshold_0, threshold_1e_5, threshold_1e_4, threshold_1e_3, threshold_5e_3]
+variant_settings:
+  threshold_0:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    relative_cut_threshold: 0.0
+  threshold_1e_5:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    relative_cut_threshold: 1.0e-5
+  threshold_1e_4:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    relative_cut_threshold: 1.0e-4
+  threshold_1e_3:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    relative_cut_threshold: 1.0e-3
+  threshold_5e_3:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    relative_cut_threshold: 5.0e-3
+save_iteration_log: true
+time_limit: 600
+max_iterations: 300
+tol: 0.0001
+mip_gap: 0.05
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+subproblem_mode: robust_dual_milp
+cut_selection_mode: relative
+cut_violation_tol: 1.0e-8
+final_exact_gap: 0.01
+cut_stall_patience: 5
+adaptive_subproblem_gap_enabled: false
+max_cuts_per_iteration: 1
+max_scenarios: 5000
+exact_scenarios: true

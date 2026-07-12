@@ -108,7 +108,7 @@ def generate_instance(config: dict[str, Any], seed: int | None = None) -> Invent
 def save_instance(instance: InventoryInstance, path: str | Path) -> Path:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(instance.to_dict(), indent=2), encoding="utf-8")
+    target.write_text(json.dumps(instance.to_dict(), indent=2), encoding="utf-8", newline="\n")
     return target
 
 

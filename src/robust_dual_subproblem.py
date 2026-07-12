@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 import time
 
 import gurobipy as gp
@@ -11,7 +12,7 @@ from .instance import InventoryInstance
 
 @dataclass(frozen=True)
 class RobustDualSubproblemResult:
-    objective: float
+    objective: float | None
     z_values: dict[tuple[int, int], float]
     lambda_values: dict[tuple[int, int], float]
     mu_values: dict[tuple[int, int], float]
@@ -23,8 +24,12 @@ class RobustDualSubproblemResult:
     status: str
     objective_bound: float | None
     mip_gap: float | None
+    has_incumbent: bool
+    requested_mip_gap: float | None
 
     def cut_value(self, x_values: dict[tuple[int, int], float]) -> float:
+        if not self.has_incumbent:
+            raise ValueError("A robust dual cut requires a feasible incumbent.")
         return self.constant + sum(coef * x_values[key] for key, coef in self.x_coefficients.items())
 
 
@@ -49,6 +54,7 @@ def solve_robust_dual_subproblem(
     time_limit: float | None = None,
     mip_gap: float | None = None,
     output_flag: bool = False,
+    excluded_patterns: list[dict[tuple[int, int], int]] | None = None,
 ) -> RobustDualSubproblemResult:
     start = time.perf_counter()
     gamma = min(max(0, int(gamma)), instance.num_regions * instance.num_products)
@@ -95,6 +101,13 @@ def solve_robust_dual_subproblem(
 
     model.addConstrs((nu[j] <= instance.service_penalty[j] for j in instance.J), name="dual_e")
     model.addConstr(gp.quicksum(z[r, j] for r in instance.R for j in instance.J) <= gamma, name="budget")
+    for pattern_index, pattern in enumerate(excluded_patterns or []):
+        ones = [key for key, value in pattern.items() if int(round(value)) == 1]
+        zeros = [key for key, value in pattern.items() if int(round(value)) == 0]
+        model.addConstr(
+            gp.quicksum(z[key] for key in ones) - gp.quicksum(z[key] for key in zeros) <= len(ones) - 1,
+            name=f"exclude_pattern[{pattern_index}]",
+        )
 
     for r in instance.R:
         for j in instance.J:
@@ -126,8 +139,31 @@ def solve_robust_dual_subproblem(
     model.optimize()
 
     status = _status_name(model.Status)
-    if model.SolCount == 0:
-        raise RuntimeError(f"Robust dual subproblem did not produce a solution: {status}")
+    has_incumbent = model.SolCount > 0
+    objective_bound = None
+    try:
+        objective_bound = float(model.ObjBound)
+    except (AttributeError, gp.GurobiError):
+        pass
+    if objective_bound is not None and not math.isfinite(objective_bound):
+        objective_bound = None
+    if not has_incumbent:
+        return RobustDualSubproblemResult(
+            objective=None,
+            z_values={},
+            lambda_values={},
+            mu_values={},
+            nu_values={},
+            demand_values={},
+            constant=0.0,
+            x_coefficients={},
+            runtime=time.perf_counter() - start,
+            status=status,
+            objective_bound=objective_bound,
+            mip_gap=None,
+            has_incumbent=False,
+            requested_mip_gap=mip_gap,
+        )
 
     z_values = {(r, j): float(z[r, j].X) for r in instance.R for j in instance.J}
     lambda_values = {(r, j): float(lam[r, j].X) for r in instance.R for j in instance.J}
@@ -148,7 +184,6 @@ def solve_robust_dual_subproblem(
     )
     x_coefficients = {(i, j): -mu_values[i, j] for i in instance.I for j in instance.J}
     mip_gap_value = float(model.MIPGap) if model.IsMIP and model.SolCount else None
-    objective_bound = float(model.ObjBound) if model.SolCount else None
 
     return RobustDualSubproblemResult(
         objective=float(model.ObjVal),
@@ -163,4 +198,6 @@ def solve_robust_dual_subproblem(
         status=status,
         objective_bound=objective_bound,
         mip_gap=mip_gap_value,
+        has_incumbent=True,
+        requested_mip_gap=mip_gap,
     )

@@ -1,0 +1,15 @@
+experiment_name: final_evaluation
+output_dir: experiments/results_final
+random_seeds: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+instance_sizes: [small, medium, large]
+methods: [standard_benders, proposed_adaptive_benders]
+time_limit: 600
+max_iterations: 300
+tol: 0.0001
+mip_gap: 0.05
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+subproblem_mode: robust_dual_milp
+save_iteration_log: true
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml

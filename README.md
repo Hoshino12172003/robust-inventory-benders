@@ -72,16 +72,30 @@ The project supports Benders cut selection based on the violation of the candida
 v_k = cut_rhs(x^k) - theta^k
 ```
 
-When `cut_selection_enabled: true`, a candidate cut is added if `v_k >= delta_cut`, up to the configured numerical tolerance. With `delta_cut: 0.0`, the behavior is close to standard Benders cut addition because cuts with positive violation are retained. Larger `delta_cut` values can reduce the number of cuts in the master problem, but may increase the number of iterations.
+Absolute mode preserves the original `v_k >= delta_cut` rule. Relative mode uses the scale-independent value
+
+```text
+normalized_violation = max(0, cut_rhs(x^k) - theta^k)
+                       / max(1, abs(theta^k), abs(cut_rhs(x^k)))
+```
+
+and adds a cut when it reaches `relative_cut_threshold`. Relative mode force-adds positively violated cuts near the final gap and after a configurable stall, so aggressive screening cannot permanently stop convergence.
 
 ```yaml
 algorithm:
   cut_selection_enabled: true
-  delta_cut: 0.0
+  cut_selection_mode: relative
+  relative_cut_threshold: 1.0e-4
   cut_violation_tol: 1.0e-8
+  final_exact_gap: 1.0e-2
+  cut_stall_patience: 5
 ```
 
-For `robust_dual_milp`, cuts are generated only from the incumbent feasible dual solution through `cut.constant` and `cut.x_coefficients`. The `objective_bound` field is used only for conservative upper-bound updates when the robust dual MILP is not solved to optimality; it is not used for cut generation.
+For `robust_dual_milp`, cuts are generated only from the incumbent feasible dual solution through `cut.constant` and `cut.x_coefficients`. Target-Gamma UB evaluation always uses the finite maximization `objective_bound`, even when Gurobi reports `optimal` after satisfying a positive MIP gap. The bound is never used for cut generation.
+
+The robust subproblem can optionally use an adaptive MIP gap selected from the previous valid global Benders gap. It starts with the coarsest configured gap when no finite UB exists and uses the tightest gap in the final phase. A nonoptimal feasible incumbent may define a valid cut; its maximization `objective_bound` may only define a conservative UB.
+
+`max_cuts_per_iteration` defaults to `1`. Values above one request up to K distinct high-value robust demand patterns by excluding earlier binary patterns with no-good constraints. Additional solves may generate valid cuts but never replace the unconstrained solve used for UB evaluation.
 
 ## Experiment Suite
 
@@ -92,6 +106,19 @@ python -m src.experiment_suite --config experiments/configs/small_correctness.ya
 python -m src.experiment_suite --config experiments/configs/baseline_comparison.yaml
 python -m src.experiment_suite --config experiments/configs/ablation_study.yaml
 ```
+
+Convergence diagnostics are staged separately:
+
+```powershell
+python -m src.experiment_suite --config experiments/configs/diagnostic_medium.yaml
+python -m src.experiment_suite --config experiments/configs/screen_relative_cut.yaml
+python -m src.experiment_suite --config experiments/configs/screen_subproblem_gap.yaml
+python -m src.experiment_suite --config experiments/configs/screen_multicut.yaml
+```
+
+Set `save_iteration_log: true` to write one CSV per run under `<output_dir>/iteration_logs/`. These logs record requested and achieved master/subproblem gaps, LB/UB trajectories, cut decisions, safety overrides, and timing. Result and summary files include time-to-gap metrics for 5%, 1%, 0.5%, and 0.1%, using blank values when a threshold is not reached.
+
+Diagnostic tuning uses seeds `0, 1, 2`. Final evaluation reserves seeds `10` through `19`; they must not be used to select parameters. Fix the chosen settings in `experiments/configs/selected_algorithm_parameters.yaml` before running `final_evaluation_template.yaml`. The experiment suite validates and overlays every selected field, then writes the fully applied configuration to `<output_dir>/resolved_config.yaml`; missing selected values are an error rather than a fallback to defaults.
 
 It is also available through the main CLI:
 
