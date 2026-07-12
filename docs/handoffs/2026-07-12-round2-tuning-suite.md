@@ -15,6 +15,7 @@ The staged Gamma variant uses Gamma 0 for iterations 1-10, Gamma 1 for iteration
 ## Safety
 
 - Outputs use `experiments/results_diagnostics_round2/`, so round-1 diagnostics are not overwritten.
+- `screen_master_gamma.yaml` fails before creating instances or output directories while its relative threshold remains unselected, with an explicit instruction to run the wide threshold screen first.
 - Standard Benders remains protected by the experiment method mapping: fixed target Gamma, no cut selection, no adaptive master or robust-subproblem gap, K=1, and a fixed tight robust-subproblem gap.
 - `selected_algorithm_parameters.yaml` remains pending and unchanged by this tuning round.
 
@@ -23,3 +24,5 @@ The staged Gamma variant uses Gamma 0 for iterations 1-10, Gamma 1 for iteration
 1. Run `screen_relative_cut_wide.yaml` locally and select a threshold using convergence quality, cuts skipped, forced cuts, and runtime.
 2. Put that threshold into `screen_master_gamma.yaml` before running it.
 3. Complete all parameter selection before unlocking `confirm_equal_time_medium.yaml`.
+
+Lightweight validation: `3 passed, 9 deselected`; hidden Unicode and `git diff --check` are clean.

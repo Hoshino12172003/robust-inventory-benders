@@ -884,6 +884,14 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
             raise ValueError("Selected adaptive_subproblem_gap_enabled must be true or false.")
         for field in SELECTED_ALGORITHM_FIELDS:
             config[field] = deepcopy(selected[field])
+    if (
+        config.get("cut_selection_mode") == "relative"
+        and config.get("relative_cut_threshold") is None
+    ):
+        raise ValueError(
+            "relative_cut_threshold must be selected before running "
+            "screen_master_gamma.yaml. Run screen_relative_cut_wide.yaml first."
+        )
     output_dir = Path(str(config.get("output_dir", f"experiments/results/{exp_name}")))
     instances_dir = output_dir / "instances"
     output_dir.mkdir(parents=True, exist_ok=True)

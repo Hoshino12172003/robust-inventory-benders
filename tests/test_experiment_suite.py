@@ -244,6 +244,23 @@ def test_round2_staged_gamma_variant_is_applied() -> None:
     assert resolved["robust"]["gamma_schedule"] == staged
 
 
+def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:
+    config_path = Path("experiments/configs/screen_master_gamma.yaml")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["output_dir"] = str(tmp_path / "must_not_be_created")
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "relative_cut_threshold must be selected before running "
+            r"screen_master_gamma\.yaml\. Run screen_relative_cut_wide\.yaml first\."
+        ),
+    ):
+        run_experiment_suite(config)
+
+    assert not Path(config["output_dir"]).exists()
+
+
 def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> None:
     config = tiny_experiment_config(tmp_path)
     config["save_iteration_log"] = True
