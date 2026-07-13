@@ -851,6 +851,27 @@ def _write_iteration_log(
     return path
 
 
+def _validate_relative_threshold_config(config: dict[str, Any]) -> None:
+    if config.get("cut_selection_mode") != "relative":
+        return
+    if config.get("relative_cut_threshold") is not None:
+        return
+
+    variant_names = config.get("variants", [])
+    variant_settings = config.get("variant_settings", {})
+    variants_have_thresholds = bool(variant_names) and all(
+        variant_settings.get(name, {}).get("relative_cut_threshold") is not None
+        for name in variant_names
+    )
+    if variants_have_thresholds:
+        return
+
+    raise ValueError(
+        "relative_cut_threshold must be selected before running "
+        "screen_master_gamma.yaml. Run screen_relative_cut_wide.yaml first."
+    )
+
+
 def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
     config = deepcopy(config)
     exp_name = str(config.get("experiment_name", "experiment_suite"))
@@ -884,14 +905,7 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
             raise ValueError("Selected adaptive_subproblem_gap_enabled must be true or false.")
         for field in SELECTED_ALGORITHM_FIELDS:
             config[field] = deepcopy(selected[field])
-    if (
-        config.get("cut_selection_mode") == "relative"
-        and config.get("relative_cut_threshold") is None
-    ):
-        raise ValueError(
-            "relative_cut_threshold must be selected before running "
-            "screen_master_gamma.yaml. Run screen_relative_cut_wide.yaml first."
-        )
+    _validate_relative_threshold_config(config)
     output_dir = Path(str(config.get("output_dir", f"experiments/results/{exp_name}")))
     instances_dir = output_dir / "instances"
     output_dir.mkdir(parents=True, exist_ok=True)
