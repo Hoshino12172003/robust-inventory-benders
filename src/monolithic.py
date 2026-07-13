@@ -9,6 +9,7 @@ from gurobipy import GRB
 from .instance import InventoryInstance
 from .results import SolveResult
 from .scenarios import enumerate_budget_scenarios_with_metadata
+from .status import gurobi_status_name
 
 
 def first_stage_cost_expr(instance: InventoryInstance, y: gp.tupledict, x: gp.tupledict) -> gp.LinExpr:
@@ -90,7 +91,7 @@ def solve_monolithic(config: dict[str, Any], instance: InventoryInstance) -> Sol
     model.optimize()
     runtime = time.perf_counter() - start
 
-    status = "optimal" if model.Status == GRB.OPTIMAL else f"gurobi_status_{model.Status}"
+    status = gurobi_status_name(model.Status)
     objective = float(model.ObjVal) if model.SolCount else None
     first_stage_value = float(first_stage.getValue()) if model.SolCount else None
     robust_cost = float(theta.X) if model.SolCount else None

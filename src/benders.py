@@ -13,6 +13,7 @@ from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState,
 from .results import SolveResult
 from .robust_dual_subproblem import RobustDualSubproblemResult, solve_robust_dual_subproblem
 from .scenarios import DemandScenario, ScenarioEnumerationResult, enumerate_budget_scenarios_with_metadata
+from .status import gurobi_status_name
 from .subproblem import SubproblemResult, solve_recourse_subproblem
 
 
@@ -35,6 +36,13 @@ class BendersSettings:
     secondary_cut_warmup_cuts: int
     secondary_cut_master_time_share_trigger: float
     secondary_cut_recent_master_time_trigger: float
+    adaptive_secondary_generation_enabled: bool
+    secondary_generation_lb_window: int
+    secondary_generation_stall_threshold: float
+    secondary_generation_cooldown_iterations: int
+    secondary_generation_max_subproblem_time_share: float
+    secondary_generation_min_remaining_time: float
+    secondary_generation_min_solve_budget: float
     adaptive_subproblem_gap_enabled: bool
     subproblem_gap_schedule: list[dict[str, float]]
     max_cuts_per_iteration: int
@@ -54,6 +62,15 @@ class AdditionalCutBatch:
     nonoptimal_count: int
     without_incumbent_count: int
     duplicate_patterns_rejected: int
+
+
+@dataclass(frozen=True)
+class SecondaryGenerationDecision:
+    attempt: bool
+    trigger_reason: str | None
+    skipped_reason: str | None
+    recent_relative_lb_improvement: float | None
+    cooldown_remaining: int
 
 
 def _settings(config: dict[str, Any], method: str) -> BendersSettings:
@@ -111,6 +128,39 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
             1e-6,
             float(algorithm_cfg.get("secondary_cut_recent_master_time_trigger", 0.5)),
         ),
+        adaptive_secondary_generation_enabled=bool(
+            algorithm_cfg.get("adaptive_secondary_generation_enabled", False)
+        ),
+        secondary_generation_lb_window=max(
+            1, int(algorithm_cfg.get("secondary_generation_lb_window", 5))
+        ),
+        secondary_generation_stall_threshold=max(
+            0.0,
+            float(algorithm_cfg.get("secondary_generation_stall_threshold", 1e-4)),
+        ),
+        secondary_generation_cooldown_iterations=max(
+            0, int(algorithm_cfg.get("secondary_generation_cooldown_iterations", 5))
+        ),
+        secondary_generation_max_subproblem_time_share=min(
+            1.0,
+            max(
+                0.0,
+                float(
+                    algorithm_cfg.get(
+                        "secondary_generation_max_subproblem_time_share",
+                        0.75,
+                    )
+                ),
+            ),
+        ),
+        secondary_generation_min_remaining_time=max(
+            0.0,
+            float(algorithm_cfg.get("secondary_generation_min_remaining_time", 2.0)),
+        ),
+        secondary_generation_min_solve_budget=max(
+            1e-3,
+            float(algorithm_cfg.get("secondary_generation_min_solve_budget", 1.0)),
+        ),
         adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
         subproblem_gap_schedule=subproblem_schedule,
         max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
@@ -133,6 +183,100 @@ def calculate_cut_violations(rhs: float, theta: float) -> tuple[float, float]:
     absolute = max(0.0, float(rhs) - float(theta))
     normalized = absolute / max(1.0, abs(float(theta)), abs(float(rhs)))
     return absolute, normalized
+
+
+def recent_relative_lb_improvement(
+    lower_bound_history: list[float],
+    rolling_window: int,
+) -> float | None:
+    required_points = max(1, int(rolling_window)) + 1
+    if len(lower_bound_history) < required_points:
+        return None
+    recent = lower_bound_history[-required_points:]
+    start = float(recent[0])
+    end = float(recent[-1])
+    if not math.isfinite(start) or not math.isfinite(end):
+        return None
+    return max(0.0, end - start) / max(1.0, abs(start), abs(end))
+
+
+def secondary_generation_decision(
+    *,
+    enabled: bool,
+    max_cuts_per_iteration: int,
+    primary_has_incumbent: bool,
+    lower_bound_history: list[float],
+    rolling_window: int,
+    stall_threshold: float,
+    current_iteration: int,
+    last_secondary_solve_iteration: int | None,
+    cooldown_iterations: int,
+    cumulative_subproblem_time_share: float,
+    max_subproblem_time_share: float,
+    remaining_time: float,
+    available_budget: float,
+    min_remaining_time: float,
+    min_solve_budget: float,
+) -> SecondaryGenerationDecision:
+    recent_improvement = recent_relative_lb_improvement(
+        lower_bound_history,
+        rolling_window,
+    )
+    if max_cuts_per_iteration <= 1:
+        return SecondaryGenerationDecision(
+            False, None, "single_cut_mode", recent_improvement, 0
+        )
+    if not primary_has_incumbent:
+        return SecondaryGenerationDecision(
+            False, None, "no_primary_incumbent", recent_improvement, 0
+        )
+
+    if not enabled:
+        if remaining_time <= 1e-3 or available_budget <= 1e-3:
+            return SecondaryGenerationDecision(
+                False, None, "insufficient_secondary_budget", recent_improvement, 0
+            )
+        return SecondaryGenerationDecision(
+            True, "all_secondary_cuts", None, recent_improvement, 0
+        )
+
+    if remaining_time < min_remaining_time:
+        return SecondaryGenerationDecision(
+            False, None, "insufficient_remaining_time", recent_improvement, 0
+        )
+    if available_budget < min_solve_budget:
+        return SecondaryGenerationDecision(
+            False, None, "insufficient_secondary_budget", recent_improvement, 0
+        )
+
+    cooldown_remaining = 0
+    if last_secondary_solve_iteration is not None and cooldown_iterations > 0:
+        iterations_since_solve = current_iteration - last_secondary_solve_iteration
+        if iterations_since_solve <= cooldown_iterations:
+            cooldown_remaining = cooldown_iterations - iterations_since_solve + 1
+            return SecondaryGenerationDecision(
+                False,
+                None,
+                "cooldown",
+                recent_improvement,
+                cooldown_remaining,
+            )
+
+    if cumulative_subproblem_time_share >= max_subproblem_time_share:
+        return SecondaryGenerationDecision(
+            False, None, "subproblem_time_share", recent_improvement, cooldown_remaining
+        )
+    if recent_improvement is None:
+        return SecondaryGenerationDecision(
+            False, None, "insufficient_lb_history", None, cooldown_remaining
+        )
+    if recent_improvement > stall_threshold:
+        return SecondaryGenerationDecision(
+            False, None, "lb_progress", recent_improvement, cooldown_remaining
+        )
+    return SecondaryGenerationDecision(
+        True, "lb_stall", None, recent_improvement, cooldown_remaining
+    )
 
 
 def select_subproblem_mip_gap(
@@ -303,6 +447,26 @@ def generate_additional_robust_cuts(
     )
 
 
+def generate_gated_additional_robust_cuts(
+    decision: SecondaryGenerationDecision,
+    primary_cut: RobustDualSubproblemResult,
+    max_cuts_per_iteration: int,
+    time_budget: float,
+    solve_extra: Callable[
+        [list[dict[tuple[int, int], int]], float],
+        RobustDualSubproblemResult,
+    ],
+) -> AdditionalCutBatch:
+    if not decision.attempt:
+        return AdditionalCutBatch([], 0.0, 0, 0, 0)
+    return generate_additional_robust_cuts(
+        primary_cut,
+        max_cuts_per_iteration,
+        time_budget,
+        solve_extra,
+    )
+
+
 def _first_stage_expr(instance: InventoryInstance, y: gp.tupledict, x: gp.tupledict) -> gp.LinExpr:
     return gp.quicksum(instance.fixed_cost[i] * y[i] for i in instance.I) + gp.quicksum(
         instance.inventory_cost[i][j] * x[i, j] for i in instance.I for j in instance.J
@@ -440,6 +604,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     cuts_skipped = 0
     secondary_cuts_added = 0
     secondary_cuts_skipped = 0
+    secondary_solves_attempted = 0
+    secondary_solves_avoided = 0
     duplicate_cuts_rejected = 0
     duplicate_patterns_rejected = 0
     additional_subproblem_time = 0.0
@@ -450,6 +616,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     known_cut_keys: set[tuple[float, ...]] = set()
     iterations_without_useful_cut = 0
     iterations_without_secondary_cut = 0
+    last_secondary_solve_iteration: int | None = None
+    lower_bound_history: list[float] = []
     master_runtime = 0.0
     subproblem_runtime = 0.0
     log: list[dict[str, Any]] = []
@@ -481,9 +649,12 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         master_elapsed = time.perf_counter() - master_start
         master_runtime += master_elapsed
 
+        master_status = gurobi_status_name(model.Status)
         if model.Status not in {GRB.OPTIMAL, GRB.TIME_LIMIT, GRB.SUBOPTIMAL} or model.SolCount == 0:
-            status = f"gurobi_status_{model.Status}"
+            status = master_status
             break
+        if master_status == "time_limit":
+            status = "time_limit"
 
         x_values = {(i, j): float(x[i, j].X) for i in instance.I for j in instance.J}
         y_values = {i: float(y[i].X) for i in instance.I}
@@ -499,6 +670,18 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             else settings.final_mip_gap
         )
         requested_subproblem_gaps.append(requested_subproblem_gap)
+        additional_batch = AdditionalCutBatch([], 0.0, 0, 0, 0)
+        secondary_generation = SecondaryGenerationDecision(
+            False,
+            None,
+            "scenario_enumeration",
+            recent_relative_lb_improvement(
+                lower_bound_history,
+                settings.secondary_generation_lb_window,
+            ),
+            0,
+        )
+        generation_subproblem_time_share = 0.0
 
         if settings.subproblem_mode == "scenario_enumeration":
             if target_enum is None:
@@ -549,7 +732,37 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 settings.subproblem_time_budget_per_iteration or global_remaining,
             )
             additional_budget = max(0.0, total_subproblem_budget - active_sub_time - target_sub_time)
-            additional_batch = generate_additional_robust_cuts(
+            elapsed_before_secondary = max(1e-12, time.perf_counter() - start)
+            projected_subproblem_time = subproblem_runtime + active_sub_time + target_sub_time
+            generation_subproblem_time_share = (
+                projected_subproblem_time / elapsed_before_secondary
+            )
+            secondary_generation = secondary_generation_decision(
+                enabled=settings.adaptive_secondary_generation_enabled,
+                max_cuts_per_iteration=settings.max_cuts_per_iteration,
+                primary_has_incumbent=active_cut.has_incumbent,
+                lower_bound_history=lower_bound_history,
+                rolling_window=settings.secondary_generation_lb_window,
+                stall_threshold=settings.secondary_generation_stall_threshold,
+                current_iteration=iteration + 1,
+                last_secondary_solve_iteration=last_secondary_solve_iteration,
+                cooldown_iterations=settings.secondary_generation_cooldown_iterations,
+                cumulative_subproblem_time_share=generation_subproblem_time_share,
+                max_subproblem_time_share=(
+                    settings.secondary_generation_max_subproblem_time_share
+                ),
+                remaining_time=global_remaining,
+                available_budget=additional_budget,
+                min_remaining_time=settings.secondary_generation_min_remaining_time,
+                min_solve_budget=settings.secondary_generation_min_solve_budget,
+            )
+            if secondary_generation.attempt:
+                secondary_solves_attempted += 1
+                last_secondary_solve_iteration = iteration + 1
+            elif settings.max_cuts_per_iteration > 1:
+                secondary_solves_avoided += 1
+            additional_batch = generate_gated_additional_robust_cuts(
+                secondary_generation,
                 active_cut,
                 settings.max_cuts_per_iteration,
                 additional_budget,
@@ -601,6 +814,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             best_objective = candidate_upper
 
         lower_bound = max(lower_bound, float(model.ObjBound))
+        lower_bound_history.append(lower_bound)
         previous_gap = current_gap
         if upper_bound < float("inf"):
             gap = calculate_global_gap(upper_bound, lower_bound)
@@ -780,6 +994,19 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             }
             for index, decision in enumerate(cut_decisions[1:], start=1)
         ]
+        secondary_generated_cut_added = any(
+            decision["add"]
+            for decision in cut_decisions
+            if decision["cut_role"] == "secondary"
+        )
+        secondary_generated_cut_duplicate = (
+            additional_batch.duplicate_patterns_rejected > 0
+            or any(
+                decision["skip_reason"] == "duplicate_cut"
+                for decision in cut_decisions
+                if decision["cut_role"] == "secondary"
+            )
+        )
         forced_cut_added = any(decision["add_reason"] is not None for decision in cut_decisions)
         forced_cut_reason = next(
             (decision["add_reason"] for decision in cut_decisions if decision["add_reason"] is not None),
@@ -855,6 +1082,22 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "secondary_cuts_added_total": secondary_cuts_added,
                 "secondary_cuts_skipped_total": secondary_cuts_skipped,
                 "master_time_share": master_time_share,
+                "secondary_solve_attempted": secondary_generation.attempt,
+                "secondary_solve_trigger_reason": secondary_generation.trigger_reason,
+                "secondary_solve_skipped_reason": secondary_generation.skipped_reason,
+                "recent_relative_lb_improvement": (
+                    secondary_generation.recent_relative_lb_improvement
+                ),
+                "secondary_solve_cooldown_remaining": (
+                    secondary_generation.cooldown_remaining
+                ),
+                "secondary_solve_runtime": iteration_additional_subproblem_time,
+                "secondary_generation_subproblem_time_share": (
+                    generation_subproblem_time_share
+                ),
+                "secondary_generated_cut_added": secondary_generated_cut_added,
+                "secondary_generated_cut_duplicate": secondary_generated_cut_duplicate,
+                "secondary_solves_avoided_total": secondary_solves_avoided,
                 "cut_added": cut_added,
                 "cut_skip_reason": cut_skip_reason,
                 "cut_add_reason": cut_add_reason,
@@ -943,10 +1186,41 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "secondary_cut_recent_master_time_trigger": (
                 settings.secondary_cut_recent_master_time_trigger
             ),
+            "adaptive_secondary_generation_enabled": (
+                settings.adaptive_secondary_generation_enabled
+            ),
+            "secondary_generation_lb_window": settings.secondary_generation_lb_window,
+            "secondary_generation_stall_threshold": (
+                settings.secondary_generation_stall_threshold
+            ),
+            "secondary_generation_cooldown_iterations": (
+                settings.secondary_generation_cooldown_iterations
+            ),
+            "secondary_generation_max_subproblem_time_share": (
+                settings.secondary_generation_max_subproblem_time_share
+            ),
+            "secondary_generation_min_remaining_time": (
+                settings.secondary_generation_min_remaining_time
+            ),
+            "secondary_generation_min_solve_budget": (
+                settings.secondary_generation_min_solve_budget
+            ),
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
             "secondary_cuts_added_total": secondary_cuts_added,
             "secondary_cuts_skipped_total": secondary_cuts_skipped,
+            "secondary_solves_attempted_total": secondary_solves_attempted,
+            "secondary_solves_avoided_total": secondary_solves_avoided,
+            "last_secondary_solve_attempted": last_log.get("secondary_solve_attempted"),
+            "last_secondary_solve_trigger_reason": last_log.get(
+                "secondary_solve_trigger_reason"
+            ),
+            "last_secondary_solve_skipped_reason": last_log.get(
+                "secondary_solve_skipped_reason"
+            ),
+            "last_recent_relative_lb_improvement": last_log.get(
+                "recent_relative_lb_improvement"
+            ),
             "last_secondary_cut_decisions": last_log.get("secondary_cut_decisions"),
             "last_secondary_active_threshold": last_log.get("secondary_active_threshold"),
             "last_cut_violation": last_log.get("cut_violation"),

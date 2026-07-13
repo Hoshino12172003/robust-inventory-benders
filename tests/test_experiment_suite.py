@@ -239,6 +239,26 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
         settings["k2_secondary_adaptive"]["adaptive_secondary_cut_selection_enabled"]
         is True
     )
+    generation = configs["screen_adaptive_secondary_generation.yaml"]
+    assert generation["random_seeds"] == [0, 1, 2]
+    assert generation["instance_sizes"] == ["medium"]
+    assert generation["time_limit"] == 60
+    assert generation["max_iterations"] == 2000
+    assert generation["variants"] == [
+        "k1_single_cut",
+        "k2_all_cuts",
+        "adaptive_secondary_generation",
+        "adaptive_secondary_generation_no_cooldown",
+    ]
+    generation_settings = generation["variant_settings"]
+    assert generation_settings["k1_single_cut"]["max_cuts_per_iteration"] == 1
+    assert generation_settings["k2_all_cuts"]["max_cuts_per_iteration"] == 2
+    assert generation_settings["adaptive_secondary_generation"][
+        "adaptive_secondary_generation_enabled"
+    ] is True
+    assert generation_settings["adaptive_secondary_generation_no_cooldown"][
+        "secondary_generation_cooldown_iterations"
+    ] == 0
 
 
 def test_round2_tuning_configs_exist_and_parse() -> None:
@@ -365,6 +385,15 @@ def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> No
         "forced_cut_added",
         "secondary_cut_decisions",
         "secondary_active_threshold",
+        "secondary_solve_attempted",
+        "secondary_solve_trigger_reason",
+        "secondary_solve_skipped_reason",
+        "recent_relative_lb_improvement",
+        "secondary_solve_cooldown_remaining",
+        "secondary_solve_runtime",
+        "secondary_generated_cut_added",
+        "secondary_generated_cut_duplicate",
+        "secondary_solves_avoided_total",
     ):
         assert field in log_rows[0]
     for field in ("reached_gap_5pct", "time_to_gap_1pct", "subproblem_time_share"):
@@ -487,6 +516,7 @@ def test_baselines_disable_adaptive_secondary_selection(
         method_config["algorithm"]["adaptive_secondary_cut_selection_enabled"]
         is False
     )
+    assert method_config["algorithm"]["adaptive_secondary_generation_enabled"] is False
     assert method_config["algorithm"]["max_cuts_per_iteration"] == 1
 
 

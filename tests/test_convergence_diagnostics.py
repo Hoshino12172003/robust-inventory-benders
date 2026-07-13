@@ -11,9 +11,12 @@ from src.benders import (
     calculate_global_gap,
     calculate_cut_violations,
     generate_additional_robust_cuts,
+    generate_gated_additional_robust_cuts,
     marginal_normalized_violation,
     primary_cut_decision,
+    recent_relative_lb_improvement,
     relative_cut_decision,
+    secondary_generation_decision,
     select_subproblem_mip_gap,
     solve_benders,
     target_upper_cost,
@@ -158,6 +161,145 @@ def test_adaptive_secondary_threshold_responds_to_master_pressure() -> None:
     assert warmup == 0.0
     assert pressured > 0.1
     assert final == 0.0
+
+
+def test_secondary_generation_gate_closed_does_not_call_solver() -> None:
+    primary = fake_robust_cut(pattern=(1, 0))
+    decision = secondary_generation_decision(
+        enabled=True,
+        max_cuts_per_iteration=2,
+        primary_has_incumbent=True,
+        lower_bound_history=[100.0, 100.0],
+        rolling_window=5,
+        stall_threshold=1e-4,
+        current_iteration=3,
+        last_secondary_solve_iteration=None,
+        cooldown_iterations=5,
+        cumulative_subproblem_time_share=0.2,
+        max_subproblem_time_share=0.75,
+        remaining_time=30.0,
+        available_budget=10.0,
+        min_remaining_time=5.0,
+        min_solve_budget=2.0,
+    )
+    calls = 0
+
+    def unexpected_solve(
+        _excluded: list[dict[tuple[int, int], int]],
+        _remaining: float,
+    ) -> RobustDualSubproblemResult:
+        nonlocal calls
+        calls += 1
+        return fake_robust_cut(pattern=(0, 1))
+
+    batch = generate_gated_additional_robust_cuts(
+        decision,
+        primary,
+        2,
+        10.0,
+        unexpected_solve,
+    )
+
+    assert decision.attempt is False
+    assert decision.skipped_reason == "insufficient_lb_history"
+    assert calls == 0
+    assert batch.cuts == []
+
+
+def test_lb_stall_opens_secondary_generation_gate() -> None:
+    history = [100.0, 100.002, 100.003, 100.004]
+    assert recent_relative_lb_improvement(history, 3) == pytest.approx(0.004 / 100.004)
+
+    decision = secondary_generation_decision(
+        enabled=True,
+        max_cuts_per_iteration=2,
+        primary_has_incumbent=True,
+        lower_bound_history=history,
+        rolling_window=3,
+        stall_threshold=1e-4,
+        current_iteration=5,
+        last_secondary_solve_iteration=None,
+        cooldown_iterations=2,
+        cumulative_subproblem_time_share=0.2,
+        max_subproblem_time_share=0.75,
+        remaining_time=30.0,
+        available_budget=10.0,
+        min_remaining_time=5.0,
+        min_solve_budget=2.0,
+    )
+
+    assert decision.attempt is True
+    assert decision.trigger_reason == "lb_stall"
+
+
+def test_cooldown_temporarily_closes_secondary_generation_gate() -> None:
+    decision = secondary_generation_decision(
+        enabled=True,
+        max_cuts_per_iteration=2,
+        primary_has_incumbent=True,
+        lower_bound_history=[100.0, 100.0, 100.0, 100.0],
+        rolling_window=3,
+        stall_threshold=1e-4,
+        current_iteration=7,
+        last_secondary_solve_iteration=6,
+        cooldown_iterations=3,
+        cumulative_subproblem_time_share=0.2,
+        max_subproblem_time_share=0.75,
+        remaining_time=30.0,
+        available_budget=10.0,
+        min_remaining_time=5.0,
+        min_solve_budget=2.0,
+    )
+
+    assert decision.attempt is False
+    assert decision.skipped_reason == "cooldown"
+    assert decision.cooldown_remaining == 3
+
+
+def test_insufficient_remaining_time_closes_secondary_generation_gate() -> None:
+    decision = secondary_generation_decision(
+        enabled=True,
+        max_cuts_per_iteration=2,
+        primary_has_incumbent=True,
+        lower_bound_history=[100.0, 100.0, 100.0, 100.0],
+        rolling_window=3,
+        stall_threshold=1e-4,
+        current_iteration=10,
+        last_secondary_solve_iteration=None,
+        cooldown_iterations=0,
+        cumulative_subproblem_time_share=0.2,
+        max_subproblem_time_share=0.75,
+        remaining_time=4.0,
+        available_budget=4.0,
+        min_remaining_time=5.0,
+        min_solve_budget=2.0,
+    )
+
+    assert decision.attempt is False
+    assert decision.skipped_reason == "insufficient_remaining_time"
+
+
+def test_single_cut_mode_never_attempts_secondary_generation() -> None:
+    decision = secondary_generation_decision(
+        enabled=True,
+        max_cuts_per_iteration=1,
+        primary_has_incumbent=True,
+        lower_bound_history=[100.0, 100.0, 100.0, 100.0],
+        rolling_window=3,
+        stall_threshold=1e-4,
+        current_iteration=10,
+        last_secondary_solve_iteration=None,
+        cooldown_iterations=0,
+        cumulative_subproblem_time_share=0.0,
+        max_subproblem_time_share=1.0,
+        remaining_time=30.0,
+        available_budget=30.0,
+        min_remaining_time=1.0,
+        min_solve_budget=1.0,
+    )
+
+    assert decision.attempt is False
+    assert decision.skipped_reason == "single_cut_mode"
 
 
 def test_adaptive_subproblem_gap_tightens() -> None:
@@ -331,6 +473,32 @@ def test_time_to_gap_metrics_use_first_reached_iteration() -> None:
     assert summary["gap_5pct_rate"] == pytest.approx(1.0)
     assert summary["gap_05pct_rate"] == pytest.approx(0.0)
     assert summary["mean_time_to_gap_5pct"] == pytest.approx(5.0)
+
+
+def test_gurobi_status_nine_is_completed_in_summary_metrics() -> None:
+    row = {
+        "experiment_name": "status_normalization",
+        "instance_size": "medium",
+        "method": "standard_benders",
+        "variant_name": "standard_benders",
+        "status": 9,
+        "objective": 120.0,
+        "runtime": 60.0,
+        "final_gap": 0.03,
+        "iterations": 150,
+        "cuts_added_total": 150,
+        "cuts_skipped_total": 0,
+        "master_time": 10.0,
+        "subproblem_time": 50.0,
+        "valid_UB": True,
+    }
+
+    summary = _summary_rows([row])[0]
+
+    assert summary["num_completed"] == 1
+    assert summary["completed_rate"] == pytest.approx(1.0)
+    assert summary["mean_objective"] == pytest.approx(120.0)
+    assert summary["mean_runtime"] == pytest.approx(60.0)
 
 
 def test_no_good_constraint_returns_distinct_pattern_and_valid_cut() -> None:

@@ -18,6 +18,7 @@ from .instance import InventoryInstance, generate_instance, save_instance
 from .monolithic import solve_monolithic
 from .results import SolveResult
 from .scenarios import count_budget_scenarios
+from .status import normalize_run_status
 
 
 INSTANCE_SIZES: dict[str, dict[str, int]] = {
@@ -82,6 +83,18 @@ RESULT_FIELDS = [
     "secondary_cut_warmup_cuts",
     "secondary_cut_master_time_share_trigger",
     "secondary_cut_recent_master_time_trigger",
+    "adaptive_secondary_generation_enabled",
+    "secondary_generation_lb_window",
+    "secondary_generation_stall_threshold",
+    "secondary_generation_cooldown_iterations",
+    "secondary_generation_max_subproblem_time_share",
+    "secondary_generation_min_remaining_time",
+    "secondary_generation_min_solve_budget",
+    "secondary_solves_attempted_total",
+    "secondary_solves_avoided_total",
+    "last_secondary_solve_trigger_reason",
+    "last_secondary_solve_skipped_reason",
+    "last_recent_relative_lb_improvement",
     "adaptive_subproblem_gap_enabled",
     "subproblem_gap_schedule",
     "last_subproblem_requested_mip_gap",
@@ -209,6 +222,16 @@ ITERATION_LOG_FIELDS = [
     "secondary_cut_decisions",
     "secondary_active_threshold",
     "master_time_share",
+    "secondary_solve_attempted",
+    "secondary_solve_trigger_reason",
+    "secondary_solve_skipped_reason",
+    "recent_relative_lb_improvement",
+    "secondary_solve_cooldown_remaining",
+    "secondary_solve_runtime",
+    "secondary_generation_subproblem_time_share",
+    "secondary_generated_cut_added",
+    "secondary_generated_cut_duplicate",
+    "secondary_solves_avoided_total",
     "elapsed_time",
 ]
 
@@ -293,6 +316,27 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "secondary_cut_recent_master_time_trigger": float(
                 exp_cfg.get("secondary_cut_recent_master_time_trigger", 0.5)
             ),
+            "adaptive_secondary_generation_enabled": bool(
+                exp_cfg.get("adaptive_secondary_generation_enabled", False)
+            ),
+            "secondary_generation_lb_window": int(
+                exp_cfg.get("secondary_generation_lb_window", 5)
+            ),
+            "secondary_generation_stall_threshold": float(
+                exp_cfg.get("secondary_generation_stall_threshold", 1e-4)
+            ),
+            "secondary_generation_cooldown_iterations": int(
+                exp_cfg.get("secondary_generation_cooldown_iterations", 5)
+            ),
+            "secondary_generation_max_subproblem_time_share": float(
+                exp_cfg.get("secondary_generation_max_subproblem_time_share", 0.75)
+            ),
+            "secondary_generation_min_remaining_time": float(
+                exp_cfg.get("secondary_generation_min_remaining_time", 2.0)
+            ),
+            "secondary_generation_min_solve_budget": float(
+                exp_cfg.get("secondary_generation_min_solve_budget", 1.0)
+            ),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -336,6 +380,13 @@ def _apply_variant_config(
         "secondary_cut_warmup_cuts",
         "secondary_cut_master_time_share_trigger",
         "secondary_cut_recent_master_time_trigger",
+        "adaptive_secondary_generation_enabled",
+        "secondary_generation_lb_window",
+        "secondary_generation_stall_threshold",
+        "secondary_generation_cooldown_iterations",
+        "secondary_generation_max_subproblem_time_share",
+        "secondary_generation_min_remaining_time",
+        "secondary_generation_min_solve_budget",
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -359,6 +410,7 @@ def _apply_variant_config(
         solver_method = "standard_benders"
         config["algorithm"]["cut_selection_enabled"] = False
         config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_secondary_generation_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
@@ -371,6 +423,7 @@ def _apply_variant_config(
         solver_method = "inexact_benders"
         config["algorithm"]["cut_selection_enabled"] = False
         config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_secondary_generation_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
@@ -527,7 +580,7 @@ def _result_row(
         "method": method,
         "variant_name": variant_name,
         "subproblem_mode": meta.get("subproblem_mode"),
-        "status": result.status,
+        "status": normalize_run_status(result.status),
         "objective": result.objective,
         "best_bound": result.lower_bound,
         "final_gap": result.gap,
@@ -561,6 +614,36 @@ def _result_row(
         ),
         "secondary_cut_recent_master_time_trigger": meta.get(
             "secondary_cut_recent_master_time_trigger"
+        ),
+        "adaptive_secondary_generation_enabled": meta.get(
+            "adaptive_secondary_generation_enabled"
+        ),
+        "secondary_generation_lb_window": meta.get("secondary_generation_lb_window"),
+        "secondary_generation_stall_threshold": meta.get(
+            "secondary_generation_stall_threshold"
+        ),
+        "secondary_generation_cooldown_iterations": meta.get(
+            "secondary_generation_cooldown_iterations"
+        ),
+        "secondary_generation_max_subproblem_time_share": meta.get(
+            "secondary_generation_max_subproblem_time_share"
+        ),
+        "secondary_generation_min_remaining_time": meta.get(
+            "secondary_generation_min_remaining_time"
+        ),
+        "secondary_generation_min_solve_budget": meta.get(
+            "secondary_generation_min_solve_budget"
+        ),
+        "secondary_solves_attempted_total": meta.get("secondary_solves_attempted_total"),
+        "secondary_solves_avoided_total": meta.get("secondary_solves_avoided_total"),
+        "last_secondary_solve_trigger_reason": meta.get(
+            "last_secondary_solve_trigger_reason"
+        ),
+        "last_secondary_solve_skipped_reason": meta.get(
+            "last_secondary_solve_skipped_reason"
+        ),
+        "last_recent_relative_lb_improvement": meta.get(
+            "last_recent_relative_lb_improvement"
         ),
         "adaptive_subproblem_gap_enabled": meta.get("adaptive_subproblem_gap_enabled"),
         "subproblem_gap_schedule": meta.get("subproblem_gap_schedule"),
@@ -769,13 +852,16 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _is_completed(row: dict[str, Any]) -> bool:
-    return row.get("status") in COMPLETED_STATUSES and row.get("objective") not in (None, "")
+    return (
+        normalize_run_status(row.get("status")) in COMPLETED_STATUSES
+        and row.get("objective") not in (None, "")
+    )
 
 
 def _is_solved(row: dict[str, Any]) -> bool:
     if row.get("objective") in (None, ""):
         return False
-    if row.get("status") == "optimal":
+    if normalize_run_status(row.get("status")) == "optimal":
         return True
     gap = row.get("final_gap")
     if gap in (None, ""):
