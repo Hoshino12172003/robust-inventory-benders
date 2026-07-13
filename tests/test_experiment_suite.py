@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.experiment_suite import _apply_variant_config, _base_config, run_experiment_suite
+from src.experiment_suite import (
+    _apply_variant_config,
+    _base_config,
+    _validate_relative_threshold_config,
+    run_experiment_suite,
+)
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -218,6 +223,8 @@ def test_round2_tuning_configs_exist_and_parse() -> None:
         "selected_algorithm_parameters.yaml"
     )
 
+    _validate_relative_threshold_config(wide)
+
 
 def test_round2_staged_gamma_variant_is_applied() -> None:
     exp_config = {
@@ -259,6 +266,26 @@ def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path
         run_experiment_suite(config)
 
     assert not Path(config["output_dir"]).exists()
+
+
+def test_relative_variant_missing_threshold_is_rejected() -> None:
+    config = {
+        "cut_selection_mode": "relative",
+        "variants": ["complete", "missing"],
+        "variant_settings": {
+            "complete": {"relative_cut_threshold": 0.1},
+            "missing": {},
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "relative_cut_threshold must be selected before running "
+            r"screen_master_gamma\.yaml\. Run screen_relative_cut_wide\.yaml first\."
+        ),
+    ):
+        _validate_relative_threshold_config(config)
 
 
 def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> None:
