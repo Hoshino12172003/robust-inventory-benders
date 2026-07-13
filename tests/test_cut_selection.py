@@ -50,19 +50,22 @@ def test_default_cut_selection_keeps_benders_progress() -> None:
     assert result.metadata["cuts_added_total"] >= 1
 
 
-def test_high_delta_cut_selection_skips_low_violation_cut() -> None:
+def test_high_delta_cut_selection_only_screens_secondary_cut() -> None:
     config = cut_selection_config()
     config["algorithm"]["delta_cut"] = 1e9
+    config["algorithm"]["max_cuts_per_iteration"] = 2
+    config["robust"]["gamma_schedule"] = [1]
     config["benders"]["max_iterations"] = 1
     instance = generate_instance(config, seed=32)
 
     result = solve_benders(config, instance, "adaptive_gap_gamma_benders")
 
-    assert result.cuts == 0
-    assert result.metadata["cuts_added_total"] == 0
-    assert result.metadata["cuts_skipped_total"] >= 1
-    assert any(not row["cut_added"] for row in result.iteration_log)
-    assert any(row["cut_skip_reason"] == "low_violation" for row in result.iteration_log)
+    assert result.metadata["cuts_added_total"] >= 1
+    assert result.iteration_log[0]["cut_added"] is True
+    secondary = result.iteration_log[0]["secondary_cut_decisions"]
+    assert secondary
+    assert any(not decision["added"] for decision in secondary)
+    assert any(decision["skip_reason"] == "low_violation" for decision in secondary)
 
 
 def test_disabled_cut_selection_keeps_old_add_cut_behavior() -> None:

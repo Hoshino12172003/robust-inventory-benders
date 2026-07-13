@@ -181,6 +181,31 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     assert configs["final_evaluation_template.yaml"]["random_seeds"] == list(range(10, 20))
     selected = configs["selected_algorithm_parameters.yaml"]
     assert selected["selection_status"] == "pending_parameter_screens"
+    secondary = configs["screen_secondary_cut_selection.yaml"]
+    assert secondary["random_seeds"] == [0, 1, 2]
+    assert secondary["instance_sizes"] == ["medium"]
+    assert secondary["time_limit"] == 60
+    assert secondary["max_iterations"] == 2000
+    assert secondary["variants"] == [
+        "k1_single_cut",
+        "k2_all_cuts",
+        "k2_secondary_static",
+        "k2_secondary_adaptive",
+    ]
+    settings = secondary["variant_settings"]
+    assert settings["k1_single_cut"]["max_cuts_per_iteration"] == 1
+    assert settings["k1_single_cut"]["cut_selection_enabled"] is False
+    assert settings["k2_all_cuts"]["max_cuts_per_iteration"] == 2
+    assert settings["k2_all_cuts"]["cut_selection_enabled"] is False
+    assert settings["k2_secondary_static"]["cut_selection_mode"] == "relative"
+    assert (
+        settings["k2_secondary_static"]["adaptive_secondary_cut_selection_enabled"]
+        is False
+    )
+    assert (
+        settings["k2_secondary_adaptive"]["adaptive_secondary_cut_selection_enabled"]
+        is True
+    )
 
 
 def test_round2_tuning_configs_exist_and_parse() -> None:
@@ -305,6 +330,8 @@ def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> No
         "subproblem_requested_mip_gap",
         "normalized_cut_violation",
         "forced_cut_added",
+        "secondary_cut_decisions",
+        "secondary_active_threshold",
     ):
         assert field in log_rows[0]
     for field in ("reached_gap_5pct", "time_to_gap_1pct", "subproblem_time_share"):

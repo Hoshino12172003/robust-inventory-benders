@@ -31,6 +31,10 @@ class BendersSettings:
     cut_violation_tol: float
     final_exact_gap: float
     cut_stall_patience: int
+    adaptive_secondary_cut_selection_enabled: bool
+    secondary_cut_warmup_cuts: int
+    secondary_cut_master_time_share_trigger: float
+    secondary_cut_recent_master_time_trigger: float
     adaptive_subproblem_gap_enabled: bool
     subproblem_gap_schedule: list[dict[str, float]]
     max_cuts_per_iteration: int
@@ -93,6 +97,20 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         cut_violation_tol=float(algorithm_cfg.get("cut_violation_tol", 1e-8)),
         final_exact_gap=float(algorithm_cfg.get("final_exact_gap", 1e-2)),
         cut_stall_patience=max(1, int(algorithm_cfg.get("cut_stall_patience", 5))),
+        adaptive_secondary_cut_selection_enabled=bool(
+            algorithm_cfg.get("adaptive_secondary_cut_selection_enabled", False)
+        ),
+        secondary_cut_warmup_cuts=max(
+            1, int(algorithm_cfg.get("secondary_cut_warmup_cuts", 50))
+        ),
+        secondary_cut_master_time_share_trigger=max(
+            1e-6,
+            float(algorithm_cfg.get("secondary_cut_master_time_share_trigger", 0.35)),
+        ),
+        secondary_cut_recent_master_time_trigger=max(
+            1e-6,
+            float(algorithm_cfg.get("secondary_cut_recent_master_time_trigger", 0.5)),
+        ),
         adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
         subproblem_gap_schedule=subproblem_schedule,
         max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
@@ -154,6 +172,61 @@ def relative_cut_decision(
     if active_gamma == gamma_target and global_gap <= final_exact_gap:
         return True, None, "final_exact_phase"
     return False, "low_relative_violation", None
+
+
+def primary_cut_decision(
+    absolute_violation: float,
+    tolerance: float,
+    duplicate: bool = False,
+) -> tuple[bool, str | None]:
+    if duplicate:
+        return False, "duplicate_cut"
+    if absolute_violation <= tolerance:
+        return False, "not_violated"
+    return True, None
+
+
+def marginal_normalized_violation(
+    secondary_normalized_violation: float,
+    primary_normalized_violation: float,
+    tolerance: float,
+) -> float:
+    if primary_normalized_violation <= tolerance:
+        return 0.0
+    return max(0.0, secondary_normalized_violation) / primary_normalized_violation
+
+
+def adaptive_secondary_cut_threshold(
+    base_threshold: float,
+    cuts_in_master: int,
+    warmup_cuts: int,
+    master_time_share: float,
+    master_time_share_trigger: float,
+    recent_master_runtime: float,
+    recent_master_time_trigger: float,
+    global_gap: float,
+    final_exact_gap: float,
+    final_exact_phase: bool,
+) -> float:
+    if final_exact_phase:
+        return 0.0
+
+    master_is_small = (
+        cuts_in_master < warmup_cuts
+        and master_time_share < master_time_share_trigger
+        and recent_master_runtime < recent_master_time_trigger
+    )
+    if master_is_small:
+        return 0.0
+
+    pressure = max(
+        1.0,
+        cuts_in_master / max(1, warmup_cuts),
+        master_time_share / max(1e-12, master_time_share_trigger),
+        recent_master_runtime / max(1e-12, recent_master_time_trigger),
+    )
+    gap_scale = max(0.25, min(1.0, global_gap / max(1e-12, 5.0 * final_exact_gap)))
+    return min(1.0, max(0.0, base_threshold) * pressure * gap_scale)
 
 
 def _pattern_key(cut: RobustDualSubproblemResult) -> tuple[int, ...]:
@@ -365,6 +438,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     best_objective = None
     cuts = 0
     cuts_skipped = 0
+    secondary_cuts_added = 0
+    secondary_cuts_skipped = 0
     duplicate_cuts_rejected = 0
     duplicate_patterns_rejected = 0
     additional_subproblem_time = 0.0
@@ -374,6 +449,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     cuts_generated_counts: list[int] = []
     known_cut_keys: set[tuple[float, ...]] = set()
     iterations_without_useful_cut = 0
+    iterations_without_secondary_cut = 0
     master_runtime = 0.0
     subproblem_runtime = 0.0
     log: list[dict[str, Any]] = []
@@ -532,50 +608,100 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             gap = 1.0
         current_gap = gap
         theta_current = float(theta.X)
+        primary_normalized_violation = 0.0
+        if active_candidates:
+            primary_rhs = active_candidates[0].cut_value(x_values)
+            _, primary_normalized_violation = calculate_cut_violations(
+                primary_rhs,
+                theta_current,
+            )
+        elapsed_before_cut_selection = max(1e-12, time.perf_counter() - start)
+        master_time_share = master_runtime / elapsed_before_cut_selection
+        final_exact_phase = (
+            active_gamma == settings.gamma_target and gap <= settings.final_exact_gap
+        )
+        adaptive_secondary_threshold = adaptive_secondary_cut_threshold(
+            settings.relative_cut_threshold,
+            cuts,
+            settings.secondary_cut_warmup_cuts,
+            master_time_share,
+            settings.secondary_cut_master_time_share_trigger,
+            master_elapsed,
+            settings.secondary_cut_recent_master_time_trigger,
+            gap,
+            settings.final_exact_gap,
+            final_exact_phase,
+        )
+        secondary_selection_threshold = 0.0 if final_exact_phase else (
+            adaptive_secondary_threshold
+            if settings.adaptive_secondary_cut_selection_enabled
+            else settings.relative_cut_threshold
+        )
         cut_decisions: list[dict[str, Any]] = []
-        for candidate_cut in active_candidates:
+        for candidate_index, candidate_cut in enumerate(active_candidates):
+            cut_role = "primary" if candidate_index == 0 else "secondary"
             cut_rhs = candidate_cut.cut_value(x_values)
             raw_violation = cut_rhs - theta_current
             absolute_violation, normalized_violation = calculate_cut_violations(cut_rhs, theta_current)
+            marginal_violation = (
+                1.0
+                if cut_role == "primary" and normalized_violation > settings.cut_violation_tol
+                else marginal_normalized_violation(
+                    normalized_violation,
+                    primary_normalized_violation,
+                    settings.cut_violation_tol,
+                )
+            )
             duplicate = settings.max_cuts_per_iteration > 1 and _cut_key(candidate_cut) in known_cut_keys
             add_cut = False
             skip_reason = None
             add_reason = None
-            if duplicate:
-                skip_reason = "duplicate_cut"
-                duplicate_cuts_rejected += 1
-            elif not settings.cut_selection_enabled:
-                add_cut = True
-            elif settings.cut_selection_mode == "absolute":
-                add_cut = raw_violation >= settings.delta_cut - settings.cut_violation_tol
-                if not add_cut:
-                    skip_reason = "low_violation"
-                    if (
-                        active_gamma == settings.gamma_target
-                        and gap > settings.tol
-                        and raw_violation > settings.cut_violation_tol
-                    ):
-                        add_cut = True
-                        skip_reason = None
-                        add_reason = "forced_target_progress"
-            else:
-                add_cut, skip_reason, add_reason = relative_cut_decision(
+            active_threshold = 0.0
+            if cut_role == "primary":
+                add_cut, skip_reason = primary_cut_decision(
                     absolute_violation,
-                    normalized_violation,
-                    settings.relative_cut_threshold,
                     settings.cut_violation_tol,
-                    active_gamma,
-                    settings.gamma_target,
-                    gap,
-                    settings.final_exact_gap,
+                    duplicate,
                 )
+            else:
+                if duplicate:
+                    skip_reason = "duplicate_cut"
+                elif absolute_violation <= settings.cut_violation_tol:
+                    skip_reason = "not_violated"
+                elif final_exact_phase:
+                    add_cut = True
+                    add_reason = "final_exact_phase"
+                elif not settings.cut_selection_enabled:
+                    add_cut = True
+                elif settings.cut_selection_mode == "absolute":
+                    active_threshold = settings.delta_cut
+                    add_cut = raw_violation >= settings.delta_cut - settings.cut_violation_tol
+                    if not add_cut:
+                        skip_reason = "low_violation"
+                else:
+                    active_threshold = secondary_selection_threshold
+                    add_cut, skip_reason, add_reason = relative_cut_decision(
+                        absolute_violation,
+                        marginal_violation,
+                        active_threshold,
+                        settings.cut_violation_tol,
+                        active_gamma,
+                        settings.gamma_target,
+                        gap,
+                        settings.final_exact_gap,
+                    )
+            if duplicate:
+                duplicate_cuts_rejected += 1
             cut_decisions.append(
                 {
                     "cut": candidate_cut,
+                    "cut_role": cut_role,
                     "rhs": cut_rhs,
                     "raw_violation": raw_violation,
                     "absolute_violation": absolute_violation,
                     "normalized_violation": normalized_violation,
+                    "marginal_normalized_violation": marginal_violation,
+                    "active_threshold": active_threshold,
                     "add": add_cut,
                     "skip_reason": skip_reason,
                     "add_reason": add_reason,
@@ -585,17 +711,23 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         if (
             settings.cut_selection_enabled
             and settings.cut_selection_mode == "relative"
-            and not any(decision["add"] for decision in cut_decisions)
-            and iterations_without_useful_cut + 1 >= settings.cut_stall_patience
+            and not any(
+                decision["add"] for decision in cut_decisions if decision["cut_role"] == "secondary"
+            )
+            and iterations_without_secondary_cut + 1 >= settings.cut_stall_patience
         ):
             eligible = [
                 decision
                 for decision in cut_decisions
-                if decision["absolute_violation"] > settings.cut_violation_tol
+                if decision["cut_role"] == "secondary"
+                and decision["absolute_violation"] > settings.cut_violation_tol
                 and decision["skip_reason"] != "duplicate_cut"
             ]
             if eligible:
-                forced = max(eligible, key=lambda decision: decision["normalized_violation"])
+                forced = max(
+                    eligible,
+                    key=lambda decision: decision["marginal_normalized_violation"],
+                )
                 forced["add"] = True
                 forced["skip_reason"] = None
                 forced["add_reason"] = "stall_patience"
@@ -609,9 +741,13 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 cuts += 1
                 cuts_added_this_iteration += 1
                 known_cut_keys.add(_cut_key(candidate_cut))
+                if decision["cut_role"] == "secondary":
+                    secondary_cuts_added += 1
             else:
                 cuts_skipped += 1
                 cuts_skipped_this_iteration += 1
+                if decision["cut_role"] == "secondary":
+                    secondary_cuts_skipped += 1
         if not active_candidates:
             cuts_skipped += 1
             cuts_skipped_this_iteration += 1
@@ -619,6 +755,12 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             iterations_without_useful_cut = 0
         else:
             iterations_without_useful_cut += 1
+        if any(
+            decision["add"] for decision in cut_decisions if decision["cut_role"] == "secondary"
+        ):
+            iterations_without_secondary_cut = 0
+        else:
+            iterations_without_secondary_cut += 1
         cuts_generated_this_iteration = len(active_candidates)
         cuts_generated_counts.append(cuts_generated_this_iteration)
         primary_decision = cut_decisions[0] if cut_decisions else None
@@ -629,6 +771,19 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         cut_added = bool(primary_decision and primary_decision["add"])
         cut_skip_reason = primary_decision["skip_reason"] if primary_decision else "no_incumbent"
         cut_add_reason = primary_decision["add_reason"] if primary_decision else None
+        secondary_cut_decisions = [
+            {
+                "index": index,
+                "normalized_violation": decision["normalized_violation"],
+                "marginal_normalized_violation": decision[
+                    "marginal_normalized_violation"
+                ],
+                "added": decision["add"],
+                "skip_reason": decision["skip_reason"],
+                "active_threshold": decision["active_threshold"],
+            }
+            for index, decision in enumerate(cut_decisions[1:], start=1)
+        ]
         forced_cut_added = any(decision["add_reason"] is not None for decision in cut_decisions)
         forced_cut_reason = next(
             (decision["add_reason"] for decision in cut_decisions if decision["add_reason"] is not None),
@@ -699,6 +854,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "cut_violation": cut_violation,
                 "absolute_cut_violation": absolute_cut_violation,
                 "normalized_cut_violation": normalized_cut_violation,
+                "secondary_cut_decisions": secondary_cut_decisions,
+                "secondary_active_threshold": secondary_selection_threshold,
+                "secondary_cuts_added_total": secondary_cuts_added,
+                "secondary_cuts_skipped_total": secondary_cuts_skipped,
+                "master_time_share": master_time_share,
                 "cut_added": cut_added,
                 "cut_skip_reason": cut_skip_reason,
                 "cut_add_reason": cut_add_reason,
@@ -777,8 +937,22 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "cut_violation_tol": settings.cut_violation_tol,
             "final_exact_gap": settings.final_exact_gap,
             "cut_stall_patience": settings.cut_stall_patience,
+            "adaptive_secondary_cut_selection_enabled": (
+                settings.adaptive_secondary_cut_selection_enabled
+            ),
+            "secondary_cut_warmup_cuts": settings.secondary_cut_warmup_cuts,
+            "secondary_cut_master_time_share_trigger": (
+                settings.secondary_cut_master_time_share_trigger
+            ),
+            "secondary_cut_recent_master_time_trigger": (
+                settings.secondary_cut_recent_master_time_trigger
+            ),
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
+            "secondary_cuts_added_total": secondary_cuts_added,
+            "secondary_cuts_skipped_total": secondary_cuts_skipped,
+            "last_secondary_cut_decisions": last_log.get("secondary_cut_decisions"),
+            "last_secondary_active_threshold": last_log.get("secondary_active_threshold"),
             "last_cut_violation": last_log.get("cut_violation"),
             "last_normalized_cut_violation": last_log.get("normalized_cut_violation"),
             "last_cut_added": last_log.get("cut_added"),

@@ -59,6 +59,8 @@ RESULT_FIELDS = [
     "iterations",
     "cuts_added_total",
     "cuts_skipped_total",
+    "secondary_cuts_added_total",
+    "secondary_cuts_skipped_total",
     "last_cut_violation",
     "last_cut_added",
     "gamma_target",
@@ -72,6 +74,10 @@ RESULT_FIELDS = [
     "cut_violation_tol",
     "final_exact_gap",
     "cut_stall_patience",
+    "adaptive_secondary_cut_selection_enabled",
+    "secondary_cut_warmup_cuts",
+    "secondary_cut_master_time_share_trigger",
+    "secondary_cut_recent_master_time_trigger",
     "adaptive_subproblem_gap_enabled",
     "subproblem_gap_schedule",
     "last_subproblem_requested_mip_gap",
@@ -192,8 +198,13 @@ ITERATION_LOG_FIELDS = [
     "cuts_skipped_this_iteration",
     "cuts_added_total",
     "cuts_skipped_total",
+    "secondary_cuts_added_total",
+    "secondary_cuts_skipped_total",
     "forced_cut_added",
     "forced_cut_reason",
+    "secondary_cut_decisions",
+    "secondary_active_threshold",
+    "master_time_share",
     "elapsed_time",
 ]
 
@@ -211,6 +222,8 @@ def _as_list(value: Any, default: list[Any] | None = None) -> list[Any]:
 
 def _csv_value(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
+        if any(isinstance(item, (dict, list, tuple)) for item in value):
+            return json.dumps(value, ensure_ascii=False, sort_keys=True)
         return ",".join(str(v) for v in value)
     if isinstance(value, dict):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
@@ -266,6 +279,16 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "relative_cut_threshold": float(exp_cfg.get("relative_cut_threshold", 1e-4)),
             "final_exact_gap": float(exp_cfg.get("final_exact_gap", 1e-2)),
             "cut_stall_patience": int(exp_cfg.get("cut_stall_patience", 5)),
+            "adaptive_secondary_cut_selection_enabled": bool(
+                exp_cfg.get("adaptive_secondary_cut_selection_enabled", False)
+            ),
+            "secondary_cut_warmup_cuts": int(exp_cfg.get("secondary_cut_warmup_cuts", 50)),
+            "secondary_cut_master_time_share_trigger": float(
+                exp_cfg.get("secondary_cut_master_time_share_trigger", 0.35)
+            ),
+            "secondary_cut_recent_master_time_trigger": float(
+                exp_cfg.get("secondary_cut_recent_master_time_trigger", 0.5)
+            ),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -305,6 +328,10 @@ def _apply_variant_config(
         "cut_violation_tol",
         "final_exact_gap",
         "cut_stall_patience",
+        "adaptive_secondary_cut_selection_enabled",
+        "secondary_cut_warmup_cuts",
+        "secondary_cut_master_time_share_trigger",
+        "secondary_cut_recent_master_time_trigger",
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -504,6 +531,8 @@ def _result_row(
         "iterations": result.iterations,
         "cuts_added_total": meta.get("cuts_added_total", result.cuts),
         "cuts_skipped_total": meta.get("cuts_skipped_total"),
+        "secondary_cuts_added_total": meta.get("secondary_cuts_added_total"),
+        "secondary_cuts_skipped_total": meta.get("secondary_cuts_skipped_total"),
         "last_cut_violation": meta.get("last_cut_violation"),
         "last_cut_added": meta.get("last_cut_added"),
         "gamma_target": result.gamma_target or meta.get("gamma_target"),
@@ -517,6 +546,16 @@ def _result_row(
         "cut_violation_tol": meta.get("cut_violation_tol"),
         "final_exact_gap": meta.get("final_exact_gap"),
         "cut_stall_patience": meta.get("cut_stall_patience"),
+        "adaptive_secondary_cut_selection_enabled": meta.get(
+            "adaptive_secondary_cut_selection_enabled"
+        ),
+        "secondary_cut_warmup_cuts": meta.get("secondary_cut_warmup_cuts"),
+        "secondary_cut_master_time_share_trigger": meta.get(
+            "secondary_cut_master_time_share_trigger"
+        ),
+        "secondary_cut_recent_master_time_trigger": meta.get(
+            "secondary_cut_recent_master_time_trigger"
+        ),
         "adaptive_subproblem_gap_enabled": meta.get("adaptive_subproblem_gap_enabled"),
         "subproblem_gap_schedule": meta.get("subproblem_gap_schedule"),
         "last_subproblem_requested_mip_gap": meta.get("last_subproblem_requested_mip_gap"),
