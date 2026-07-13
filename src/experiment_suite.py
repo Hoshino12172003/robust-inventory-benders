@@ -31,6 +31,10 @@ INSTANCE_SIZES: dict[str, dict[str, int]] = {
 SELECTED_ALGORITHM_FIELDS = (
     "cut_selection_mode",
     "adaptive_subproblem_gap_enabled",
+    "adaptive_secondary_cut_selection_enabled",
+    "secondary_cut_warmup_cuts",
+    "secondary_cut_master_time_share_trigger",
+    "secondary_cut_recent_master_time_trigger",
     "relative_cut_threshold",
     "cut_violation_tol",
     "final_exact_gap",
@@ -354,6 +358,7 @@ def _apply_variant_config(
     if method == "standard_benders":
         solver_method = "standard_benders"
         config["algorithm"]["cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
@@ -365,6 +370,7 @@ def _apply_variant_config(
     elif method == "static_inexact_benders":
         solver_method = "inexact_benders"
         config["algorithm"]["cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
@@ -942,6 +948,29 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
             )
         if not isinstance(selected["adaptive_subproblem_gap_enabled"], bool):
             raise ValueError("Selected adaptive_subproblem_gap_enabled must be true or false.")
+        if not isinstance(selected["adaptive_secondary_cut_selection_enabled"], bool):
+            raise ValueError(
+                "Selected adaptive_secondary_cut_selection_enabled must be true or false."
+            )
+        warmup_cuts = selected["secondary_cut_warmup_cuts"]
+        if (
+            isinstance(warmup_cuts, bool)
+            or not isinstance(warmup_cuts, int)
+            or warmup_cuts <= 0
+        ):
+            raise ValueError("Selected secondary_cut_warmup_cuts must be a positive integer.")
+        for trigger_field in (
+            "secondary_cut_master_time_share_trigger",
+            "secondary_cut_recent_master_time_trigger",
+        ):
+            trigger_value = selected[trigger_field]
+            if (
+                isinstance(trigger_value, bool)
+                or not isinstance(trigger_value, (int, float))
+                or not math.isfinite(float(trigger_value))
+                or float(trigger_value) <= 0.0
+            ):
+                raise ValueError(f"Selected {trigger_field} must be a positive finite value.")
         for field in SELECTED_ALGORITHM_FIELDS:
             config[field] = deepcopy(selected[field])
     _validate_relative_threshold_config(config)

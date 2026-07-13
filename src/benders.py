@@ -187,13 +187,13 @@ def primary_cut_decision(
 
 
 def marginal_normalized_violation(
-    secondary_normalized_violation: float,
-    primary_normalized_violation: float,
-    tolerance: float,
+    secondary_rhs: float,
+    primary_rhs: float,
+    theta_current: float,
 ) -> float:
-    if primary_normalized_violation <= tolerance:
-        return 0.0
-    return max(0.0, secondary_normalized_violation) / primary_normalized_violation
+    baseline = max(float(theta_current), float(primary_rhs))
+    marginal_absolute = max(0.0, float(secondary_rhs) - baseline)
+    return marginal_absolute / max(1.0, abs(float(secondary_rhs)), abs(baseline))
 
 
 def adaptive_secondary_cut_threshold(
@@ -608,13 +608,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             gap = 1.0
         current_gap = gap
         theta_current = float(theta.X)
-        primary_normalized_violation = 0.0
+        primary_rhs = theta_current
         if active_candidates:
             primary_rhs = active_candidates[0].cut_value(x_values)
-            _, primary_normalized_violation = calculate_cut_violations(
-                primary_rhs,
-                theta_current,
-            )
         elapsed_before_cut_selection = max(1e-12, time.perf_counter() - start)
         master_time_share = master_runtime / elapsed_before_cut_selection
         final_exact_phase = (
@@ -644,12 +640,12 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             raw_violation = cut_rhs - theta_current
             absolute_violation, normalized_violation = calculate_cut_violations(cut_rhs, theta_current)
             marginal_violation = (
-                1.0
-                if cut_role == "primary" and normalized_violation > settings.cut_violation_tol
+                0.0
+                if cut_role == "primary"
                 else marginal_normalized_violation(
-                    normalized_violation,
-                    primary_normalized_violation,
-                    settings.cut_violation_tol,
+                    cut_rhs,
+                    primary_rhs,
+                    theta_current,
                 )
             )
             duplicate = settings.max_cuts_per_iteration > 1 and _cut_key(candidate_cut) in known_cut_keys

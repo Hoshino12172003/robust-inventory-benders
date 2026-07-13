@@ -33,15 +33,27 @@ This change redesigns relative cut selection so that it cannot suppress the prim
 - `k2_secondary_static`
 - `k2_secondary_adaptive`
 
-The configuration is provided for local execution only. No evaluation seeds were run in this task, and `selected_algorithm_parameters.yaml` was not changed.
+The configuration is provided for local execution only. No evaluation seeds were run in this task. `selected_algorithm_parameters.yaml` remains pending; it now includes null placeholders for all adaptive secondary-cut policy fields so a future selected policy can be reproduced exactly.
+
+## Review Fixes
+
+- Replaced the ratio-based secondary score with an RHS-based marginal normalized violation.
+- The marginal baseline is `max(theta_current, primary_rhs)`, so a secondary cut weaker than or equal to the primary cut has zero local strengthening value.
+- Secondary relative selection and stall ranking now use the same RHS-based marginal measure.
+- Added the four adaptive secondary-cut policy fields to final selected-parameter loading.
+- Added strict type and range validation for the selected policy.
+- Explicitly disabled adaptive secondary selection for `standard_benders` and `static_inexact_benders`.
+- Preserved the primary-cut rule, robust model, UB validity rules, no-good formulation, and termination logic.
 
 ## Validation
 
 - Hidden Unicode scan: clean.
 - `git diff --check`: clean.
 - Python compilation: passed with the cache redirected to a writable temporary directory.
-- Pure policy, UB, runtime-accounting, and configuration tests: 13 passed.
-- Full Gurobi-backed tests could not run inside the Codex sandbox because the academic license is bound to user `hu_jiaxin`, while the sandbox process runs as `codexsandboxoffline`.
+- Convergence diagnostics: 16 passed; 5 Gurobi-backed cases were blocked only by the sandbox license username.
+- Experiment suite: 17 passed; 2 Gurobi-backed cases were blocked only by the sandbox license username.
+- Selected-policy overlay, validation, and baseline-isolation subset: 9 passed.
+- Cut-selection tests require Gurobi and were blocked because the academic license is bound to user `hu_jiaxin`, while the sandbox process runs as `codexsandboxoffline`.
 
 Run the complete validation from the normal local PowerShell or PyCharm environment:
 

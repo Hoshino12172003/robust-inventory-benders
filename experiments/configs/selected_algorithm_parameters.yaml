@@ -6,6 +6,10 @@ selection_date: null
 tuning_seeds_used: [0, 1, 2]
 cut_selection_mode: null
 adaptive_subproblem_gap_enabled: null
+adaptive_secondary_cut_selection_enabled: null
+secondary_cut_warmup_cuts: null
+secondary_cut_master_time_share_trigger: null
+secondary_cut_recent_master_time_trigger: null
 relative_cut_threshold: null
 cut_violation_tol: 1.0e-8
 final_exact_gap: 0.01

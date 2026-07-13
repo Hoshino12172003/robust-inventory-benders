@@ -116,9 +116,29 @@ def test_primary_cut_is_never_screened_by_relative_threshold() -> None:
     )
 
 
+def test_secondary_rhs_below_or_equal_to_primary_has_no_marginal_value() -> None:
+    assert marginal_normalized_violation(90.0, 100.0, 10.0) == 0.0
+    assert marginal_normalized_violation(100.0, 100.0, 10.0) == 0.0
+
+
+def test_secondary_rhs_above_primary_has_scaled_marginal_value() -> None:
+    marginal = marginal_normalized_violation(101.0, 100.0, 10.0)
+    assert marginal == pytest.approx(1.0 / 101.0)
+
+
+def test_marginal_value_uses_theta_when_primary_is_not_violated() -> None:
+    marginal = marginal_normalized_violation(102.0, 90.0, 100.0)
+    assert marginal == pytest.approx(2.0 / 102.0)
+
+
+def test_marginal_value_is_scale_independent() -> None:
+    original = marginal_normalized_violation(110.0, 100.0, 10.0)
+    scaled = marginal_normalized_violation(1100.0, 1000.0, 100.0)
+    assert scaled == pytest.approx(original)
+
+
 def test_secondary_cut_can_be_screened_and_final_phase_restores_it() -> None:
-    marginal = marginal_normalized_violation(0.02, 0.20, 1e-8)
-    assert marginal == pytest.approx(0.10)
+    marginal = marginal_normalized_violation(101.0, 100.0, 10.0)
     screened = relative_cut_decision(1.0, marginal, 0.20, 1e-8, 2, 2, 0.05, 0.01)
     assert screened == (False, "low_relative_violation", None)
     restored = relative_cut_decision(1.0, marginal, 0.20, 1e-8, 2, 2, 0.005, 0.01)
