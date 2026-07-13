@@ -1,0 +1,69 @@
+experiment_name: screen_secondary_cut_selection
+output_dir: experiments/results_diagnostics_round3/screen_secondary_cut_selection
+random_seeds: [0, 1, 2]
+instance_sizes: [medium]
+variants:
+  - k1_single_cut
+  - k2_all_cuts
+  - k2_secondary_static
+  - k2_secondary_adaptive
+variant_settings:
+  k1_single_cut:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    max_cuts_per_iteration: 1
+  k2_all_cuts:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    max_cuts_per_iteration: 2
+  k2_secondary_static:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    cut_selection_mode: relative
+    relative_cut_threshold: 0.10
+    adaptive_secondary_cut_selection_enabled: false
+    max_cuts_per_iteration: 2
+  k2_secondary_adaptive:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: true
+    cut_selection_mode: relative
+    relative_cut_threshold: 0.10
+    adaptive_secondary_cut_selection_enabled: true
+    secondary_cut_warmup_cuts: 50
+    secondary_cut_master_time_share_trigger: 0.35
+    secondary_cut_recent_master_time_trigger: 0.5
+    max_cuts_per_iteration: 2
+save_iteration_log: true
+time_limit: 60
+max_iterations: 2000
+tol: 0.0001
+mip_gap: 0.02
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [0, 1, 2]
+subproblem_mode: robust_dual_milp
+cut_selection_mode: relative
+relative_cut_threshold: 0.10
+cut_violation_tol: 1.0e-8
+final_exact_gap: 0.01
+cut_stall_patience: 5
+adaptive_subproblem_gap_enabled: true
+subproblem_gap_schedule:
+  - global_gap_above: 0.10
+    mip_gap: 0.05
+  - global_gap_above: 0.05
+    mip_gap: 0.02
+  - global_gap_above: 0.01
+    mip_gap: 0.005
+  - global_gap_above: 0.00
+    mip_gap: 0.0001
+max_cuts_per_iteration: 2
+subproblem_time_budget_per_iteration: 60
+max_scenarios: 5000
+exact_scenarios: true

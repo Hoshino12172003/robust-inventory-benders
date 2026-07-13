@@ -6,12 +6,14 @@ from pathlib import Path
 import pytest
 import yaml
 
+import src.experiment_suite as experiment_suite_module
 from src.experiment_suite import (
     _apply_variant_config,
     _base_config,
     _validate_relative_threshold_config,
     run_experiment_suite,
 )
+from src.results import SolveResult
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -39,6 +41,30 @@ def tiny_experiment_config(tmp_path: Path) -> dict:
         "capacity_factor": 1.3,
         "delta_cut": 0.0,
     }
+
+
+def selected_algorithm_parameters(**overrides: object) -> dict:
+    selected = {
+        "selection_status": "selected",
+        "cut_selection_mode": "relative",
+        "adaptive_subproblem_gap_enabled": True,
+        "adaptive_secondary_cut_selection_enabled": True,
+        "secondary_cut_warmup_cuts": 40,
+        "secondary_cut_master_time_share_trigger": 0.30,
+        "secondary_cut_recent_master_time_trigger": 0.40,
+        "relative_cut_threshold": 0.0007,
+        "cut_violation_tol": 2.0e-8,
+        "final_exact_gap": 0.02,
+        "cut_stall_patience": 3,
+        "subproblem_gap_schedule": [
+            {"global_gap_above": 0.1, "mip_gap": 0.07},
+            {"global_gap_above": 0.0, "mip_gap": 0.0002},
+        ],
+        "max_cuts_per_iteration": 2,
+        "subproblem_time_budget_per_iteration": None,
+    }
+    selected.update(overrides)
+    return selected
 
 
 def test_tiny_experiment_suite_runs(tmp_path: Path) -> None:
@@ -181,6 +207,38 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     assert configs["final_evaluation_template.yaml"]["random_seeds"] == list(range(10, 20))
     selected = configs["selected_algorithm_parameters.yaml"]
     assert selected["selection_status"] == "pending_parameter_screens"
+    for field in (
+        "adaptive_secondary_cut_selection_enabled",
+        "secondary_cut_warmup_cuts",
+        "secondary_cut_master_time_share_trigger",
+        "secondary_cut_recent_master_time_trigger",
+    ):
+        assert selected[field] is None
+    secondary = configs["screen_secondary_cut_selection.yaml"]
+    assert secondary["random_seeds"] == [0, 1, 2]
+    assert secondary["instance_sizes"] == ["medium"]
+    assert secondary["time_limit"] == 60
+    assert secondary["max_iterations"] == 2000
+    assert secondary["variants"] == [
+        "k1_single_cut",
+        "k2_all_cuts",
+        "k2_secondary_static",
+        "k2_secondary_adaptive",
+    ]
+    settings = secondary["variant_settings"]
+    assert settings["k1_single_cut"]["max_cuts_per_iteration"] == 1
+    assert settings["k1_single_cut"]["cut_selection_enabled"] is False
+    assert settings["k2_all_cuts"]["max_cuts_per_iteration"] == 2
+    assert settings["k2_all_cuts"]["cut_selection_enabled"] is False
+    assert settings["k2_secondary_static"]["cut_selection_mode"] == "relative"
+    assert (
+        settings["k2_secondary_static"]["adaptive_secondary_cut_selection_enabled"]
+        is False
+    )
+    assert (
+        settings["k2_secondary_adaptive"]["adaptive_secondary_cut_selection_enabled"]
+        is True
+    )
 
 
 def test_round2_tuning_configs_exist_and_parse() -> None:
@@ -305,29 +363,20 @@ def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> No
         "subproblem_requested_mip_gap",
         "normalized_cut_violation",
         "forced_cut_added",
+        "secondary_cut_decisions",
+        "secondary_active_threshold",
     ):
         assert field in log_rows[0]
     for field in ("reached_gap_5pct", "time_to_gap_1pct", "subproblem_time_share"):
         assert field in rows[0]
 
 
-def test_selected_parameters_are_applied_and_resolved(tmp_path: Path) -> None:
+def test_selected_parameters_are_applied_and_resolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     selected_path = tmp_path / "selected.yaml"
-    selected = {
-        "selection_status": "selected",
-        "cut_selection_mode": "relative",
-        "adaptive_subproblem_gap_enabled": True,
-        "relative_cut_threshold": 0.0007,
-        "cut_violation_tol": 2.0e-8,
-        "final_exact_gap": 0.02,
-        "cut_stall_patience": 3,
-        "subproblem_gap_schedule": [
-            {"global_gap_above": 0.1, "mip_gap": 0.07},
-            {"global_gap_above": 0.0, "mip_gap": 0.0002},
-        ],
-        "max_cuts_per_iteration": 2,
-        "subproblem_time_budget_per_iteration": None,
-    }
+    selected = selected_algorithm_parameters()
     selected_path.write_text(yaml.safe_dump(selected, sort_keys=False), encoding="utf-8")
     config = tiny_experiment_config(tmp_path)
     config["methods"] = [
@@ -336,6 +385,50 @@ def test_selected_parameters_are_applied_and_resolved(tmp_path: Path) -> None:
         "proposed_adaptive_benders",
     ]
     config["parameters_must_be_fixed_from"] = str(selected_path)
+
+    def fake_solve_benders(config: dict, _instance: object, method: str) -> SolveResult:
+        algorithm = config["algorithm"]
+        robust = config["robust"]
+        return SolveResult(
+            method=method,
+            status="optimal",
+            objective=1.0,
+            lower_bound=1.0,
+            upper_bound=1.0,
+            gap=0.0,
+            runtime=0.01,
+            iterations=1,
+            cuts=1,
+            gamma_target=int(robust["gamma_target"]),
+            metadata={
+                "cut_selection_enabled": algorithm["cut_selection_enabled"],
+                "cut_selection_mode": algorithm["cut_selection_mode"],
+                "relative_cut_threshold": algorithm["relative_cut_threshold"],
+                "cut_violation_tol": algorithm["cut_violation_tol"],
+                "final_exact_gap": algorithm["final_exact_gap"],
+                "cut_stall_patience": algorithm["cut_stall_patience"],
+                "adaptive_subproblem_gap_enabled": algorithm[
+                    "adaptive_subproblem_gap_enabled"
+                ],
+                "adaptive_secondary_cut_selection_enabled": algorithm[
+                    "adaptive_secondary_cut_selection_enabled"
+                ],
+                "secondary_cut_warmup_cuts": algorithm["secondary_cut_warmup_cuts"],
+                "secondary_cut_master_time_share_trigger": algorithm[
+                    "secondary_cut_master_time_share_trigger"
+                ],
+                "secondary_cut_recent_master_time_trigger": algorithm[
+                    "secondary_cut_recent_master_time_trigger"
+                ],
+                "subproblem_gap_schedule": algorithm["subproblem_gap_schedule"],
+                "max_cuts_per_iteration": algorithm["max_cuts_per_iteration"],
+                "gamma_schedule": ",".join(
+                    str(value) for value in robust["gamma_schedule"]
+                ),
+            },
+        )
+
+    monkeypatch.setattr(experiment_suite_module, "solve_benders", fake_solve_benders)
 
     outputs = run_experiment_suite(config)
     resolved = yaml.safe_load(outputs["resolved_config"].read_text(encoding="utf-8"))
@@ -352,11 +445,20 @@ def test_selected_parameters_are_applied_and_resolved(tmp_path: Path) -> None:
     assert float(proposed["final_exact_gap"]) == pytest.approx(0.02)
     assert int(proposed["cut_stall_patience"]) == 3
     assert int(proposed["max_cuts_per_iteration"]) == 2
+    assert proposed["adaptive_secondary_cut_selection_enabled"] == "True"
+    assert int(proposed["secondary_cut_warmup_cuts"]) == 40
+    assert float(proposed["secondary_cut_master_time_share_trigger"]) == pytest.approx(
+        0.30
+    )
+    assert float(proposed["secondary_cut_recent_master_time_trigger"]) == pytest.approx(
+        0.40
+    )
     assert "0.07" in proposed["subproblem_gap_schedule"]
 
     standard = rows["standard_benders"]
     assert standard["cut_selection_enabled"] == "False"
     assert standard["adaptive_subproblem_gap_enabled"] == "False"
+    assert standard["adaptive_secondary_cut_selection_enabled"] == "False"
     assert int(standard["max_cuts_per_iteration"]) == 1
     assert standard["gamma_schedule"] == standard["gamma_target"]
     assert "1e-05" in standard["subproblem_gap_schedule"]
@@ -364,8 +466,28 @@ def test_selected_parameters_are_applied_and_resolved(tmp_path: Path) -> None:
     static = rows["static_inexact_benders"]
     assert static["cut_selection_enabled"] == "False"
     assert static["adaptive_subproblem_gap_enabled"] == "False"
+    assert static["adaptive_secondary_cut_selection_enabled"] == "False"
     assert int(static["max_cuts_per_iteration"]) == 1
     assert static["gamma_schedule"] == static["gamma_target"]
+
+
+@pytest.mark.parametrize("method", ["standard_benders", "static_inexact_benders"])
+def test_baselines_disable_adaptive_secondary_selection(
+    tmp_path: Path,
+    method: str,
+) -> None:
+    experiment_config = tiny_experiment_config(tmp_path)
+    experiment_config.update(selected_algorithm_parameters())
+    base_config = _base_config(experiment_config, "very_small", seed=0)
+
+    _, _, method_config = _apply_variant_config(base_config, method, {})
+
+    assert method_config["algorithm"]["cut_selection_enabled"] is False
+    assert (
+        method_config["algorithm"]["adaptive_secondary_cut_selection_enabled"]
+        is False
+    )
+    assert method_config["algorithm"]["max_cuts_per_iteration"] == 1
 
 
 def test_selected_parameters_reject_missing_values(tmp_path: Path) -> None:
@@ -377,4 +499,47 @@ def test_selected_parameters_reject_missing_values(tmp_path: Path) -> None:
     config = tiny_experiment_config(tmp_path)
     config["parameters_must_be_fixed_from"] = str(selected_path)
     with pytest.raises(ValueError, match="Selected algorithm parameters are missing"):
+        run_experiment_suite(config)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        (
+            "adaptive_secondary_cut_selection_enabled",
+            "true",
+            "adaptive_secondary_cut_selection_enabled must be true or false",
+        ),
+        (
+            "secondary_cut_warmup_cuts",
+            0,
+            "secondary_cut_warmup_cuts must be a positive integer",
+        ),
+        (
+            "secondary_cut_master_time_share_trigger",
+            0.0,
+            "secondary_cut_master_time_share_trigger must be a positive finite value",
+        ),
+        (
+            "secondary_cut_recent_master_time_trigger",
+            float("inf"),
+            "secondary_cut_recent_master_time_trigger must be a positive finite value",
+        ),
+    ],
+)
+def test_selected_secondary_policy_rejects_invalid_values(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    selected_path = tmp_path / "selected_invalid.yaml"
+    selected_path.write_text(
+        yaml.safe_dump(selected_algorithm_parameters(**{field: value}), sort_keys=False),
+        encoding="utf-8",
+    )
+    config = tiny_experiment_config(tmp_path)
+    config["parameters_must_be_fixed_from"] = str(selected_path)
+
+    with pytest.raises(ValueError, match=message):
         run_experiment_suite(config)

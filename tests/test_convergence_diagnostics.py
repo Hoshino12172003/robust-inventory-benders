@@ -7,9 +7,12 @@ import pytest
 import src.benders as benders_module
 from src.benders import (
     _settings,
+    adaptive_secondary_cut_threshold,
     calculate_global_gap,
     calculate_cut_violations,
     generate_additional_robust_cuts,
+    marginal_normalized_violation,
+    primary_cut_decision,
     relative_cut_decision,
     select_subproblem_mip_gap,
     solve_benders,
@@ -102,6 +105,59 @@ def test_relative_cut_threshold_and_safety_decisions() -> None:
     final = relative_cut_decision(2.0, 2e-4, 1e-3, 1e-8, 1, 1, 0.005, 0.01)
     assert final == (True, None, "final_exact_phase")
     assert relative_cut_decision(1e-10, 1e-10, 0.0, 1e-8, 1, 1, 0.0, 0.01)[0] is False
+
+
+def test_primary_cut_is_never_screened_by_relative_threshold() -> None:
+    assert primary_cut_decision(0.25, 1e-8) == (True, None)
+    assert primary_cut_decision(1e-10, 1e-8) == (False, "not_violated")
+    assert primary_cut_decision(0.25, 1e-8, duplicate=True) == (
+        False,
+        "duplicate_cut",
+    )
+
+
+def test_secondary_rhs_below_or_equal_to_primary_has_no_marginal_value() -> None:
+    assert marginal_normalized_violation(90.0, 100.0, 10.0) == 0.0
+    assert marginal_normalized_violation(100.0, 100.0, 10.0) == 0.0
+
+
+def test_secondary_rhs_above_primary_has_scaled_marginal_value() -> None:
+    marginal = marginal_normalized_violation(101.0, 100.0, 10.0)
+    assert marginal == pytest.approx(1.0 / 101.0)
+
+
+def test_marginal_value_uses_theta_when_primary_is_not_violated() -> None:
+    marginal = marginal_normalized_violation(102.0, 90.0, 100.0)
+    assert marginal == pytest.approx(2.0 / 102.0)
+
+
+def test_marginal_value_is_scale_independent() -> None:
+    original = marginal_normalized_violation(110.0, 100.0, 10.0)
+    scaled = marginal_normalized_violation(1100.0, 1000.0, 100.0)
+    assert scaled == pytest.approx(original)
+
+
+def test_secondary_cut_can_be_screened_and_final_phase_restores_it() -> None:
+    marginal = marginal_normalized_violation(101.0, 100.0, 10.0)
+    screened = relative_cut_decision(1.0, marginal, 0.20, 1e-8, 2, 2, 0.05, 0.01)
+    assert screened == (False, "low_relative_violation", None)
+    restored = relative_cut_decision(1.0, marginal, 0.20, 1e-8, 2, 2, 0.005, 0.01)
+    assert restored == (True, None, "final_exact_phase")
+
+
+def test_adaptive_secondary_threshold_responds_to_master_pressure() -> None:
+    warmup = adaptive_secondary_cut_threshold(
+        0.1, 10, 50, 0.10, 0.35, 0.05, 0.5, 0.20, 0.01, False
+    )
+    pressured = adaptive_secondary_cut_threshold(
+        0.1, 100, 50, 0.50, 0.35, 0.75, 0.5, 0.20, 0.01, False
+    )
+    final = adaptive_secondary_cut_threshold(
+        0.1, 100, 50, 0.50, 0.35, 0.75, 0.5, 0.005, 0.01, True
+    )
+    assert warmup == 0.0
+    assert pressured > 0.1
+    assert final == 0.0
 
 
 def test_adaptive_subproblem_gap_tightens() -> None:
@@ -224,6 +280,7 @@ def test_k_one_skips_extra_solves_and_extra_bounds_cannot_affect_ub() -> None:
 
     multiple = generate_additional_robust_cuts(primary, 2, 10.0, unexpected_solve)
     assert len(multiple.cuts) == 1
+    assert multiple.cuts[0].objective_bound == pytest.approx(1e9)
     robust_cost, valid_ub, _ = target_upper_cost("robust_dual_milp", primary)
     assert robust_cost == pytest.approx(100.0)
     assert valid_ub is True
@@ -319,14 +376,28 @@ def test_no_incumbent_result_cannot_generate_a_cut() -> None:
 def test_multicut_k_one_preserves_default_and_k_two_adds_diagnostics() -> None:
     config = tiny_config()
     instance = generate_instance(config, seed=83)
-    default_single = solve_benders(config, instance, "adaptive_gap_gamma_benders")
-    explicit_single_config = deepcopy(config)
-    explicit_single_config["algorithm"]["max_cuts_per_iteration"] = 1
-    explicit_single = solve_benders(explicit_single_config, instance, "adaptive_gap_gamma_benders")
-    assert default_single.metadata["max_cuts_per_iteration"] == 1
-    assert explicit_single.objective == pytest.approx(default_single.objective)
-    assert explicit_single.lower_bound == pytest.approx(default_single.lower_bound)
-    assert explicit_single.cuts == default_single.cuts
+    all_primary_config = deepcopy(config)
+    all_primary_config["algorithm"]["cut_selection_enabled"] = False
+    all_primary_config["algorithm"]["max_cuts_per_iteration"] = 1
+    all_primary = solve_benders(all_primary_config, instance, "adaptive_gap_gamma_benders")
+    screened_primary_config = deepcopy(config)
+    screened_primary_config["algorithm"]["relative_cut_threshold"] = 1e9
+    screened_primary_config["algorithm"]["max_cuts_per_iteration"] = 1
+    screened_primary = solve_benders(
+        screened_primary_config,
+        instance,
+        "adaptive_gap_gamma_benders",
+    )
+    assert screened_primary.metadata["max_cuts_per_iteration"] == 1
+    assert screened_primary.objective == pytest.approx(all_primary.objective)
+    assert screened_primary.lower_bound == pytest.approx(all_primary.lower_bound)
+    assert screened_primary.cuts == all_primary.cuts
+    assert all(
+        row["cut_added"]
+        for row in screened_primary.iteration_log
+        if row["absolute_cut_violation"] is not None
+        and row["absolute_cut_violation"] > config["algorithm"]["cut_violation_tol"]
+    )
 
     multi_config = deepcopy(config)
     multi_config["algorithm"]["max_cuts_per_iteration"] = 2
@@ -334,14 +405,28 @@ def test_multicut_k_one_preserves_default_and_k_two_adds_diagnostics() -> None:
     assert multiple.metadata["max_cuts_per_iteration"] == 2
     assert multiple.metadata["mean_cuts_generated_per_iteration"] >= 1.0
     assert "additional_subproblem_time" in multiple.metadata
+    assert "last_secondary_cut_decisions" in multiple.metadata
+    for row in multiple.iteration_log:
+        for decision in row["secondary_cut_decisions"]:
+            assert {
+                "normalized_violation",
+                "marginal_normalized_violation",
+                "added",
+                "skip_reason",
+                "active_threshold",
+            }.issubset(decision)
     assert multiple.objective is not None
 
 
-def test_relative_stall_policy_force_adds_a_positive_cut() -> None:
+def test_high_relative_threshold_does_not_skip_primary_cut() -> None:
     config = tiny_config()
     config["algorithm"]["relative_cut_threshold"] = 2.0
     config["algorithm"]["cut_stall_patience"] = 1
     config["benders"]["max_iterations"] = 2
     instance = generate_instance(config, seed=84)
     result = solve_benders(config, instance, "adaptive_gap_gamma_benders")
-    assert any(row["forced_cut_reason"] == "stall_patience" for row in result.iteration_log)
+    assert all(
+        row["cut_skip_reason"] != "low_relative_violation"
+        for row in result.iteration_log
+    )
+    assert any(row["cut_added"] for row in result.iteration_log)
