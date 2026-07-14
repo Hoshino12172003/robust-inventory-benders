@@ -10,6 +10,13 @@ adaptive_secondary_cut_selection_enabled: null
 secondary_cut_warmup_cuts: null
 secondary_cut_master_time_share_trigger: null
 secondary_cut_recent_master_time_trigger: null
+adaptive_secondary_generation_enabled: null
+secondary_generation_lb_window: null
+secondary_generation_stall_threshold: null
+secondary_generation_cooldown_iterations: null
+secondary_generation_max_subproblem_time_share: null
+secondary_generation_min_remaining_time: null
+secondary_generation_min_solve_budget: null
 relative_cut_threshold: null
 cut_violation_tol: 1.0e-8
 final_exact_gap: 0.01

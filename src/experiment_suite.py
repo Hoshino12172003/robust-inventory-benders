@@ -18,6 +18,7 @@ from .instance import InventoryInstance, generate_instance, save_instance
 from .monolithic import solve_monolithic
 from .results import SolveResult
 from .scenarios import count_budget_scenarios
+from .status import normalize_run_status
 
 
 INSTANCE_SIZES: dict[str, dict[str, int]] = {
@@ -35,6 +36,13 @@ SELECTED_ALGORITHM_FIELDS = (
     "secondary_cut_warmup_cuts",
     "secondary_cut_master_time_share_trigger",
     "secondary_cut_recent_master_time_trigger",
+    "adaptive_secondary_generation_enabled",
+    "secondary_generation_lb_window",
+    "secondary_generation_stall_threshold",
+    "secondary_generation_cooldown_iterations",
+    "secondary_generation_max_subproblem_time_share",
+    "secondary_generation_min_remaining_time",
+    "secondary_generation_min_solve_budget",
     "relative_cut_threshold",
     "cut_violation_tol",
     "final_exact_gap",
@@ -82,6 +90,18 @@ RESULT_FIELDS = [
     "secondary_cut_warmup_cuts",
     "secondary_cut_master_time_share_trigger",
     "secondary_cut_recent_master_time_trigger",
+    "adaptive_secondary_generation_enabled",
+    "secondary_generation_lb_window",
+    "secondary_generation_stall_threshold",
+    "secondary_generation_cooldown_iterations",
+    "secondary_generation_max_subproblem_time_share",
+    "secondary_generation_min_remaining_time",
+    "secondary_generation_min_solve_budget",
+    "secondary_solves_attempted_total",
+    "secondary_solves_avoided_total",
+    "last_secondary_solve_trigger_reason",
+    "last_secondary_solve_skipped_reason",
+    "last_recent_relative_lb_improvement",
     "adaptive_subproblem_gap_enabled",
     "subproblem_gap_schedule",
     "last_subproblem_requested_mip_gap",
@@ -209,6 +229,16 @@ ITERATION_LOG_FIELDS = [
     "secondary_cut_decisions",
     "secondary_active_threshold",
     "master_time_share",
+    "secondary_solve_attempted",
+    "secondary_solve_trigger_reason",
+    "secondary_solve_skipped_reason",
+    "recent_relative_lb_improvement",
+    "secondary_solve_cooldown_remaining",
+    "secondary_solve_runtime",
+    "secondary_generation_subproblem_time_share",
+    "secondary_generated_cut_added",
+    "secondary_generated_cut_duplicate",
+    "secondary_solves_avoided_total",
     "elapsed_time",
 ]
 
@@ -293,6 +323,27 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "secondary_cut_recent_master_time_trigger": float(
                 exp_cfg.get("secondary_cut_recent_master_time_trigger", 0.5)
             ),
+            "adaptive_secondary_generation_enabled": bool(
+                exp_cfg.get("adaptive_secondary_generation_enabled", False)
+            ),
+            "secondary_generation_lb_window": int(
+                exp_cfg.get("secondary_generation_lb_window", 5)
+            ),
+            "secondary_generation_stall_threshold": float(
+                exp_cfg.get("secondary_generation_stall_threshold", 1e-4)
+            ),
+            "secondary_generation_cooldown_iterations": int(
+                exp_cfg.get("secondary_generation_cooldown_iterations", 5)
+            ),
+            "secondary_generation_max_subproblem_time_share": float(
+                exp_cfg.get("secondary_generation_max_subproblem_time_share", 0.75)
+            ),
+            "secondary_generation_min_remaining_time": float(
+                exp_cfg.get("secondary_generation_min_remaining_time", 2.0)
+            ),
+            "secondary_generation_min_solve_budget": float(
+                exp_cfg.get("secondary_generation_min_solve_budget", 1.0)
+            ),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -336,6 +387,13 @@ def _apply_variant_config(
         "secondary_cut_warmup_cuts",
         "secondary_cut_master_time_share_trigger",
         "secondary_cut_recent_master_time_trigger",
+        "adaptive_secondary_generation_enabled",
+        "secondary_generation_lb_window",
+        "secondary_generation_stall_threshold",
+        "secondary_generation_cooldown_iterations",
+        "secondary_generation_max_subproblem_time_share",
+        "secondary_generation_min_remaining_time",
+        "secondary_generation_min_solve_budget",
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -359,6 +417,7 @@ def _apply_variant_config(
         solver_method = "standard_benders"
         config["algorithm"]["cut_selection_enabled"] = False
         config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_secondary_generation_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
@@ -371,6 +430,7 @@ def _apply_variant_config(
         solver_method = "inexact_benders"
         config["algorithm"]["cut_selection_enabled"] = False
         config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
+        config["algorithm"]["adaptive_secondary_generation_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
@@ -527,7 +587,7 @@ def _result_row(
         "method": method,
         "variant_name": variant_name,
         "subproblem_mode": meta.get("subproblem_mode"),
-        "status": result.status,
+        "status": normalize_run_status(result.status),
         "objective": result.objective,
         "best_bound": result.lower_bound,
         "final_gap": result.gap,
@@ -561,6 +621,36 @@ def _result_row(
         ),
         "secondary_cut_recent_master_time_trigger": meta.get(
             "secondary_cut_recent_master_time_trigger"
+        ),
+        "adaptive_secondary_generation_enabled": meta.get(
+            "adaptive_secondary_generation_enabled"
+        ),
+        "secondary_generation_lb_window": meta.get("secondary_generation_lb_window"),
+        "secondary_generation_stall_threshold": meta.get(
+            "secondary_generation_stall_threshold"
+        ),
+        "secondary_generation_cooldown_iterations": meta.get(
+            "secondary_generation_cooldown_iterations"
+        ),
+        "secondary_generation_max_subproblem_time_share": meta.get(
+            "secondary_generation_max_subproblem_time_share"
+        ),
+        "secondary_generation_min_remaining_time": meta.get(
+            "secondary_generation_min_remaining_time"
+        ),
+        "secondary_generation_min_solve_budget": meta.get(
+            "secondary_generation_min_solve_budget"
+        ),
+        "secondary_solves_attempted_total": meta.get("secondary_solves_attempted_total"),
+        "secondary_solves_avoided_total": meta.get("secondary_solves_avoided_total"),
+        "last_secondary_solve_trigger_reason": meta.get(
+            "last_secondary_solve_trigger_reason"
+        ),
+        "last_secondary_solve_skipped_reason": meta.get(
+            "last_secondary_solve_skipped_reason"
+        ),
+        "last_recent_relative_lb_improvement": meta.get(
+            "last_recent_relative_lb_improvement"
         ),
         "adaptive_subproblem_gap_enabled": meta.get("adaptive_subproblem_gap_enabled"),
         "subproblem_gap_schedule": meta.get("subproblem_gap_schedule"),
@@ -769,13 +859,16 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _is_completed(row: dict[str, Any]) -> bool:
-    return row.get("status") in COMPLETED_STATUSES and row.get("objective") not in (None, "")
+    return (
+        normalize_run_status(row.get("status")) in COMPLETED_STATUSES
+        and row.get("objective") not in (None, "")
+    )
 
 
 def _is_solved(row: dict[str, Any]) -> bool:
     if row.get("objective") in (None, ""):
         return False
-    if row.get("status") == "optimal":
+    if normalize_run_status(row.get("status")) == "optimal":
         return True
     gap = row.get("final_gap")
     if gap in (None, ""):
@@ -952,6 +1045,10 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
             raise ValueError(
                 "Selected adaptive_secondary_cut_selection_enabled must be true or false."
             )
+        if not isinstance(selected["adaptive_secondary_generation_enabled"], bool):
+            raise ValueError(
+                "Selected adaptive_secondary_generation_enabled must be true or false."
+            )
         warmup_cuts = selected["secondary_cut_warmup_cuts"]
         if (
             isinstance(warmup_cuts, bool)
@@ -971,6 +1068,58 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
                 or float(trigger_value) <= 0.0
             ):
                 raise ValueError(f"Selected {trigger_field} must be a positive finite value.")
+        lb_window = selected["secondary_generation_lb_window"]
+        if isinstance(lb_window, bool) or not isinstance(lb_window, int) or lb_window <= 0:
+            raise ValueError("Selected secondary_generation_lb_window must be a positive integer.")
+        stall_threshold = selected["secondary_generation_stall_threshold"]
+        if (
+            isinstance(stall_threshold, bool)
+            or not isinstance(stall_threshold, (int, float))
+            or not math.isfinite(float(stall_threshold))
+            or float(stall_threshold) < 0.0
+        ):
+            raise ValueError(
+                "Selected secondary_generation_stall_threshold must be a finite nonnegative value."
+            )
+        cooldown_iterations = selected["secondary_generation_cooldown_iterations"]
+        if (
+            isinstance(cooldown_iterations, bool)
+            or not isinstance(cooldown_iterations, int)
+            or cooldown_iterations < 0
+        ):
+            raise ValueError(
+                "Selected secondary_generation_cooldown_iterations must be a nonnegative integer."
+            )
+        max_time_share = selected["secondary_generation_max_subproblem_time_share"]
+        if (
+            isinstance(max_time_share, bool)
+            or not isinstance(max_time_share, (int, float))
+            or not math.isfinite(float(max_time_share))
+            or not 0.0 < float(max_time_share) <= 1.0
+        ):
+            raise ValueError(
+                "Selected secondary_generation_max_subproblem_time_share must be finite and in (0, 1]."
+            )
+        min_remaining_time = selected["secondary_generation_min_remaining_time"]
+        if (
+            isinstance(min_remaining_time, bool)
+            or not isinstance(min_remaining_time, (int, float))
+            or not math.isfinite(float(min_remaining_time))
+            or float(min_remaining_time) < 0.0
+        ):
+            raise ValueError(
+                "Selected secondary_generation_min_remaining_time must be a finite nonnegative value."
+            )
+        min_solve_budget = selected["secondary_generation_min_solve_budget"]
+        if (
+            isinstance(min_solve_budget, bool)
+            or not isinstance(min_solve_budget, (int, float))
+            or not math.isfinite(float(min_solve_budget))
+            or float(min_solve_budget) <= 0.0
+        ):
+            raise ValueError(
+                "Selected secondary_generation_min_solve_budget must be a positive finite value."
+            )
         for field in SELECTED_ALGORITHM_FIELDS:
             config[field] = deepcopy(selected[field])
     _validate_relative_threshold_config(config)

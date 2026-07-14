@@ -8,6 +8,7 @@ import gurobipy as gp
 from gurobipy import GRB
 
 from .instance import InventoryInstance
+from .status import gurobi_status_name
 
 
 @dataclass(frozen=True)
@@ -31,20 +32,6 @@ class RobustDualSubproblemResult:
         if not self.has_incumbent:
             raise ValueError("A robust dual cut requires a feasible incumbent.")
         return self.constant + sum(coef * x_values[key] for key, coef in self.x_coefficients.items())
-
-
-def _status_name(status: int) -> str:
-    if status == GRB.OPTIMAL:
-        return "optimal"
-    if status == GRB.TIME_LIMIT:
-        return "time_limit"
-    if status == GRB.SUBOPTIMAL:
-        return "suboptimal"
-    if status == GRB.INFEASIBLE:
-        return "infeasible"
-    if status == GRB.UNBOUNDED:
-        return "unbounded"
-    return f"gurobi_status_{status}"
 
 
 def solve_robust_dual_subproblem(
@@ -138,7 +125,7 @@ def solve_robust_dual_subproblem(
     model.setObjective(objective, GRB.MAXIMIZE)
     model.optimize()
 
-    status = _status_name(model.Status)
+    status = gurobi_status_name(model.Status)
     has_incumbent = model.SolCount > 0
     objective_bound = None
     try:
