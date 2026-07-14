@@ -446,6 +446,82 @@ def test_master_gamma_v2_config_isolated_single_cut_variants() -> None:
     assert no_continuation["gamma_schedule"] == [2]
 
 
+def test_scaleup_confirmation_config_has_exact_module_structure() -> None:
+    config_path = Path("experiments/configs/confirm_scaleup_modules.yaml")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+
+    assert config["output_dir"] == (
+        "experiments/results_diagnostics_round6/confirm_scaleup_modules"
+    )
+    assert config["random_seeds"] == [0, 1, 2]
+    assert set(config["random_seeds"]).isdisjoint(range(10, 20))
+    assert config["instance_sizes"] == ["medium_large"]
+    assert config["time_limit"] == 300
+    assert config["max_iterations"] == 4000
+    assert config["tol"] == pytest.approx(1.0e-4)
+    assert config["gamma_target"] == 2
+    assert config["subproblem_mode"] == "robust_dual_milp"
+    assert config["save_iteration_log"] is True
+    assert config["cut_selection_enabled"] is False
+    assert config["adaptive_secondary_cut_selection_enabled"] is False
+    assert config["adaptive_subproblem_gap_enabled"] is True
+    assert config["subproblem_gap_schedule"] == [
+        {"global_gap_above": 0.10, "mip_gap": 0.05},
+        {"global_gap_above": 0.05, "mip_gap": 0.02},
+        {"global_gap_above": 0.01, "mip_gap": 0.005},
+        {"global_gap_above": 0.00, "mip_gap": 0.0001},
+    ]
+
+    expected_variants = [
+        "k1_no_gamma",
+        "k1_staged_gamma",
+        "adaptive_generation_no_gamma",
+        "adaptive_generation_staged",
+        "k2_all_cuts_no_gamma",
+    ]
+    assert config["variants"] == expected_variants
+    settings = config["variant_settings"]
+    assert set(settings) == set(expected_variants)
+
+    for name in expected_variants:
+        variant = settings[name]
+        assert variant["adaptive_gap_enabled"] is True
+        assert variant["initial_mip_gap"] == pytest.approx(0.02)
+        assert variant["final_mip_gap"] == pytest.approx(0.0001)
+        assert variant["cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_cut_selection_enabled"] is False
+
+    staged_schedule = [0] * 10 + [1] * 20 + [2]
+    expected_modules = {
+        "k1_no_gamma": (False, [2], False, 1),
+        "k1_staged_gamma": (True, staged_schedule, False, 1),
+        "adaptive_generation_no_gamma": (False, [2], True, 2),
+        "adaptive_generation_staged": (True, staged_schedule, True, 2),
+        "k2_all_cuts_no_gamma": (False, [2], False, 2),
+    }
+    for name, (gamma_enabled, schedule, generation_enabled, max_cuts) in (
+        expected_modules.items()
+    ):
+        variant = settings[name]
+        assert variant["gamma_continuation_enabled"] is gamma_enabled
+        assert variant["gamma_schedule"] == schedule
+        assert variant["adaptive_secondary_generation_enabled"] is generation_enabled
+        assert variant["max_cuts_per_iteration"] == max_cuts
+
+    expected_generation_policy = {
+        "secondary_generation_lb_window": 5,
+        "secondary_generation_stall_threshold": pytest.approx(1.0e-4),
+        "secondary_generation_cooldown_iterations": 5,
+        "secondary_generation_max_subproblem_time_share": pytest.approx(0.95),
+        "secondary_generation_min_remaining_time": pytest.approx(5.0),
+        "secondary_generation_min_solve_budget": pytest.approx(2.0),
+    }
+    for name in ("adaptive_generation_no_gamma", "adaptive_generation_staged"):
+        variant = settings[name]
+        for field, value in expected_generation_policy.items():
+            assert variant[field] == value
+
+
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:
     config_path = Path("experiments/configs/screen_master_gamma.yaml")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
