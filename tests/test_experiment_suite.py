@@ -383,6 +383,69 @@ def test_round2_staged_gamma_variant_is_applied() -> None:
     assert resolved["robust"]["gamma_schedule"] == staged
 
 
+def test_master_gamma_v2_config_isolated_single_cut_variants() -> None:
+    config_path = Path("experiments/configs/screen_master_gamma_v2.yaml")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+
+    assert config["random_seeds"] == [0, 1, 2]
+    assert set(config["random_seeds"]).isdisjoint(range(10, 20))
+    assert config["instance_sizes"] == ["medium"]
+    assert config["time_limit"] == 180
+    assert config["max_iterations"] == 2000
+    assert config["tol"] == pytest.approx(1.0e-4)
+    assert config["gamma_target"] == 2
+    assert config["subproblem_mode"] == "robust_dual_milp"
+    assert config["adaptive_subproblem_gap_enabled"] is True
+    assert config["subproblem_gap_schedule"] == [
+        {"global_gap_above": 0.10, "mip_gap": 0.05},
+        {"global_gap_above": 0.05, "mip_gap": 0.02},
+        {"global_gap_above": 0.01, "mip_gap": 0.005},
+        {"global_gap_above": 0.00, "mip_gap": 0.0001},
+    ]
+
+    expected_variants = [
+        "adaptive_master_005",
+        "adaptive_master_002",
+        "adaptive_master_001",
+        "exact_master",
+        "staged_gamma",
+        "no_gamma_continuation",
+    ]
+    assert config["variants"] == expected_variants
+    settings = config["variant_settings"]
+    assert set(settings) == set(expected_variants)
+
+    for name in expected_variants:
+        variant = settings[name]
+        assert variant["max_cuts_per_iteration"] == 1
+        assert variant["cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_generation_enabled"] is False
+
+    assert settings["adaptive_master_005"]["initial_mip_gap"] == pytest.approx(0.05)
+    assert settings["adaptive_master_002"]["initial_mip_gap"] == pytest.approx(0.02)
+    assert settings["adaptive_master_001"]["initial_mip_gap"] == pytest.approx(0.01)
+    for name in ("adaptive_master_005", "adaptive_master_002", "adaptive_master_001"):
+        assert settings[name]["adaptive_gap_enabled"] is True
+        assert settings[name]["gamma_continuation_enabled"] is True
+        assert settings[name]["gamma_schedule"] == [0, 1, 2]
+
+    exact = settings["exact_master"]
+    assert exact["adaptive_gap_enabled"] is False
+    assert exact["final_mip_gap"] == pytest.approx(0.0001)
+    assert exact["gamma_schedule"] == [0, 1, 2]
+
+    staged = settings["staged_gamma"]
+    assert staged["initial_mip_gap"] == pytest.approx(0.02)
+    assert staged["gamma_continuation_enabled"] is True
+    assert staged["gamma_schedule"] == [0] * 10 + [1] * 20 + [2]
+
+    no_continuation = settings["no_gamma_continuation"]
+    assert no_continuation["initial_mip_gap"] == pytest.approx(0.02)
+    assert no_continuation["gamma_continuation_enabled"] is False
+    assert no_continuation["gamma_schedule"] == [2]
+
+
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:
     config_path = Path("experiments/configs/screen_master_gamma.yaml")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
