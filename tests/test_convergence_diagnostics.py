@@ -26,6 +26,14 @@ from src.benders import (
     update_final_certification,
 )
 from src.instance import generate_instance
+from src.precision_policy import (
+    PrecisionPolicyState,
+    error_budget_candidate,
+    initialize_precision_state,
+    precision_policy_config,
+    select_joint_error_budget_precision,
+    valid_global_gap_for_precision,
+)
 from src.robust_dual_subproblem import solve_robust_dual_subproblem
 from src.robust_dual_subproblem import RobustDualSubproblemResult
 from src.experiment_suite import _summary_rows, _time_to_gap_metrics
@@ -351,6 +359,182 @@ def test_adaptive_subproblem_gap_tightens() -> None:
     assert select_subproblem_mip_gap(0.005, True, schedule, 0.01) == pytest.approx(0.0001)
 
 
+def joint_precision_config(**overrides: object):
+    values = {
+        "precision_policy": "joint_error_budget",
+        "adaptive_master_precision_enabled": True,
+        "adaptive_subproblem_precision_enabled": True,
+        "master_gap_max": 0.02,
+        "master_gap_min": 0.0001,
+        "subproblem_gap_max": 0.05,
+        "subproblem_gap_min": 0.0001,
+        "fixed_subproblem_mip_gap": 0.01,
+        "master_error_budget_ratio": 0.5,
+        "subproblem_error_budget_ratio": 1.0,
+        "monotone_precision_tightening": True,
+    }
+    values.update(overrides)
+    return precision_policy_config(
+        values,
+        fixed_master_gap=0.01,
+        fixed_subproblem_gap=0.01,
+        legacy_subproblem_gaps=[0.05, 0.0001],
+    )
+
+
+def test_joint_error_budget_candidate_formulas_and_clipping() -> None:
+    config = joint_precision_config()
+    decision = select_joint_error_budget_precision(
+        config,
+        initialize_precision_state(config),
+        upper_bound=100.0,
+        lower_bound=98.0,
+    )
+    assert decision.valid_global_gap_for_precision == pytest.approx(0.02)
+    assert decision.master_candidate_gap == pytest.approx(0.01)
+    assert decision.subproblem_candidate_gap == pytest.approx(0.02)
+    assert error_budget_candidate(1.0, 0.0001, 0.02, 2.0) == pytest.approx(0.02)
+    assert error_budget_candidate(1.0e-8, 0.0001, 0.02, 0.5) == pytest.approx(
+        0.0001
+    )
+
+
+def test_joint_error_budget_precision_is_monotone_for_both_solvers() -> None:
+    config = joint_precision_config()
+    state = initialize_precision_state(config)
+    master_gaps = []
+    subproblem_gaps = []
+    for lower_bound in (90.0, 99.0, 95.0, 99.9):
+        decision = select_joint_error_budget_precision(
+            config,
+            state,
+            upper_bound=100.0,
+            lower_bound=lower_bound,
+        )
+        state = decision.next_state
+        master_gaps.append(decision.master_selected_gap)
+        subproblem_gaps.append(decision.subproblem_selected_gap)
+    assert master_gaps == sorted(master_gaps, reverse=True)
+    assert subproblem_gaps == sorted(subproblem_gaps, reverse=True)
+
+
+@pytest.mark.parametrize(
+    ("master_enabled", "subproblem_enabled", "expected_master", "expected_subproblem"),
+    [
+        (True, False, 0.01, 0.01),
+        (False, True, 0.01, 0.02),
+        (True, True, 0.01, 0.02),
+        (False, False, 0.01, 0.01),
+    ],
+)
+def test_master_and_subproblem_adaptation_are_independently_switchable(
+    master_enabled: bool,
+    subproblem_enabled: bool,
+    expected_master: float,
+    expected_subproblem: float,
+) -> None:
+    config = joint_precision_config(
+        adaptive_master_precision_enabled=master_enabled,
+        adaptive_subproblem_precision_enabled=subproblem_enabled,
+    )
+    initial = initialize_precision_state(config)
+    decision = select_joint_error_budget_precision(
+        config,
+        initial,
+        upper_bound=100.0,
+        lower_bound=98.0,
+    )
+    assert decision.master_selected_gap == pytest.approx(expected_master)
+    assert decision.subproblem_selected_gap == pytest.approx(expected_subproblem)
+    assert decision.next_state.previous_master_gap == pytest.approx(
+        expected_master if master_enabled else initial.previous_master_gap
+    )
+    assert decision.next_state.previous_subproblem_gap == pytest.approx(
+        expected_subproblem if subproblem_enabled else initial.previous_subproblem_gap
+    )
+
+
+def test_precision_gap_fallback_is_logged_but_never_certifies() -> None:
+    gap, fallback = valid_global_gap_for_precision(None, 10.0)
+    assert gap == 1.0
+    assert fallback is True
+    assert should_terminate_benders(2, 2, False, gap, 1.0e-4) is False
+
+
+def test_certification_freezes_pre_certification_precision_state() -> None:
+    config = joint_precision_config()
+    pre_certification = select_joint_error_budget_precision(
+        config,
+        initialize_precision_state(config),
+        upper_bound=100.0,
+        lower_bound=98.0,
+    ).next_state
+    during_certification = select_joint_error_budget_precision(
+        config,
+        pre_certification,
+        upper_bound=100.0,
+        lower_bound=99.9,
+        update_state=False,
+    )
+    assert during_certification.next_state == pre_certification
+    resumed = select_joint_error_budget_precision(
+        config,
+        during_certification.next_state,
+        upper_bound=100.0,
+        lower_bound=95.0,
+    )
+    assert resumed.master_previous_gap == pytest.approx(
+        pre_certification.previous_master_gap
+    )
+    assert resumed.subproblem_previous_gap == pytest.approx(
+        pre_certification.previous_subproblem_gap
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("precision_policy", "unknown", "precision_policy must be one of"),
+        ("master_gap_max", float("inf"), "master_gap_max must be finite"),
+        ("master_gap_min", -0.1, "master_gap_min must be finite"),
+        ("subproblem_gap_max", float("nan"), "subproblem_gap_max must be finite"),
+        ("subproblem_gap_min", -0.1, "subproblem_gap_min must be finite"),
+        (
+            "master_error_budget_ratio",
+            -0.1,
+            "master_error_budget_ratio must be finite",
+        ),
+        (
+            "subproblem_error_budget_ratio",
+            float("inf"),
+            "subproblem_error_budget_ratio must be finite",
+        ),
+    ],
+)
+def test_precision_policy_rejects_invalid_configuration(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        joint_precision_config(**{field: value})
+
+
+@pytest.mark.parametrize(
+    ("minimum_field", "maximum_field"),
+    [
+        ("master_gap_min", "master_gap_max"),
+        ("subproblem_gap_min", "subproblem_gap_max"),
+    ],
+)
+def test_precision_policy_rejects_minimum_above_maximum(
+    minimum_field: str,
+    maximum_field: str,
+) -> None:
+    with pytest.raises(ValueError, match="must be less than or equal"):
+        joint_precision_config(**{minimum_field: 0.02, maximum_field: 0.01})
+
+
 def _advance_certification(
     state: FinalCertificationState,
     iteration: int,
@@ -532,6 +716,9 @@ def test_new_features_are_backward_compatible_by_default() -> None:
     assert settings.cut_selection_mode == "absolute"
     assert settings.adaptive_subproblem_gap_enabled is False
     assert settings.max_cuts_per_iteration == 1
+    assert settings.precision_config.precision_policy == "legacy"
+    assert settings.precision_config.adaptive_master_precision_enabled is False
+    assert settings.precision_config.adaptive_subproblem_precision_enabled is False
     assert settings.final_certification_enabled is False
     assert settings.final_certification_no_cut_patience == 2
 

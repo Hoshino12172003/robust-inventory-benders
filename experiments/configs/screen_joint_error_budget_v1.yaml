@@ -1,0 +1,149 @@
+experiment_name: screen_joint_error_budget_v1
+output_dir: experiments/results_diagnostics_round8/screen_joint_error_budget_v1
+random_seeds: [0, 1, 2]
+instance_sizes: [medium]
+variants:
+  - tight_tight
+  - static_inexact
+  - mp_adaptive_rho050
+  - sp_adaptive_rho050
+  - joint_rho025_050
+  - joint_rho050_050
+  - joint_rho050_100
+variant_settings:
+  tight_tight:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: false
+    initial_mip_gap: 0.0001
+    adaptive_subproblem_precision_enabled: false
+    fixed_subproblem_mip_gap: 0.0001
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+  static_inexact:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: false
+    initial_mip_gap: 0.02
+    adaptive_subproblem_precision_enabled: false
+    fixed_subproblem_mip_gap: 0.02
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+  mp_adaptive_rho050:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: true
+    initial_mip_gap: 0.02
+    master_error_budget_ratio: 0.50
+    adaptive_subproblem_precision_enabled: false
+    fixed_subproblem_mip_gap: 0.0001
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+  sp_adaptive_rho050:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: false
+    initial_mip_gap: 0.0001
+    adaptive_subproblem_precision_enabled: true
+    fixed_subproblem_mip_gap: 0.05
+    subproblem_error_budget_ratio: 0.50
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+  joint_rho025_050:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: true
+    initial_mip_gap: 0.02
+    master_error_budget_ratio: 0.25
+    adaptive_subproblem_precision_enabled: true
+    fixed_subproblem_mip_gap: 0.05
+    subproblem_error_budget_ratio: 0.50
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+  joint_rho050_050:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: true
+    initial_mip_gap: 0.02
+    master_error_budget_ratio: 0.50
+    adaptive_subproblem_precision_enabled: true
+    fixed_subproblem_mip_gap: 0.05
+    subproblem_error_budget_ratio: 0.50
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+  joint_rho050_100:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: true
+    initial_mip_gap: 0.02
+    master_error_budget_ratio: 0.50
+    adaptive_subproblem_precision_enabled: true
+    fixed_subproblem_mip_gap: 0.05
+    subproblem_error_budget_ratio: 1.00
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+save_iteration_log: true
+time_limit: 180
+max_iterations: 10000
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_continuation_enabled: false
+gamma_schedule: [2]
+subproblem_mode: robust_dual_milp
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+max_cuts_per_iteration: 1
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+precision_policy: joint_error_budget
+adaptive_master_precision_enabled: false
+adaptive_subproblem_precision_enabled: false
+master_gap_max: 0.02
+master_gap_min: 0.0001
+subproblem_gap_max: 0.05
+subproblem_gap_min: 0.0001
+fixed_subproblem_mip_gap: 0.0001
+master_error_budget_ratio: 0.50
+subproblem_error_budget_ratio: 0.50
+monotone_precision_tightening: true
+adaptive_subproblem_gap_enabled: false
+max_scenarios: 5000
+exact_scenarios: true

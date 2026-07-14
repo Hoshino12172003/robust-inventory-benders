@@ -580,6 +580,68 @@ def test_final_certification_tuning_config_is_isolated() -> None:
     assert resolved["algorithm"]["final_certification_no_cut_patience"] == 2
 
 
+def test_joint_error_budget_screen_has_exact_isolated_variants() -> None:
+    path = Path("experiments/configs/screen_joint_error_budget_v1.yaml")
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    expected = [
+        "tight_tight",
+        "static_inexact",
+        "mp_adaptive_rho050",
+        "sp_adaptive_rho050",
+        "joint_rho025_050",
+        "joint_rho050_050",
+        "joint_rho050_100",
+    ]
+    assert config["variants"] == expected
+    assert set(config["variant_settings"]) == set(expected)
+    assert config["random_seeds"] == [0, 1, 2]
+    assert set(config["random_seeds"]).isdisjoint(range(10, 20))
+    assert config["instance_sizes"] == ["medium"]
+    assert config["time_limit"] == 180
+    assert config["max_iterations"] == 10000
+    assert config["gamma_target"] == 2
+    assert config["gamma_schedule"] == [2]
+    assert config["master_gap_max"] == pytest.approx(0.02)
+    assert config["master_gap_min"] == pytest.approx(0.0001)
+    assert config["subproblem_gap_max"] == pytest.approx(0.05)
+    assert config["subproblem_gap_min"] == pytest.approx(0.0001)
+    assert config["monotone_precision_tightening"] is True
+
+    settings = config["variant_settings"]
+    for name in expected:
+        variant = settings[name]
+        assert variant["precision_policy"] == "joint_error_budget"
+        assert variant["gamma_continuation_enabled"] is False
+        assert variant["gamma_schedule"] == [2]
+        assert variant["max_cuts_per_iteration"] == 1
+        assert variant["cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_generation_enabled"] is False
+        assert variant["final_certification_enabled"] is True
+
+    assert settings["tight_tight"]["adaptive_master_precision_enabled"] is False
+    assert settings["tight_tight"]["initial_mip_gap"] == pytest.approx(0.0001)
+    assert settings["tight_tight"]["adaptive_subproblem_precision_enabled"] is False
+    assert settings["tight_tight"]["fixed_subproblem_mip_gap"] == pytest.approx(
+        0.0001
+    )
+    assert settings["static_inexact"]["initial_mip_gap"] == pytest.approx(0.02)
+    assert settings["static_inexact"]["fixed_subproblem_mip_gap"] == pytest.approx(
+        0.02
+    )
+    assert settings["mp_adaptive_rho050"]["adaptive_master_precision_enabled"] is True
+    assert settings["mp_adaptive_rho050"]["adaptive_subproblem_precision_enabled"] is False
+    assert settings["sp_adaptive_rho050"]["adaptive_master_precision_enabled"] is False
+    assert settings["sp_adaptive_rho050"]["adaptive_subproblem_precision_enabled"] is True
+    assert settings["joint_rho025_050"]["master_error_budget_ratio"] == pytest.approx(
+        0.25
+    )
+    assert settings["joint_rho050_100"]["subproblem_error_budget_ratio"] == pytest.approx(
+        1.0
+    )
+
+
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:
     config_path = Path("experiments/configs/screen_master_gamma.yaml")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -654,6 +716,20 @@ def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> No
         "certification_forced_master_mip_gap",
         "certification_forced_subproblem_mip_gap",
         "secondary_solve_disabled_by_certification",
+        "precision_policy",
+        "valid_global_gap_for_precision",
+        "precision_gap_fallback_used",
+        "adaptive_master_precision_enabled",
+        "adaptive_subproblem_precision_enabled",
+        "master_gap_candidate",
+        "master_gap_previous",
+        "master_gap_selected",
+        "subproblem_gap_candidate",
+        "subproblem_gap_previous",
+        "subproblem_gap_selected",
+        "master_error_budget_ratio",
+        "subproblem_error_budget_ratio",
+        "monotone_precision_tightening",
     ):
         assert field in log_rows[0]
     for field in (
@@ -666,6 +742,18 @@ def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> No
         "final_certification_count",
         "final_certification_iterations",
         "final_certification_exit_reason",
+        "precision_policy",
+        "adaptive_master_precision_enabled",
+        "adaptive_subproblem_precision_enabled",
+        "master_gap_max",
+        "master_gap_min",
+        "subproblem_gap_max",
+        "subproblem_gap_min",
+        "fixed_master_mip_gap",
+        "fixed_subproblem_mip_gap",
+        "master_error_budget_ratio",
+        "subproblem_error_budget_ratio",
+        "monotone_precision_tightening",
     ):
         assert field in rows[0]
 
@@ -807,6 +895,15 @@ def test_baselines_disable_adaptive_secondary_selection(
 ) -> None:
     experiment_config = tiny_experiment_config(tmp_path)
     experiment_config.update(selected_algorithm_parameters())
+    experiment_config.update(
+        {
+            "precision_policy": "joint_error_budget",
+            "adaptive_master_precision_enabled": True,
+            "adaptive_subproblem_precision_enabled": True,
+            "fixed_subproblem_mip_gap": 0.03,
+            "final_certification_enabled": True,
+        }
+    )
     base_config = _base_config(experiment_config, "very_small", seed=0)
 
     _, _, method_config = _apply_variant_config(base_config, method, {})
@@ -818,6 +915,28 @@ def test_baselines_disable_adaptive_secondary_selection(
     )
     assert method_config["algorithm"]["adaptive_secondary_generation_enabled"] is False
     assert method_config["algorithm"]["max_cuts_per_iteration"] == 1
+    assert method_config["algorithm"]["precision_policy"] == "legacy"
+    assert method_config["algorithm"]["adaptive_master_precision_enabled"] is False
+    assert (
+        method_config["algorithm"]["adaptive_subproblem_precision_enabled"]
+        is False
+    )
+    assert method_config["robust"]["gamma_schedule"] == [
+        method_config["robust"]["gamma_target"]
+    ]
+    if method == "standard_benders":
+        tight_gap = method_config["benders"]["final_mip_gap"]
+        assert method_config["benders"]["initial_mip_gap"] == pytest.approx(tight_gap)
+        assert method_config["algorithm"]["fixed_subproblem_mip_gap"] == pytest.approx(
+            tight_gap
+        )
+        assert method_config["algorithm"]["final_certification_enabled"] is False
+    else:
+        assert method_config["benders"]["initial_mip_gap"] == pytest.approx(0.05)
+        assert method_config["algorithm"]["fixed_subproblem_mip_gap"] == pytest.approx(
+            0.05
+        )
+        assert method_config["algorithm"]["final_certification_enabled"] is True
 
 
 def test_selected_parameters_reject_missing_values(tmp_path: Path) -> None:
