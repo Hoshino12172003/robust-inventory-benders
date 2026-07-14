@@ -5,8 +5,9 @@ instance_sizes: [medium]
 variants:
   - k1_single_cut
   - k2_all_cuts
-  - adaptive_secondary_generation
-  - adaptive_secondary_generation_no_cooldown
+  - adaptive_generation_conservative
+  - adaptive_generation_permissive
+  - adaptive_generation_no_cooldown
 variant_settings:
   k1_single_cut:
     adaptive_gap_enabled: true
@@ -20,7 +21,7 @@ variant_settings:
     cut_selection_enabled: false
     adaptive_secondary_generation_enabled: false
     max_cuts_per_iteration: 2
-  adaptive_secondary_generation:
+  adaptive_generation_conservative:
     adaptive_gap_enabled: true
     gamma_continuation_enabled: true
     cut_selection_enabled: false
@@ -32,7 +33,19 @@ variant_settings:
     secondary_generation_min_remaining_time: 5.0
     secondary_generation_min_solve_budget: 2.0
     max_cuts_per_iteration: 2
-  adaptive_secondary_generation_no_cooldown:
+  adaptive_generation_permissive:
+    adaptive_gap_enabled: true
+    gamma_continuation_enabled: true
+    cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: true
+    secondary_generation_lb_window: 5
+    secondary_generation_stall_threshold: 1.0e-4
+    secondary_generation_cooldown_iterations: 5
+    secondary_generation_max_subproblem_time_share: 0.95
+    secondary_generation_min_remaining_time: 5.0
+    secondary_generation_min_solve_budget: 2.0
+    max_cuts_per_iteration: 2
+  adaptive_generation_no_cooldown:
     adaptive_gap_enabled: true
     gamma_continuation_enabled: true
     cut_selection_enabled: false
@@ -40,7 +53,7 @@ variant_settings:
     secondary_generation_lb_window: 5
     secondary_generation_stall_threshold: 1.0e-4
     secondary_generation_cooldown_iterations: 0
-    secondary_generation_max_subproblem_time_share: 0.75
+    secondary_generation_max_subproblem_time_share: 0.95
     secondary_generation_min_remaining_time: 5.0
     secondary_generation_min_solve_budget: 2.0
     max_cuts_per_iteration: 2

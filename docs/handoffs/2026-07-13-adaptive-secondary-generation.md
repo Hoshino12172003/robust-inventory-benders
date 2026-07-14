@@ -11,14 +11,17 @@ This change moves the adaptive decision ahead of the no-good-constrained robust 
 - Added cooldown, cumulative subproblem-time share, remaining-time, and minimum solve-budget checks.
 - Preserved the existing K=2 all-cuts behavior when adaptive generation is disabled; K=1 remains the default.
 - Added iteration and result diagnostics for attempted, avoided, triggered, skipped, timed, duplicate, and added secondary solves/cuts.
-- Added `screen_adaptive_secondary_generation.yaml` with the four requested equal-time medium-scale variants.
+- Added selected-parameter validation and final-evaluation overlay support for all seven adaptive secondary-generation settings.
+- Preserved baseline isolation by forcing adaptive secondary generation off for standard and static-inexact Benders.
+- Revised `screen_adaptive_secondary_generation.yaml` to five equal-time medium-scale variants, including permissive `0.95` resource thresholds.
+- Added exact configuration, selected-parameter reproducibility, baseline-isolation, and synthetic gate tests.
 - Kept the robust model, primary-cut validity, target-Gamma evaluation, no-good constraints, and valid-UB rules unchanged.
 
 ## Verification
 
-- Convergence diagnostics: 27 passed.
-- Experiment suite: 19 passed.
-- Full test suite: 65 passed.
+- Convergence diagnostics: 28 passed.
+- Experiment suite: 36 passed.
+- Full test suite: 83 passed.
 - Hidden Unicode scan: `No hidden Unicode characters found.`
 - `git diff --check`: clean.
 - Python compilation: passed for the changed Python modules and tests.
@@ -47,4 +50,4 @@ Do not run the medium tuning seeds until the PR is reviewed. The new experiment 
 
 ## Branch Note
 
-This work is stacked on the secondary-cut redesign from PR #12. Retarget it to `main` after PR #12 is merged.
+PR #13 targets `main`; its remote head is `codex/adaptive-secondary-generation`.

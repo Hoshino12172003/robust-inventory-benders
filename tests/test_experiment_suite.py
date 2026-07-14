@@ -52,6 +52,13 @@ def selected_algorithm_parameters(**overrides: object) -> dict:
         "secondary_cut_warmup_cuts": 40,
         "secondary_cut_master_time_share_trigger": 0.30,
         "secondary_cut_recent_master_time_trigger": 0.40,
+        "adaptive_secondary_generation_enabled": True,
+        "secondary_generation_lb_window": 7,
+        "secondary_generation_stall_threshold": 0.0003,
+        "secondary_generation_cooldown_iterations": 4,
+        "secondary_generation_max_subproblem_time_share": 0.93,
+        "secondary_generation_min_remaining_time": 6.5,
+        "secondary_generation_min_solve_budget": 1.25,
         "relative_cut_threshold": 0.0007,
         "cut_violation_tol": 2.0e-8,
         "final_exact_gap": 0.02,
@@ -247,18 +254,65 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     assert generation["variants"] == [
         "k1_single_cut",
         "k2_all_cuts",
-        "adaptive_secondary_generation",
-        "adaptive_secondary_generation_no_cooldown",
+        "adaptive_generation_conservative",
+        "adaptive_generation_permissive",
+        "adaptive_generation_no_cooldown",
     ]
     generation_settings = generation["variant_settings"]
-    assert generation_settings["k1_single_cut"]["max_cuts_per_iteration"] == 1
-    assert generation_settings["k2_all_cuts"]["max_cuts_per_iteration"] == 2
-    assert generation_settings["adaptive_secondary_generation"][
-        "adaptive_secondary_generation_enabled"
-    ] is True
-    assert generation_settings["adaptive_secondary_generation_no_cooldown"][
-        "secondary_generation_cooldown_iterations"
-    ] == 0
+    common = {
+        "adaptive_gap_enabled": True,
+        "gamma_continuation_enabled": True,
+        "cut_selection_enabled": False,
+    }
+    adaptive_common = {
+        **common,
+        "adaptive_secondary_generation_enabled": True,
+        "secondary_generation_lb_window": 5,
+        "secondary_generation_stall_threshold": 1.0e-4,
+        "secondary_generation_min_remaining_time": 5.0,
+        "secondary_generation_min_solve_budget": 2.0,
+        "max_cuts_per_iteration": 2,
+    }
+    assert generation_settings == {
+        "k1_single_cut": {
+            **common,
+            "adaptive_secondary_generation_enabled": False,
+            "max_cuts_per_iteration": 1,
+        },
+        "k2_all_cuts": {
+            **common,
+            "adaptive_secondary_generation_enabled": False,
+            "max_cuts_per_iteration": 2,
+        },
+        "adaptive_generation_conservative": {
+            **adaptive_common,
+            "secondary_generation_cooldown_iterations": 5,
+            "secondary_generation_max_subproblem_time_share": 0.75,
+        },
+        "adaptive_generation_permissive": {
+            **adaptive_common,
+            "secondary_generation_cooldown_iterations": 5,
+            "secondary_generation_max_subproblem_time_share": 0.95,
+        },
+        "adaptive_generation_no_cooldown": {
+            **adaptive_common,
+            "secondary_generation_cooldown_iterations": 0,
+            "secondary_generation_max_subproblem_time_share": 0.95,
+        },
+    }
+
+    selected = configs["selected_algorithm_parameters.yaml"]
+    assert selected["selection_status"] == "pending_parameter_screens"
+    for field in (
+        "adaptive_secondary_generation_enabled",
+        "secondary_generation_lb_window",
+        "secondary_generation_stall_threshold",
+        "secondary_generation_cooldown_iterations",
+        "secondary_generation_max_subproblem_time_share",
+        "secondary_generation_min_remaining_time",
+        "secondary_generation_min_solve_budget",
+    ):
+        assert selected[field] is None
 
 
 def test_round2_tuning_configs_exist_and_parse() -> None:
@@ -449,6 +503,25 @@ def test_selected_parameters_are_applied_and_resolved(
                 "secondary_cut_recent_master_time_trigger": algorithm[
                     "secondary_cut_recent_master_time_trigger"
                 ],
+                "adaptive_secondary_generation_enabled": algorithm[
+                    "adaptive_secondary_generation_enabled"
+                ],
+                "secondary_generation_lb_window": algorithm["secondary_generation_lb_window"],
+                "secondary_generation_stall_threshold": algorithm[
+                    "secondary_generation_stall_threshold"
+                ],
+                "secondary_generation_cooldown_iterations": algorithm[
+                    "secondary_generation_cooldown_iterations"
+                ],
+                "secondary_generation_max_subproblem_time_share": algorithm[
+                    "secondary_generation_max_subproblem_time_share"
+                ],
+                "secondary_generation_min_remaining_time": algorithm[
+                    "secondary_generation_min_remaining_time"
+                ],
+                "secondary_generation_min_solve_budget": algorithm[
+                    "secondary_generation_min_solve_budget"
+                ],
                 "subproblem_gap_schedule": algorithm["subproblem_gap_schedule"],
                 "max_cuts_per_iteration": algorithm["max_cuts_per_iteration"],
                 "gamma_schedule": ",".join(
@@ -482,12 +555,22 @@ def test_selected_parameters_are_applied_and_resolved(
     assert float(proposed["secondary_cut_recent_master_time_trigger"]) == pytest.approx(
         0.40
     )
+    assert proposed["adaptive_secondary_generation_enabled"] == "True"
+    assert int(proposed["secondary_generation_lb_window"]) == 7
+    assert float(proposed["secondary_generation_stall_threshold"]) == pytest.approx(0.0003)
+    assert int(proposed["secondary_generation_cooldown_iterations"]) == 4
+    assert float(proposed["secondary_generation_max_subproblem_time_share"]) == pytest.approx(
+        0.93
+    )
+    assert float(proposed["secondary_generation_min_remaining_time"]) == pytest.approx(6.5)
+    assert float(proposed["secondary_generation_min_solve_budget"]) == pytest.approx(1.25)
     assert "0.07" in proposed["subproblem_gap_schedule"]
 
     standard = rows["standard_benders"]
     assert standard["cut_selection_enabled"] == "False"
     assert standard["adaptive_subproblem_gap_enabled"] == "False"
     assert standard["adaptive_secondary_cut_selection_enabled"] == "False"
+    assert standard["adaptive_secondary_generation_enabled"] == "False"
     assert int(standard["max_cuts_per_iteration"]) == 1
     assert standard["gamma_schedule"] == standard["gamma_target"]
     assert "1e-05" in standard["subproblem_gap_schedule"]
@@ -496,6 +579,7 @@ def test_selected_parameters_are_applied_and_resolved(
     assert static["cut_selection_enabled"] == "False"
     assert static["adaptive_subproblem_gap_enabled"] == "False"
     assert static["adaptive_secondary_cut_selection_enabled"] == "False"
+    assert static["adaptive_secondary_generation_enabled"] == "False"
     assert int(static["max_cuts_per_iteration"]) == 1
     assert static["gamma_schedule"] == static["gamma_target"]
 
@@ -554,6 +638,91 @@ def test_selected_parameters_reject_missing_values(tmp_path: Path) -> None:
             "secondary_cut_recent_master_time_trigger",
             float("inf"),
             "secondary_cut_recent_master_time_trigger must be a positive finite value",
+        ),
+        (
+            "adaptive_secondary_generation_enabled",
+            1,
+            "adaptive_secondary_generation_enabled must be true or false",
+        ),
+        (
+            "secondary_generation_lb_window",
+            True,
+            "secondary_generation_lb_window must be a positive integer",
+        ),
+        (
+            "secondary_generation_lb_window",
+            0,
+            "secondary_generation_lb_window must be a positive integer",
+        ),
+        (
+            "secondary_generation_stall_threshold",
+            float("nan"),
+            "secondary_generation_stall_threshold must be a finite nonnegative value",
+        ),
+        (
+            "secondary_generation_stall_threshold",
+            -0.1,
+            "secondary_generation_stall_threshold must be a finite nonnegative value",
+        ),
+        (
+            "secondary_generation_stall_threshold",
+            False,
+            "secondary_generation_stall_threshold must be a finite nonnegative value",
+        ),
+        (
+            "secondary_generation_cooldown_iterations",
+            -1,
+            "secondary_generation_cooldown_iterations must be a nonnegative integer",
+        ),
+        (
+            "secondary_generation_cooldown_iterations",
+            True,
+            "secondary_generation_cooldown_iterations must be a nonnegative integer",
+        ),
+        (
+            "secondary_generation_max_subproblem_time_share",
+            0.0,
+            r"secondary_generation_max_subproblem_time_share must be finite and in \(0, 1\]",
+        ),
+        (
+            "secondary_generation_max_subproblem_time_share",
+            1.01,
+            r"secondary_generation_max_subproblem_time_share must be finite and in \(0, 1\]",
+        ),
+        (
+            "secondary_generation_max_subproblem_time_share",
+            float("inf"),
+            r"secondary_generation_max_subproblem_time_share must be finite and in \(0, 1\]",
+        ),
+        (
+            "secondary_generation_min_remaining_time",
+            -0.1,
+            "secondary_generation_min_remaining_time must be a finite nonnegative value",
+        ),
+        (
+            "secondary_generation_min_remaining_time",
+            float("inf"),
+            "secondary_generation_min_remaining_time must be a finite nonnegative value",
+        ),
+        (
+            "secondary_generation_min_remaining_time",
+            True,
+            "secondary_generation_min_remaining_time must be a finite nonnegative value",
+        ),
+        (
+            "secondary_generation_min_solve_budget",
+            0.0,
+            "secondary_generation_min_solve_budget must be a positive finite value",
+        ),
+        (
+            "secondary_generation_min_solve_budget",
+            float("nan"),
+            "secondary_generation_min_solve_budget must be a positive finite value",
+        ),
+        (
+            "secondary_generation_min_solve_budget",
+            False,
+            "secondary_generation_min_solve_budget must be a positive finite value",
         ),
     ],
 )

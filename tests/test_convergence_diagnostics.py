@@ -232,6 +232,39 @@ def test_lb_stall_opens_secondary_generation_gate() -> None:
     assert decision.trigger_reason == "lb_stall"
 
 
+def test_subproblem_time_share_distinguishes_conservative_and_permissive_gates() -> None:
+    common = {
+        "enabled": True,
+        "max_cuts_per_iteration": 2,
+        "primary_has_incumbent": True,
+        "lower_bound_history": [100.0, 100.0, 100.0, 100.0],
+        "rolling_window": 3,
+        "stall_threshold": 1e-4,
+        "current_iteration": 10,
+        "last_secondary_solve_iteration": None,
+        "cooldown_iterations": 5,
+        "cumulative_subproblem_time_share": 0.80,
+        "remaining_time": 30.0,
+        "available_budget": 10.0,
+        "min_remaining_time": 5.0,
+        "min_solve_budget": 2.0,
+    }
+
+    conservative = secondary_generation_decision(
+        **common,
+        max_subproblem_time_share=0.75,
+    )
+    permissive = secondary_generation_decision(
+        **common,
+        max_subproblem_time_share=0.95,
+    )
+
+    assert conservative.attempt is False
+    assert conservative.skipped_reason == "subproblem_time_share"
+    assert permissive.attempt is True
+    assert permissive.trigger_reason == "lb_stall"
+
+
 def test_cooldown_temporarily_closes_secondary_generation_gate() -> None:
     decision = secondary_generation_decision(
         enabled=True,
