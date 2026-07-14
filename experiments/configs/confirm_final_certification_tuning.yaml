@@ -1,0 +1,49 @@
+experiment_name: confirm_final_certification_tuning
+output_dir: experiments/results_diagnostics_round7/confirm_final_certification_tuning
+random_seeds: [0, 1, 2]
+instance_sizes: [medium_large]
+variants:
+  - final_certification_tuning
+variant_settings:
+  final_certification_tuning:
+    adaptive_gap_enabled: true
+    initial_mip_gap: 0.02
+    final_mip_gap: 0.0001
+    gamma_continuation_enabled: false
+    gamma_schedule: [2]
+    cut_selection_enabled: false
+    adaptive_secondary_cut_selection_enabled: false
+    adaptive_secondary_generation_enabled: false
+    max_cuts_per_iteration: 1
+    final_certification_enabled: true
+    final_certification_no_cut_patience: 2
+save_iteration_log: true
+time_limit: 300
+max_iterations: 10000
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_continuation_enabled: false
+gamma_schedule: [2]
+subproblem_mode: robust_dual_milp
+adaptive_gap_enabled: true
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: true
+subproblem_gap_schedule:
+  - global_gap_above: 0.10
+    mip_gap: 0.05
+  - global_gap_above: 0.05
+    mip_gap: 0.02
+  - global_gap_above: 0.01
+    mip_gap: 0.005
+  - global_gap_above: 0.00
+    mip_gap: 0.0001
+max_cuts_per_iteration: 1
+subproblem_time_budget_per_iteration: 120
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+max_scenarios: 5000
+exact_scenarios: true

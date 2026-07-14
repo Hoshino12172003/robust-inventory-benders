@@ -6,8 +6,10 @@ import pytest
 
 import src.benders as benders_module
 from src.benders import (
+    FinalCertificationState,
     _settings,
     adaptive_secondary_cut_threshold,
+    certification_mip_gap,
     calculate_global_gap,
     calculate_cut_violations,
     generate_additional_robust_cuts,
@@ -18,8 +20,10 @@ from src.benders import (
     relative_cut_decision,
     secondary_generation_decision,
     select_subproblem_mip_gap,
+    should_terminate_benders,
     solve_benders,
     target_upper_cost,
+    update_final_certification,
 )
 from src.instance import generate_instance
 from src.robust_dual_subproblem import solve_robust_dual_subproblem
@@ -347,6 +351,180 @@ def test_adaptive_subproblem_gap_tightens() -> None:
     assert select_subproblem_mip_gap(0.005, True, schedule, 0.01) == pytest.approx(0.0001)
 
 
+def _advance_certification(
+    state: FinalCertificationState,
+    iteration: int,
+    *,
+    active_gamma: int = 2,
+    valid_ub: bool = True,
+    gap: float = 0.1,
+    useful_cut: bool = False,
+):
+    return update_final_certification(
+        state,
+        enabled=True,
+        iteration=iteration,
+        active_gamma=active_gamma,
+        gamma_target=2,
+        valid_ub=valid_ub,
+        global_gap=gap,
+        tol=1.0e-4,
+        useful_primary_cut_added=useful_cut,
+        no_cut_patience=2,
+    )
+
+
+def test_final_certification_triggers_after_target_no_cut_patience() -> None:
+    first = _advance_certification(FinalCertificationState(), 1)
+    assert first.state.active is False
+    assert first.state.consecutive_no_useful_primary_cuts == 1
+
+    second = _advance_certification(first.state, 2)
+    assert second.triggered_this_iteration is True
+    assert second.state.active is True
+    assert second.state.triggered is True
+    assert second.state.trigger_iteration == 2
+    assert second.state.count == 1
+
+
+@pytest.mark.parametrize(
+    ("active_gamma", "valid_ub"),
+    [(1, True), (2, False)],
+)
+def test_invalid_ub_or_non_target_gamma_cannot_trigger_certification(
+    active_gamma: int,
+    valid_ub: bool,
+) -> None:
+    state = FinalCertificationState()
+    for iteration in (1, 2, 3):
+        transition = _advance_certification(
+            state,
+            iteration,
+            active_gamma=active_gamma,
+            valid_ub=valid_ub,
+        )
+        state = transition.state
+    assert state.active is False
+    assert state.triggered is False
+    assert state.count == 0
+
+
+def test_certification_forces_master_and_subproblem_gaps_to_zero() -> None:
+    assert certification_mip_gap(True, 0.02) == 0.0
+    assert certification_mip_gap(True, 0.0001) == 0.0
+    assert certification_mip_gap(False, 0.02) == pytest.approx(0.02)
+
+
+def test_certification_suppresses_optional_secondary_solves() -> None:
+    decision = secondary_generation_decision(
+        enabled=False,
+        max_cuts_per_iteration=2,
+        primary_has_incumbent=True,
+        lower_bound_history=[100.0, 100.0, 100.0],
+        rolling_window=2,
+        stall_threshold=1e-4,
+        current_iteration=3,
+        last_secondary_solve_iteration=None,
+        cooldown_iterations=0,
+        cumulative_subproblem_time_share=0.1,
+        max_subproblem_time_share=0.95,
+        remaining_time=30.0,
+        available_budget=10.0,
+        min_remaining_time=5.0,
+        min_solve_budget=2.0,
+        certification_active=True,
+    )
+    calls = 0
+
+    def unexpected_solve(
+        _excluded: list[dict[tuple[int, int], int]],
+        _remaining: float,
+    ) -> RobustDualSubproblemResult:
+        nonlocal calls
+        calls += 1
+        return fake_robust_cut(pattern=(0, 1))
+
+    batch = generate_gated_additional_robust_cuts(
+        decision,
+        fake_robust_cut(pattern=(1, 0)),
+        2,
+        10.0,
+        unexpected_solve,
+    )
+    assert decision.attempt is False
+    assert decision.skipped_reason == "final_certification"
+    assert batch.cuts == []
+    assert calls == 0
+
+
+def test_useful_primary_cut_exits_certification_and_allows_later_retrigger() -> None:
+    state = _advance_certification(FinalCertificationState(), 1).state
+    state = _advance_certification(state, 2).state
+
+    active = _advance_certification(state, 3)
+    assert active.state.active is True
+    assert active.triggered_this_iteration is False
+    assert active.state.count == 1
+
+    exited = _advance_certification(active.state, 4, useful_cut=True)
+    assert exited.state.active is False
+    assert exited.state.consecutive_no_useful_primary_cuts == 0
+    assert exited.state.exit_reason == "useful_primary_cut_added"
+
+    waiting = _advance_certification(exited.state, 5)
+    retriggered = _advance_certification(waiting.state, 6)
+    assert retriggered.triggered_this_iteration is True
+    assert retriggered.state.active is True
+    assert retriggered.state.count == 2
+
+
+def test_no_cut_never_substitutes_for_valid_benders_termination() -> None:
+    state = _advance_certification(FinalCertificationState(), 1).state
+    state = _advance_certification(state, 2).state
+    assert state.active is True
+    assert should_terminate_benders(2, 2, True, 0.1, 1.0e-4) is False
+    assert should_terminate_benders(2, 2, False, 0.0, 1.0e-4) is False
+    assert should_terminate_benders(1, 2, True, 0.0, 1.0e-4) is False
+    assert should_terminate_benders(2, 2, True, 1.0e-4, 1.0e-4) is True
+
+
+def test_solver_persists_certification_precision_and_suppresses_secondary() -> None:
+    config = tiny_config()
+    config["robust"]["gamma_schedule"] = [1]
+    config["algorithm"].update(
+        {
+            "cut_selection_enabled": False,
+            "cut_violation_tol": 1.0e12,
+            "adaptive_secondary_generation_enabled": False,
+            "max_cuts_per_iteration": 2,
+            "final_certification_enabled": True,
+            "final_certification_no_cut_patience": 2,
+        }
+    )
+    config["benders"]["max_iterations"] = 3
+    config["benders"]["tol"] = 0.0
+    instance = generate_instance(config, seed=89)
+
+    result = solve_benders(config, instance, "adaptive_gap_gamma_benders")
+
+    assert result.status == "iteration_limit"
+    assert len(result.iteration_log) == 3
+    assert result.iteration_log[1][
+        "final_certification_triggered_this_iteration"
+    ] is True
+    certified = result.iteration_log[2]
+    assert certified["final_certification_active"] is True
+    assert certified["requested_master_mip_gap"] == 0.0
+    assert certified["subproblem_requested_mip_gap"] == 0.0
+    assert certified["secondary_solve_attempted"] is False
+    assert certified["secondary_solve_skipped_reason"] == "final_certification"
+    assert certified["secondary_solve_disabled_by_certification"] is True
+    assert result.metadata["final_certification_triggered"] is True
+    assert result.metadata["final_certification_count"] == 1
+    assert result.metadata["final_certification_iterations"] == 1
+    assert result.metadata["final_certification_exit_reason"] == "iteration_limit"
+
+
 def test_new_features_are_backward_compatible_by_default() -> None:
     config = tiny_config()
     config["algorithm"] = {"subproblem_mode": "robust_dual_milp"}
@@ -354,6 +532,8 @@ def test_new_features_are_backward_compatible_by_default() -> None:
     assert settings.cut_selection_mode == "absolute"
     assert settings.adaptive_subproblem_gap_enabled is False
     assert settings.max_cuts_per_iteration == 1
+    assert settings.final_certification_enabled is False
+    assert settings.final_certification_no_cut_patience == 2
 
 
 def test_positive_mip_gap_target_ub_always_uses_objective_bound() -> None:
