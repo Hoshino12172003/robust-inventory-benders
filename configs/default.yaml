@@ -18,6 +18,8 @@ algorithm:
   cut_selection_enabled: true
   delta_cut: 0.0
   cut_violation_tol: 1.0e-8
+  final_certification_enabled: false
+  final_certification_no_cut_patience: 2
 
 benders:
   max_iterations: 80

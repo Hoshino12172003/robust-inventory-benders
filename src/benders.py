@@ -43,6 +43,8 @@ class BendersSettings:
     secondary_generation_max_subproblem_time_share: float
     secondary_generation_min_remaining_time: float
     secondary_generation_min_solve_budget: float
+    final_certification_enabled: bool
+    final_certification_no_cut_patience: int
     adaptive_subproblem_gap_enabled: bool
     subproblem_gap_schedule: list[dict[str, float]]
     max_cuts_per_iteration: int
@@ -71,6 +73,24 @@ class SecondaryGenerationDecision:
     skipped_reason: str | None
     recent_relative_lb_improvement: float | None
     cooldown_remaining: int
+
+
+@dataclass(frozen=True)
+class FinalCertificationState:
+    active: bool = False
+    triggered: bool = False
+    trigger_iteration: int | None = None
+    count: int = 0
+    iterations: int = 0
+    consecutive_no_useful_primary_cuts: int = 0
+    exit_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class FinalCertificationTransition:
+    state: FinalCertificationState
+    triggered_this_iteration: bool
+    reason: str | None
 
 
 def _settings(config: dict[str, Any], method: str) -> BendersSettings:
@@ -161,6 +181,12 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
             1e-3,
             float(algorithm_cfg.get("secondary_generation_min_solve_budget", 1.0)),
         ),
+        final_certification_enabled=bool(
+            algorithm_cfg.get("final_certification_enabled", False)
+        ),
+        final_certification_no_cut_patience=max(
+            1, int(algorithm_cfg.get("final_certification_no_cut_patience", 2))
+        ),
         adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
         subproblem_gap_schedule=subproblem_schedule,
         max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
@@ -183,6 +209,125 @@ def calculate_cut_violations(rhs: float, theta: float) -> tuple[float, float]:
     absolute = max(0.0, float(rhs) - float(theta))
     normalized = absolute / max(1.0, abs(float(theta)), abs(float(rhs)))
     return absolute, normalized
+
+
+def certification_mip_gap(certification_active: bool, configured_gap: float) -> float:
+    return 0.0 if certification_active else float(configured_gap)
+
+
+def update_final_certification(
+    state: FinalCertificationState,
+    *,
+    enabled: bool,
+    iteration: int,
+    active_gamma: int,
+    gamma_target: int,
+    valid_ub: bool,
+    global_gap: float,
+    tol: float,
+    useful_primary_cut_added: bool,
+    no_cut_patience: int,
+) -> FinalCertificationTransition:
+    """Advance persistent certification after one completed Benders iteration."""
+    if not enabled:
+        return FinalCertificationTransition(
+            FinalCertificationState(),
+            False,
+            "disabled",
+        )
+
+    if state.active:
+        certification_iterations = state.iterations + 1
+        if useful_primary_cut_added:
+            return FinalCertificationTransition(
+                FinalCertificationState(
+                    active=False,
+                    triggered=state.triggered,
+                    trigger_iteration=state.trigger_iteration,
+                    count=state.count,
+                    iterations=certification_iterations,
+                    consecutive_no_useful_primary_cuts=0,
+                    exit_reason="useful_primary_cut_added",
+                ),
+                False,
+                "useful_primary_cut_added",
+            )
+        if active_gamma == gamma_target and valid_ub and global_gap <= tol:
+            return FinalCertificationTransition(
+                FinalCertificationState(
+                    active=False,
+                    triggered=state.triggered,
+                    trigger_iteration=state.trigger_iteration,
+                    count=state.count,
+                    iterations=certification_iterations,
+                    consecutive_no_useful_primary_cuts=(
+                        state.consecutive_no_useful_primary_cuts
+                    ),
+                    exit_reason="gap_tolerance_met",
+                ),
+                False,
+                "gap_tolerance_met",
+            )
+        consecutive = state.consecutive_no_useful_primary_cuts
+        if active_gamma == gamma_target and valid_ub and global_gap > tol:
+            consecutive += 1
+        return FinalCertificationTransition(
+            FinalCertificationState(
+                active=True,
+                triggered=state.triggered,
+                trigger_iteration=state.trigger_iteration,
+                count=state.count,
+                iterations=certification_iterations,
+                consecutive_no_useful_primary_cuts=consecutive,
+                exit_reason=None,
+            ),
+            False,
+            "certification_active",
+        )
+
+    qualifying_iteration = (
+        active_gamma == gamma_target
+        and valid_ub
+        and global_gap > tol
+        and not useful_primary_cut_added
+    )
+    consecutive = (
+        state.consecutive_no_useful_primary_cuts + 1
+        if qualifying_iteration
+        else 0
+    )
+    trigger = consecutive >= max(1, int(no_cut_patience))
+    if trigger:
+        return FinalCertificationTransition(
+            FinalCertificationState(
+                active=True,
+                triggered=True,
+                trigger_iteration=(
+                    state.trigger_iteration
+                    if state.trigger_iteration is not None
+                    else iteration
+                ),
+                count=state.count + 1,
+                iterations=state.iterations,
+                consecutive_no_useful_primary_cuts=consecutive,
+                exit_reason=None,
+            ),
+            True,
+            "target_gamma_no_useful_primary_cut_patience",
+        )
+    return FinalCertificationTransition(
+        FinalCertificationState(
+            active=False,
+            triggered=state.triggered,
+            trigger_iteration=state.trigger_iteration,
+            count=state.count,
+            iterations=state.iterations,
+            consecutive_no_useful_primary_cuts=consecutive,
+            exit_reason=state.exit_reason,
+        ),
+        False,
+        "waiting_for_no_useful_primary_cut_patience",
+    )
 
 
 def recent_relative_lb_improvement(
@@ -217,11 +362,16 @@ def secondary_generation_decision(
     available_budget: float,
     min_remaining_time: float,
     min_solve_budget: float,
+    certification_active: bool = False,
 ) -> SecondaryGenerationDecision:
     recent_improvement = recent_relative_lb_improvement(
         lower_bound_history,
         rolling_window,
     )
+    if certification_active:
+        return SecondaryGenerationDecision(
+            False, None, "final_certification", recent_improvement, 0
+        )
     if max_cuts_per_iteration <= 1:
         return SecondaryGenerationDecision(
             False, None, "single_cut_mode", recent_improvement, 0
@@ -397,6 +547,16 @@ def target_upper_cost(
 
 def calculate_global_gap(upper_bound: float, lower_bound: float) -> float:
     return max(0.0, (upper_bound - lower_bound) / max(1.0, abs(upper_bound)))
+
+
+def should_terminate_benders(
+    active_gamma: int,
+    gamma_target: int,
+    valid_ub: bool,
+    global_gap: float,
+    tol: float,
+) -> bool:
+    return active_gamma == gamma_target and valid_ub and global_gap <= tol
 
 
 def generate_additional_robust_cuts(
@@ -625,6 +785,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     current_gap = 1.0
     previous_gap = 1.0
     gap_policy = _make_gap_policy(settings)
+    certification_state = FinalCertificationState()
 
     for iteration in range(settings.max_iterations):
         remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
@@ -633,6 +794,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             break
 
         active_gamma = _gamma_for_iteration(settings, iteration)
+        certification_active = certification_state.active
         policy_state = GapPolicyState(
             iteration=iteration + 1,
             benders_gap=current_gap,
@@ -640,7 +802,10 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             lower_bound=None if lower_bound == -float("inf") else lower_bound,
             upper_bound=None if upper_bound == float("inf") else upper_bound,
         )
-        selected_mip_gap = gap_policy.select_gap(policy_state)
+        selected_mip_gap = certification_mip_gap(
+            certification_active,
+            gap_policy.select_gap(policy_state),
+        )
         model.Params.MIPGap = selected_mip_gap
         model.Params.TimeLimit = remaining
 
@@ -659,7 +824,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         x_values = {(i, j): float(x[i, j].X) for i in instance.I for j in instance.J}
         y_values = {i: float(y[i].X) for i in instance.I}
         first_stage = _first_stage_value(instance, y_values, x_values)
-        requested_subproblem_gap = (
+        configured_subproblem_gap = (
             select_subproblem_mip_gap(
                 current_gap,
                 upper_bound < float("inf"),
@@ -668,6 +833,10 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             )
             if settings.adaptive_subproblem_gap_enabled
             else settings.final_mip_gap
+        )
+        requested_subproblem_gap = certification_mip_gap(
+            certification_active,
+            configured_subproblem_gap,
         )
         requested_subproblem_gaps.append(requested_subproblem_gap)
         additional_batch = AdditionalCutBatch([], 0.0, 0, 0, 0)
@@ -755,6 +924,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 available_budget=additional_budget,
                 min_remaining_time=settings.secondary_generation_min_remaining_time,
                 min_solve_budget=settings.secondary_generation_min_solve_budget,
+                certification_active=certification_active,
             )
             if secondary_generation.attempt:
                 secondary_solves_attempted += 1
@@ -1012,6 +1182,19 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             (decision["add_reason"] for decision in cut_decisions if decision["add_reason"] is not None),
             None,
         )
+        certification_transition = update_final_certification(
+            certification_state,
+            enabled=settings.final_certification_enabled,
+            iteration=iteration + 1,
+            active_gamma=active_gamma,
+            gamma_target=settings.gamma_target,
+            valid_ub=valid_ub,
+            global_gap=gap,
+            tol=settings.tol,
+            useful_primary_cut_added=cut_added,
+            no_cut_patience=settings.final_certification_no_cut_patience,
+        )
+        certification_state = certification_transition.state
         lb_improvement = (
             None if previous_lower_bound == -float("inf") else max(0.0, lower_bound - previous_lower_bound)
         )
@@ -1098,6 +1281,27 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "secondary_generated_cut_added": secondary_generated_cut_added,
                 "secondary_generated_cut_duplicate": secondary_generated_cut_duplicate,
                 "secondary_solves_avoided_total": secondary_solves_avoided,
+                "final_certification_active": certification_active,
+                "final_certification_triggered_this_iteration": (
+                    certification_transition.triggered_this_iteration
+                ),
+                "final_certification_trigger_iteration": (
+                    certification_state.trigger_iteration
+                ),
+                "final_certification_reason": certification_transition.reason,
+                "final_certification_count": certification_state.count,
+                "consecutive_no_useful_primary_cuts": (
+                    certification_state.consecutive_no_useful_primary_cuts
+                ),
+                "certification_forced_master_mip_gap": (
+                    0.0 if certification_active else None
+                ),
+                "certification_forced_subproblem_mip_gap": (
+                    0.0 if certification_active else None
+                ),
+                "secondary_solve_disabled_by_certification": (
+                    certification_active and settings.max_cuts_per_iteration > 1
+                ),
                 "cut_added": cut_added,
                 "cut_skip_reason": cut_skip_reason,
                 "cut_add_reason": cut_add_reason,
@@ -1112,7 +1316,13 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             }
         )
 
-        if active_gamma == settings.gamma_target and valid_ub and gap <= settings.tol:
+        if should_terminate_benders(
+            active_gamma,
+            settings.gamma_target,
+            valid_ub,
+            gap,
+            settings.tol,
+        ):
             status = "optimal"
             break
 
@@ -1122,6 +1332,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         final_gap = calculate_global_gap(upper_bound, lower_bound)
 
     last_log = log[-1] if log else {}
+    certification_exit_reason = certification_state.exit_reason
+    if certification_state.active:
+        certification_exit_reason = status
     if settings.subproblem_mode == "scenario_enumeration":
         if target_enum is None:
             raise RuntimeError("Scenario enumeration metadata is not initialized.")
@@ -1205,6 +1418,14 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "secondary_generation_min_solve_budget": (
                 settings.secondary_generation_min_solve_budget
             ),
+            "final_certification_enabled": settings.final_certification_enabled,
+            "final_certification_triggered": certification_state.triggered,
+            "final_certification_trigger_iteration": (
+                certification_state.trigger_iteration
+            ),
+            "final_certification_count": certification_state.count,
+            "final_certification_iterations": certification_state.iterations,
+            "final_certification_exit_reason": certification_exit_reason,
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
             "secondary_cuts_added_total": secondary_cuts_added,

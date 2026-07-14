@@ -97,6 +97,12 @@ RESULT_FIELDS = [
     "secondary_generation_max_subproblem_time_share",
     "secondary_generation_min_remaining_time",
     "secondary_generation_min_solve_budget",
+    "final_certification_enabled",
+    "final_certification_triggered",
+    "final_certification_trigger_iteration",
+    "final_certification_count",
+    "final_certification_iterations",
+    "final_certification_exit_reason",
     "secondary_solves_attempted_total",
     "secondary_solves_avoided_total",
     "last_secondary_solve_trigger_reason",
@@ -239,6 +245,15 @@ ITERATION_LOG_FIELDS = [
     "secondary_generated_cut_added",
     "secondary_generated_cut_duplicate",
     "secondary_solves_avoided_total",
+    "final_certification_active",
+    "final_certification_triggered_this_iteration",
+    "final_certification_trigger_iteration",
+    "final_certification_reason",
+    "final_certification_count",
+    "consecutive_no_useful_primary_cuts",
+    "certification_forced_master_mip_gap",
+    "certification_forced_subproblem_mip_gap",
+    "secondary_solve_disabled_by_certification",
     "elapsed_time",
 ]
 
@@ -344,6 +359,12 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "secondary_generation_min_solve_budget": float(
                 exp_cfg.get("secondary_generation_min_solve_budget", 1.0)
             ),
+            "final_certification_enabled": bool(
+                exp_cfg.get("final_certification_enabled", False)
+            ),
+            "final_certification_no_cut_patience": int(
+                exp_cfg.get("final_certification_no_cut_patience", 2)
+            ),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -394,6 +415,8 @@ def _apply_variant_config(
         "secondary_generation_max_subproblem_time_share",
         "secondary_generation_min_remaining_time",
         "secondary_generation_min_solve_budget",
+        "final_certification_enabled",
+        "final_certification_no_cut_patience",
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -640,6 +663,18 @@ def _result_row(
         ),
         "secondary_generation_min_solve_budget": meta.get(
             "secondary_generation_min_solve_budget"
+        ),
+        "final_certification_enabled": meta.get("final_certification_enabled"),
+        "final_certification_triggered": meta.get("final_certification_triggered"),
+        "final_certification_trigger_iteration": meta.get(
+            "final_certification_trigger_iteration"
+        ),
+        "final_certification_count": meta.get("final_certification_count"),
+        "final_certification_iterations": meta.get(
+            "final_certification_iterations"
+        ),
+        "final_certification_exit_reason": meta.get(
+            "final_certification_exit_reason"
         ),
         "secondary_solves_attempted_total": meta.get("secondary_solves_attempted_total"),
         "secondary_solves_avoided_total": meta.get("secondary_solves_avoided_total"),

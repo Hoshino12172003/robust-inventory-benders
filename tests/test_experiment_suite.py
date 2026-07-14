@@ -522,6 +522,64 @@ def test_scaleup_confirmation_config_has_exact_module_structure() -> None:
             assert variant[field] == value
 
 
+def test_final_certification_tuning_config_is_isolated() -> None:
+    config_path = Path(
+        "experiments/configs/confirm_final_certification_tuning.yaml"
+    )
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+
+    assert config["output_dir"] == (
+        "experiments/results_diagnostics_round7/confirm_final_certification_tuning"
+    )
+    assert config["random_seeds"] == [0, 1, 2]
+    assert set(config["random_seeds"]).isdisjoint(range(10, 20))
+    assert config["instance_sizes"] == ["medium_large"]
+    assert config["time_limit"] == 300
+    assert config["max_iterations"] == 10000
+    assert config["tol"] == pytest.approx(1.0e-4)
+    assert config["gamma_target"] == 2
+    assert config["gamma_continuation_enabled"] is False
+    assert config["gamma_schedule"] == [2]
+    assert config["subproblem_mode"] == "robust_dual_milp"
+    assert config["save_iteration_log"] is True
+    assert config["adaptive_gap_enabled"] is True
+    assert config["adaptive_subproblem_gap_enabled"] is True
+    assert config["subproblem_gap_schedule"] == [
+        {"global_gap_above": 0.10, "mip_gap": 0.05},
+        {"global_gap_above": 0.05, "mip_gap": 0.02},
+        {"global_gap_above": 0.01, "mip_gap": 0.005},
+        {"global_gap_above": 0.00, "mip_gap": 0.0001},
+    ]
+
+    assert config["variants"] == ["final_certification_tuning"]
+    variant = config["variant_settings"]["final_certification_tuning"]
+    assert variant["adaptive_gap_enabled"] is True
+    assert variant["initial_mip_gap"] == pytest.approx(0.02)
+    assert variant["final_mip_gap"] == pytest.approx(0.0001)
+    assert variant["gamma_continuation_enabled"] is False
+    assert variant["gamma_schedule"] == [2]
+    assert variant["cut_selection_enabled"] is False
+    assert variant["adaptive_secondary_cut_selection_enabled"] is False
+    assert variant["adaptive_secondary_generation_enabled"] is False
+    assert variant["max_cuts_per_iteration"] == 1
+    assert variant["final_certification_enabled"] is True
+    assert variant["final_certification_no_cut_patience"] == 2
+
+    base = _base_config(config, "medium_large", seed=0)
+    _, flags, resolved = _apply_variant_config(
+        base,
+        "proposed_adaptive_benders",
+        variant,
+    )
+    assert flags["adaptive_gap_enabled"] is True
+    assert flags["gamma_continuation_enabled"] is False
+    assert resolved["benders"]["initial_mip_gap"] == pytest.approx(0.02)
+    assert resolved["benders"]["final_mip_gap"] == pytest.approx(0.0001)
+    assert resolved["robust"]["gamma_schedule"] == [2]
+    assert resolved["algorithm"]["final_certification_enabled"] is True
+    assert resolved["algorithm"]["final_certification_no_cut_patience"] == 2
+
+
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:
     config_path = Path("experiments/configs/screen_master_gamma.yaml")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -587,9 +645,28 @@ def test_iteration_logs_and_time_to_gap_fields_are_written(tmp_path: Path) -> No
         "secondary_generated_cut_added",
         "secondary_generated_cut_duplicate",
         "secondary_solves_avoided_total",
+        "final_certification_active",
+        "final_certification_triggered_this_iteration",
+        "final_certification_trigger_iteration",
+        "final_certification_reason",
+        "final_certification_count",
+        "consecutive_no_useful_primary_cuts",
+        "certification_forced_master_mip_gap",
+        "certification_forced_subproblem_mip_gap",
+        "secondary_solve_disabled_by_certification",
     ):
         assert field in log_rows[0]
-    for field in ("reached_gap_5pct", "time_to_gap_1pct", "subproblem_time_share"):
+    for field in (
+        "reached_gap_5pct",
+        "time_to_gap_1pct",
+        "subproblem_time_share",
+        "final_certification_enabled",
+        "final_certification_triggered",
+        "final_certification_trigger_iteration",
+        "final_certification_count",
+        "final_certification_iterations",
+        "final_certification_exit_reason",
+    ):
         assert field in rows[0]
 
 
