@@ -20,6 +20,18 @@ algorithm:
   cut_violation_tol: 1.0e-8
   final_certification_enabled: false
   final_certification_no_cut_patience: 2
+  precision_policy: legacy
+  adaptive_master_precision_enabled: false
+  adaptive_subproblem_precision_enabled: false
+  master_gap_max: 0.08
+  master_gap_min: 0.0001
+  subproblem_gap_max: 0.0001
+  subproblem_gap_min: 0.0001
+  fixed_master_mip_gap: 0.08
+  fixed_subproblem_mip_gap: 0.0001
+  master_error_budget_ratio: 0.5
+  subproblem_error_budget_ratio: 0.5
+  monotone_precision_tightening: true
 
 benders:
   max_iterations: 80

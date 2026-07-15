@@ -103,6 +103,18 @@ RESULT_FIELDS = [
     "final_certification_count",
     "final_certification_iterations",
     "final_certification_exit_reason",
+    "precision_policy",
+    "adaptive_master_precision_enabled",
+    "adaptive_subproblem_precision_enabled",
+    "master_gap_max",
+    "master_gap_min",
+    "subproblem_gap_max",
+    "subproblem_gap_min",
+    "fixed_master_mip_gap",
+    "fixed_subproblem_mip_gap",
+    "master_error_budget_ratio",
+    "subproblem_error_budget_ratio",
+    "monotone_precision_tightening",
     "secondary_solves_attempted_total",
     "secondary_solves_avoided_total",
     "last_secondary_solve_trigger_reason",
@@ -254,6 +266,20 @@ ITERATION_LOG_FIELDS = [
     "certification_forced_master_mip_gap",
     "certification_forced_subproblem_mip_gap",
     "secondary_solve_disabled_by_certification",
+    "precision_policy",
+    "valid_global_gap_for_precision",
+    "precision_gap_fallback_used",
+    "adaptive_master_precision_enabled",
+    "adaptive_subproblem_precision_enabled",
+    "master_gap_candidate",
+    "master_gap_previous",
+    "master_gap_selected",
+    "subproblem_gap_candidate",
+    "subproblem_gap_previous",
+    "subproblem_gap_selected",
+    "master_error_budget_ratio",
+    "subproblem_error_budget_ratio",
+    "monotone_precision_tightening",
     "elapsed_time",
 ]
 
@@ -365,6 +391,49 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "final_certification_no_cut_patience": int(
                 exp_cfg.get("final_certification_no_cut_patience", 2)
             ),
+            "precision_policy": str(exp_cfg.get("precision_policy", "legacy")),
+            "adaptive_master_precision_enabled": bool(
+                exp_cfg.get("adaptive_master_precision_enabled", False)
+            ),
+            "adaptive_subproblem_precision_enabled": bool(
+                exp_cfg.get("adaptive_subproblem_precision_enabled", False)
+            ),
+            "master_gap_max": float(
+                exp_cfg.get(
+                    "master_gap_max",
+                    exp_cfg.get("mip_gap", exp_cfg.get("initial_mip_gap", 0.05)),
+                )
+            ),
+            "master_gap_min": float(
+                exp_cfg.get("master_gap_min", exp_cfg.get("final_mip_gap", 1e-4))
+            ),
+            "subproblem_gap_max": float(
+                exp_cfg.get("subproblem_gap_max", exp_cfg.get("final_mip_gap", 1e-4))
+            ),
+            "subproblem_gap_min": float(
+                exp_cfg.get("subproblem_gap_min", exp_cfg.get("final_mip_gap", 1e-4))
+            ),
+            "fixed_master_mip_gap": float(
+                exp_cfg.get(
+                    "fixed_master_mip_gap",
+                    exp_cfg.get("mip_gap", exp_cfg.get("initial_mip_gap", 0.05)),
+                )
+            ),
+            "fixed_subproblem_mip_gap": float(
+                exp_cfg.get(
+                    "fixed_subproblem_mip_gap",
+                    exp_cfg.get("final_mip_gap", 1e-4),
+                )
+            ),
+            "master_error_budget_ratio": float(
+                exp_cfg.get("master_error_budget_ratio", 0.5)
+            ),
+            "subproblem_error_budget_ratio": float(
+                exp_cfg.get("subproblem_error_budget_ratio", 0.5)
+            ),
+            "monotone_precision_tightening": bool(
+                exp_cfg.get("monotone_precision_tightening", True)
+            ),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -417,6 +486,18 @@ def _apply_variant_config(
         "secondary_generation_min_solve_budget",
         "final_certification_enabled",
         "final_certification_no_cut_patience",
+        "precision_policy",
+        "adaptive_master_precision_enabled",
+        "adaptive_subproblem_precision_enabled",
+        "master_gap_max",
+        "master_gap_min",
+        "subproblem_gap_max",
+        "subproblem_gap_min",
+        "fixed_master_mip_gap",
+        "fixed_subproblem_mip_gap",
+        "master_error_budget_ratio",
+        "subproblem_error_budget_ratio",
+        "monotone_precision_tightening",
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -431,9 +512,14 @@ def _apply_variant_config(
             config["benders"][key] = variant[key]
     if not flags["gamma_continuation_enabled"]:
         config["robust"]["gamma_schedule"] = [gamma_target]
-    if not flags["adaptive_gap_enabled"]:
+    configured_initial_mip_gap = float(config["benders"]["initial_mip_gap"])
+    if (
+        not flags["adaptive_gap_enabled"]
+        and config["algorithm"].get("precision_policy", "legacy") == "legacy"
+    ):
         final_gap = float(config["benders"]["final_mip_gap"])
         config["benders"]["initial_mip_gap"] = final_gap
+        config["algorithm"]["fixed_master_mip_gap"] = final_gap
 
     solver_method = "adaptive_gap_gamma_benders"
     if method == "standard_benders":
@@ -442,6 +528,16 @@ def _apply_variant_config(
         config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
         config["algorithm"]["adaptive_secondary_generation_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
+        config["algorithm"]["precision_policy"] = "legacy"
+        config["algorithm"]["adaptive_master_precision_enabled"] = False
+        config["algorithm"]["adaptive_subproblem_precision_enabled"] = False
+        config["algorithm"]["final_certification_enabled"] = False
+        config["algorithm"]["fixed_master_mip_gap"] = float(
+            config["benders"]["final_mip_gap"]
+        )
+        config["algorithm"]["fixed_subproblem_mip_gap"] = float(
+            config["benders"]["final_mip_gap"]
+        )
         config["algorithm"]["subproblem_gap_schedule"] = [
             {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
         ]
@@ -455,8 +551,19 @@ def _apply_variant_config(
         config["algorithm"]["adaptive_secondary_cut_selection_enabled"] = False
         config["algorithm"]["adaptive_secondary_generation_enabled"] = False
         config["algorithm"]["adaptive_subproblem_gap_enabled"] = False
+        config["algorithm"]["precision_policy"] = "legacy"
+        config["algorithm"]["adaptive_master_precision_enabled"] = False
+        config["algorithm"]["adaptive_subproblem_precision_enabled"] = False
+        config["benders"]["initial_mip_gap"] = configured_initial_mip_gap
+        config["algorithm"]["fixed_master_mip_gap"] = configured_initial_mip_gap
+        config["algorithm"]["fixed_subproblem_mip_gap"] = float(
+            variant.get("fixed_subproblem_mip_gap", configured_initial_mip_gap)
+        )
         config["algorithm"]["subproblem_gap_schedule"] = [
-            {"global_gap_above": 0.0, "mip_gap": float(config["benders"]["final_mip_gap"])}
+            {
+                "global_gap_above": 0.0,
+                "mip_gap": config["algorithm"]["fixed_subproblem_mip_gap"],
+            }
         ]
         config["algorithm"]["max_cuts_per_iteration"] = 1
         config["algorithm"]["subproblem_time_budget_per_iteration"] = None
@@ -675,6 +782,26 @@ def _result_row(
         ),
         "final_certification_exit_reason": meta.get(
             "final_certification_exit_reason"
+        ),
+        "precision_policy": meta.get("precision_policy"),
+        "adaptive_master_precision_enabled": meta.get(
+            "adaptive_master_precision_enabled"
+        ),
+        "adaptive_subproblem_precision_enabled": meta.get(
+            "adaptive_subproblem_precision_enabled"
+        ),
+        "master_gap_max": meta.get("master_gap_max"),
+        "master_gap_min": meta.get("master_gap_min"),
+        "subproblem_gap_max": meta.get("subproblem_gap_max"),
+        "subproblem_gap_min": meta.get("subproblem_gap_min"),
+        "fixed_master_mip_gap": meta.get("fixed_master_mip_gap"),
+        "fixed_subproblem_mip_gap": meta.get("fixed_subproblem_mip_gap"),
+        "master_error_budget_ratio": meta.get("master_error_budget_ratio"),
+        "subproblem_error_budget_ratio": meta.get(
+            "subproblem_error_budget_ratio"
+        ),
+        "monotone_precision_tightening": meta.get(
+            "monotone_precision_tightening"
         ),
         "secondary_solves_attempted_total": meta.get("secondary_solves_attempted_total"),
         "secondary_solves_avoided_total": meta.get("secondary_solves_avoided_total"),

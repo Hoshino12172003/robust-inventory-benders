@@ -10,6 +10,14 @@ from gurobipy import GRB
 
 from .instance import InventoryInstance
 from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState, RLInspiredGapPolicy
+from .precision_policy import (
+    PrecisionPolicyConfig,
+    PrecisionPolicyDecision,
+    initialize_precision_state,
+    precision_policy_config,
+    select_joint_error_budget_precision,
+    valid_global_gap_for_precision,
+)
 from .results import SolveResult
 from .robust_dual_subproblem import RobustDualSubproblemResult, solve_robust_dual_subproblem
 from .scenarios import DemandScenario, ScenarioEnumerationResult, enumerate_budget_scenarios_with_metadata
@@ -45,6 +53,7 @@ class BendersSettings:
     secondary_generation_min_solve_budget: float
     final_certification_enabled: bool
     final_certification_no_cut_patience: int
+    precision_config: PrecisionPolicyConfig
     adaptive_subproblem_gap_enabled: bool
     subproblem_gap_schedule: list[dict[str, float]]
     max_cuts_per_iteration: int
@@ -120,6 +129,12 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         }
         for item in raw_subproblem_schedule
     ]
+    precision_config = precision_policy_config(
+        algorithm_cfg,
+        fixed_master_gap=float(benders_cfg.get("initial_mip_gap", 0.08)),
+        fixed_subproblem_gap=float(benders_cfg.get("final_mip_gap", 1e-4)),
+        legacy_subproblem_gaps=[item["mip_gap"] for item in subproblem_schedule],
+    )
     return BendersSettings(
         method=method,
         gamma_target=gamma_target,
@@ -187,6 +202,7 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         final_certification_no_cut_patience=max(
             1, int(algorithm_cfg.get("final_certification_no_cut_patience", 2))
         ),
+        precision_config=precision_config,
         adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
         subproblem_gap_schedule=subproblem_schedule,
         max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
@@ -786,6 +802,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     previous_gap = 1.0
     gap_policy = _make_gap_policy(settings)
     certification_state = FinalCertificationState()
+    precision_state = initialize_precision_state(settings.precision_config)
 
     for iteration in range(settings.max_iterations):
         remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
@@ -802,10 +819,51 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             lower_bound=None if lower_bound == -float("inf") else lower_bound,
             upper_bound=None if upper_bound == float("inf") else upper_bound,
         )
+        legacy_master_gap = gap_policy.select_gap(policy_state)
+        legacy_subproblem_gap = (
+            select_subproblem_mip_gap(
+                current_gap,
+                upper_bound < float("inf"),
+                settings.subproblem_gap_schedule,
+                settings.final_exact_gap,
+            )
+            if settings.adaptive_subproblem_gap_enabled
+            else settings.precision_config.fixed_subproblem_gap
+        )
+        if settings.precision_config.precision_policy == "joint_error_budget":
+            precision_decision = select_joint_error_budget_precision(
+                settings.precision_config,
+                precision_state,
+                upper_bound=(None if upper_bound == float("inf") else upper_bound),
+                lower_bound=(None if lower_bound == -float("inf") else lower_bound),
+                update_state=not certification_active,
+            )
+            precision_state = precision_decision.next_state
+        else:
+            precision_gap, precision_fallback = valid_global_gap_for_precision(
+                None if upper_bound == float("inf") else upper_bound,
+                None if lower_bound == -float("inf") else lower_bound,
+            )
+            precision_decision = PrecisionPolicyDecision(
+                valid_global_gap_for_precision=precision_gap,
+                fallback_used=precision_fallback,
+                master_candidate_gap=legacy_master_gap,
+                master_previous_gap=legacy_master_gap,
+                master_selected_gap=legacy_master_gap,
+                subproblem_candidate_gap=legacy_subproblem_gap,
+                subproblem_previous_gap=legacy_subproblem_gap,
+                subproblem_selected_gap=legacy_subproblem_gap,
+                next_state=precision_state,
+            )
         selected_mip_gap = certification_mip_gap(
             certification_active,
-            gap_policy.select_gap(policy_state),
+            precision_decision.master_selected_gap,
         )
+        requested_subproblem_gap = certification_mip_gap(
+            certification_active,
+            precision_decision.subproblem_selected_gap,
+        )
+        requested_subproblem_gaps.append(requested_subproblem_gap)
         model.Params.MIPGap = selected_mip_gap
         model.Params.TimeLimit = remaining
 
@@ -824,21 +882,6 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         x_values = {(i, j): float(x[i, j].X) for i in instance.I for j in instance.J}
         y_values = {i: float(y[i].X) for i in instance.I}
         first_stage = _first_stage_value(instance, y_values, x_values)
-        configured_subproblem_gap = (
-            select_subproblem_mip_gap(
-                current_gap,
-                upper_bound < float("inf"),
-                settings.subproblem_gap_schedule,
-                settings.final_exact_gap,
-            )
-            if settings.adaptive_subproblem_gap_enabled
-            else settings.final_mip_gap
-        )
-        requested_subproblem_gap = certification_mip_gap(
-            certification_active,
-            configured_subproblem_gap,
-        )
-        requested_subproblem_gaps.append(requested_subproblem_gap)
         additional_batch = AdditionalCutBatch([], 0.0, 0, 0, 0)
         secondary_generation = SecondaryGenerationDecision(
             False,
@@ -1207,6 +1250,38 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "gamma": active_gamma,
                 "mip_gap": selected_mip_gap,
                 "requested_master_mip_gap": selected_mip_gap,
+                "precision_policy": settings.precision_config.precision_policy,
+                "valid_global_gap_for_precision": (
+                    precision_decision.valid_global_gap_for_precision
+                ),
+                "precision_gap_fallback_used": precision_decision.fallback_used,
+                "adaptive_master_precision_enabled": (
+                    settings.precision_config.adaptive_master_precision_enabled
+                ),
+                "adaptive_subproblem_precision_enabled": (
+                    settings.precision_config.adaptive_subproblem_precision_enabled
+                ),
+                "master_gap_candidate": precision_decision.master_candidate_gap,
+                "master_gap_previous": precision_decision.master_previous_gap,
+                "master_gap_selected": precision_decision.master_selected_gap,
+                "subproblem_gap_candidate": (
+                    precision_decision.subproblem_candidate_gap
+                ),
+                "subproblem_gap_previous": (
+                    precision_decision.subproblem_previous_gap
+                ),
+                "subproblem_gap_selected": (
+                    precision_decision.subproblem_selected_gap
+                ),
+                "master_error_budget_ratio": (
+                    settings.precision_config.master_error_budget_ratio
+                ),
+                "subproblem_error_budget_ratio": (
+                    settings.precision_config.subproblem_error_budget_ratio
+                ),
+                "monotone_precision_tightening": (
+                    settings.precision_config.monotone_precision_tightening
+                ),
                 "realized_master_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "achieved_master_mip_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "master_status": int(model.Status),
@@ -1426,6 +1501,28 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "final_certification_count": certification_state.count,
             "final_certification_iterations": certification_state.iterations,
             "final_certification_exit_reason": certification_exit_reason,
+            "precision_policy": settings.precision_config.precision_policy,
+            "adaptive_master_precision_enabled": (
+                settings.precision_config.adaptive_master_precision_enabled
+            ),
+            "adaptive_subproblem_precision_enabled": (
+                settings.precision_config.adaptive_subproblem_precision_enabled
+            ),
+            "master_gap_max": settings.precision_config.master_gap_max,
+            "master_gap_min": settings.precision_config.master_gap_min,
+            "subproblem_gap_max": settings.precision_config.subproblem_gap_max,
+            "subproblem_gap_min": settings.precision_config.subproblem_gap_min,
+            "fixed_master_mip_gap": settings.precision_config.fixed_master_gap,
+            "fixed_subproblem_mip_gap": settings.precision_config.fixed_subproblem_gap,
+            "master_error_budget_ratio": (
+                settings.precision_config.master_error_budget_ratio
+            ),
+            "subproblem_error_budget_ratio": (
+                settings.precision_config.subproblem_error_budget_ratio
+            ),
+            "monotone_precision_tightening": (
+                settings.precision_config.monotone_precision_tightening
+            ),
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
             "secondary_cuts_added_total": secondary_cuts_added,
