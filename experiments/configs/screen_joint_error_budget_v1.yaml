@@ -12,11 +12,12 @@ variants:
   - joint_rho050_100
 variant_settings:
   tight_tight:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: false
+    fixed_master_mip_gap: 0.0001
     initial_mip_gap: 0.0001
     adaptive_subproblem_precision_enabled: false
     fixed_subproblem_mip_gap: 0.0001
@@ -26,11 +27,12 @@ variant_settings:
     max_cuts_per_iteration: 1
     final_certification_enabled: true
   static_inexact:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: false
+    fixed_master_mip_gap: 0.02
     initial_mip_gap: 0.02
     adaptive_subproblem_precision_enabled: false
     fixed_subproblem_mip_gap: 0.02
@@ -40,11 +42,12 @@ variant_settings:
     max_cuts_per_iteration: 1
     final_certification_enabled: true
   mp_adaptive_rho050:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: true
+    fixed_master_mip_gap: 0.02
     initial_mip_gap: 0.02
     master_error_budget_ratio: 0.50
     adaptive_subproblem_precision_enabled: false
@@ -55,11 +58,12 @@ variant_settings:
     max_cuts_per_iteration: 1
     final_certification_enabled: true
   sp_adaptive_rho050:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: false
+    fixed_master_mip_gap: 0.0001
     initial_mip_gap: 0.0001
     adaptive_subproblem_precision_enabled: true
     fixed_subproblem_mip_gap: 0.05
@@ -70,11 +74,12 @@ variant_settings:
     max_cuts_per_iteration: 1
     final_certification_enabled: true
   joint_rho025_050:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: true
+    fixed_master_mip_gap: 0.02
     initial_mip_gap: 0.02
     master_error_budget_ratio: 0.25
     adaptive_subproblem_precision_enabled: true
@@ -86,11 +91,12 @@ variant_settings:
     max_cuts_per_iteration: 1
     final_certification_enabled: true
   joint_rho050_050:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: true
+    fixed_master_mip_gap: 0.02
     initial_mip_gap: 0.02
     master_error_budget_ratio: 0.50
     adaptive_subproblem_precision_enabled: true
@@ -102,11 +108,12 @@ variant_settings:
     max_cuts_per_iteration: 1
     final_certification_enabled: true
   joint_rho050_100:
-    adaptive_gap_enabled: true
+    adaptive_gap_enabled: false
     gamma_continuation_enabled: false
     gamma_schedule: [2]
     precision_policy: joint_error_budget
     adaptive_master_precision_enabled: true
+    fixed_master_mip_gap: 0.02
     initial_mip_gap: 0.02
     master_error_budget_ratio: 0.50
     adaptive_subproblem_precision_enabled: true

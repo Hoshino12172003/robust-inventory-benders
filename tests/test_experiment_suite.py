@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 import src.experiment_suite as experiment_suite_module
+from src.benders import _settings
 from src.experiment_suite import (
     _apply_variant_config,
     _base_config,
@@ -608,10 +609,12 @@ def test_joint_error_budget_screen_has_exact_isolated_variants() -> None:
     assert config["subproblem_gap_min"] == pytest.approx(0.0001)
     assert config["monotone_precision_tightening"] is True
 
-    settings = config["variant_settings"]
+    variants = config["variant_settings"]
+    resolved_settings = {}
     for name in expected:
-        variant = settings[name]
+        variant = variants[name]
         assert variant["precision_policy"] == "joint_error_budget"
+        assert variant["adaptive_gap_enabled"] is False
         assert variant["gamma_continuation_enabled"] is False
         assert variant["gamma_schedule"] == [2]
         assert variant["max_cuts_per_iteration"] == 1
@@ -619,27 +622,62 @@ def test_joint_error_budget_screen_has_exact_isolated_variants() -> None:
         assert variant["adaptive_secondary_cut_selection_enabled"] is False
         assert variant["adaptive_secondary_generation_enabled"] is False
         assert variant["final_certification_enabled"] is True
+        base = _base_config(config, "medium", seed=0)
+        solver_method, flags, resolved = _apply_variant_config(
+            base,
+            "proposed_adaptive_benders",
+            variant,
+        )
+        actual = _settings(resolved, solver_method)
+        resolved_settings[name] = actual
 
-    assert settings["tight_tight"]["adaptive_master_precision_enabled"] is False
-    assert settings["tight_tight"]["initial_mip_gap"] == pytest.approx(0.0001)
-    assert settings["tight_tight"]["adaptive_subproblem_precision_enabled"] is False
-    assert settings["tight_tight"]["fixed_subproblem_mip_gap"] == pytest.approx(
-        0.0001
-    )
-    assert settings["static_inexact"]["initial_mip_gap"] == pytest.approx(0.02)
-    assert settings["static_inexact"]["fixed_subproblem_mip_gap"] == pytest.approx(
-        0.02
-    )
-    assert settings["mp_adaptive_rho050"]["adaptive_master_precision_enabled"] is True
-    assert settings["mp_adaptive_rho050"]["adaptive_subproblem_precision_enabled"] is False
-    assert settings["sp_adaptive_rho050"]["adaptive_master_precision_enabled"] is False
-    assert settings["sp_adaptive_rho050"]["adaptive_subproblem_precision_enabled"] is True
-    assert settings["joint_rho025_050"]["master_error_budget_ratio"] == pytest.approx(
-        0.25
-    )
-    assert settings["joint_rho050_100"]["subproblem_error_budget_ratio"] == pytest.approx(
-        1.0
-    )
+        assert flags["adaptive_gap_enabled"] is False
+        assert resolved["algorithm"]["fixed_master_mip_gap"] == pytest.approx(
+            variant["fixed_master_mip_gap"]
+        )
+        assert actual.gamma_target == 2
+        assert actual.gamma_schedule == [2]
+        assert actual.max_cuts_per_iteration == 1
+        assert actual.cut_selection_enabled is False
+        assert actual.adaptive_secondary_cut_selection_enabled is False
+        assert actual.adaptive_secondary_generation_enabled is False
+        assert actual.final_certification_enabled is True
+
+    tight = resolved_settings["tight_tight"].precision_config
+    assert tight.fixed_master_gap == pytest.approx(0.0001)
+    assert tight.fixed_subproblem_gap == pytest.approx(0.0001)
+    assert tight.adaptive_master_precision_enabled is False
+    assert tight.adaptive_subproblem_precision_enabled is False
+
+    static = resolved_settings["static_inexact"].precision_config
+    assert static.fixed_master_gap == pytest.approx(0.02)
+    assert static.fixed_subproblem_gap == pytest.approx(0.02)
+    assert static.adaptive_master_precision_enabled is False
+    assert static.adaptive_subproblem_precision_enabled is False
+
+    mp_only = resolved_settings["mp_adaptive_rho050"].precision_config
+    assert mp_only.adaptive_master_precision_enabled is True
+    assert mp_only.master_error_budget_ratio == pytest.approx(0.50)
+    assert mp_only.adaptive_subproblem_precision_enabled is False
+    assert mp_only.fixed_subproblem_gap == pytest.approx(0.0001)
+
+    sp_only = resolved_settings["sp_adaptive_rho050"].precision_config
+    assert sp_only.adaptive_master_precision_enabled is False
+    assert sp_only.fixed_master_gap == pytest.approx(0.0001)
+    assert sp_only.adaptive_subproblem_precision_enabled is True
+    assert sp_only.subproblem_error_budget_ratio == pytest.approx(0.50)
+
+    expected_joint_ratios = {
+        "joint_rho025_050": (0.25, 0.50),
+        "joint_rho050_050": (0.50, 0.50),
+        "joint_rho050_100": (0.50, 1.00),
+    }
+    for name, (master_ratio, subproblem_ratio) in expected_joint_ratios.items():
+        joint = resolved_settings[name].precision_config
+        assert joint.adaptive_master_precision_enabled is True
+        assert joint.adaptive_subproblem_precision_enabled is True
+        assert joint.master_error_budget_ratio == pytest.approx(master_ratio)
+        assert joint.subproblem_error_budget_ratio == pytest.approx(subproblem_ratio)
 
 
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:

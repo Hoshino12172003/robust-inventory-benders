@@ -413,6 +413,12 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "subproblem_gap_min": float(
                 exp_cfg.get("subproblem_gap_min", exp_cfg.get("final_mip_gap", 1e-4))
             ),
+            "fixed_master_mip_gap": float(
+                exp_cfg.get(
+                    "fixed_master_mip_gap",
+                    exp_cfg.get("mip_gap", exp_cfg.get("initial_mip_gap", 0.05)),
+                )
+            ),
             "fixed_subproblem_mip_gap": float(
                 exp_cfg.get(
                     "fixed_subproblem_mip_gap",
@@ -487,6 +493,7 @@ def _apply_variant_config(
         "master_gap_min",
         "subproblem_gap_max",
         "subproblem_gap_min",
+        "fixed_master_mip_gap",
         "fixed_subproblem_mip_gap",
         "master_error_budget_ratio",
         "subproblem_error_budget_ratio",
@@ -506,9 +513,13 @@ def _apply_variant_config(
     if not flags["gamma_continuation_enabled"]:
         config["robust"]["gamma_schedule"] = [gamma_target]
     configured_initial_mip_gap = float(config["benders"]["initial_mip_gap"])
-    if not flags["adaptive_gap_enabled"]:
+    if (
+        not flags["adaptive_gap_enabled"]
+        and config["algorithm"].get("precision_policy", "legacy") == "legacy"
+    ):
         final_gap = float(config["benders"]["final_mip_gap"])
         config["benders"]["initial_mip_gap"] = final_gap
+        config["algorithm"]["fixed_master_mip_gap"] = final_gap
 
     solver_method = "adaptive_gap_gamma_benders"
     if method == "standard_benders":
@@ -521,6 +532,9 @@ def _apply_variant_config(
         config["algorithm"]["adaptive_master_precision_enabled"] = False
         config["algorithm"]["adaptive_subproblem_precision_enabled"] = False
         config["algorithm"]["final_certification_enabled"] = False
+        config["algorithm"]["fixed_master_mip_gap"] = float(
+            config["benders"]["final_mip_gap"]
+        )
         config["algorithm"]["fixed_subproblem_mip_gap"] = float(
             config["benders"]["final_mip_gap"]
         )
@@ -541,6 +555,7 @@ def _apply_variant_config(
         config["algorithm"]["adaptive_master_precision_enabled"] = False
         config["algorithm"]["adaptive_subproblem_precision_enabled"] = False
         config["benders"]["initial_mip_gap"] = configured_initial_mip_gap
+        config["algorithm"]["fixed_master_mip_gap"] = configured_initial_mip_gap
         config["algorithm"]["fixed_subproblem_mip_gap"] = float(
             variant.get("fixed_subproblem_mip_gap", configured_initial_mip_gap)
         )

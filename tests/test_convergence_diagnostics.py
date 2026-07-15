@@ -500,6 +500,11 @@ def test_certification_freezes_pre_certification_precision_state() -> None:
         ("subproblem_gap_max", float("nan"), "subproblem_gap_max must be finite"),
         ("subproblem_gap_min", -0.1, "subproblem_gap_min must be finite"),
         (
+            "fixed_master_mip_gap",
+            -0.1,
+            "fixed_master_mip_gap must be finite",
+        ),
+        (
             "master_error_budget_ratio",
             -0.1,
             "master_error_budget_ratio must be finite",
@@ -518,6 +523,14 @@ def test_precision_policy_rejects_invalid_configuration(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         joint_precision_config(**{field: value})
+
+
+def test_explicit_fixed_master_gap_overrides_initial_gap_fallback() -> None:
+    explicit = joint_precision_config(fixed_master_mip_gap=0.007)
+    fallback = joint_precision_config()
+
+    assert explicit.fixed_master_gap == pytest.approx(0.007)
+    assert fallback.fixed_master_gap == pytest.approx(0.01)
 
 
 @pytest.mark.parametrize(

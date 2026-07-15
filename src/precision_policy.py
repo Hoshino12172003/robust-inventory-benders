@@ -88,7 +88,10 @@ def precision_policy_config(
             "subproblem_gap_min must be less than or equal to subproblem_gap_max"
         )
 
-    fixed_master = _finite_nonnegative("fixed master MIPGap", fixed_master_gap)
+    fixed_master = _finite_nonnegative(
+        "fixed_master_mip_gap",
+        algorithm_cfg.get("fixed_master_mip_gap", fixed_master_gap),
+    )
     fixed_subproblem = _finite_nonnegative(
         "fixed_subproblem_mip_gap",
         algorithm_cfg.get("fixed_subproblem_mip_gap", fixed_subproblem_gap),
