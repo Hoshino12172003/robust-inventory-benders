@@ -9,9 +9,12 @@ import yaml
 import src.experiment_suite as experiment_suite_module
 from src.benders import _settings
 from src.experiment_suite import (
+    SELECTED_PARAMETER_FIELDS,
+    _apply_selected_parameters,
     _apply_variant_config,
     _base_config,
     _validate_relative_threshold_config,
+    _variant_specs,
     run_experiment_suite,
 )
 from src.results import SolveResult
@@ -47,7 +50,23 @@ def tiny_experiment_config(tmp_path: Path) -> dict:
 def selected_algorithm_parameters(**overrides: object) -> dict:
     selected = {
         "selection_status": "selected",
+        "subproblem_mode": "robust_dual_milp",
+        "cut_selection_enabled": True,
         "cut_selection_mode": "relative",
+        "final_certification_enabled": True,
+        "final_certification_no_cut_patience": 2,
+        "precision_policy": "joint_error_budget",
+        "adaptive_master_precision_enabled": True,
+        "adaptive_subproblem_precision_enabled": True,
+        "master_gap_max": 0.05,
+        "master_gap_min": 0.0001,
+        "subproblem_gap_max": 0.07,
+        "subproblem_gap_min": 0.0002,
+        "fixed_master_mip_gap": 0.05,
+        "fixed_subproblem_mip_gap": 0.0002,
+        "master_error_budget_ratio": 0.5,
+        "subproblem_error_budget_ratio": 0.5,
+        "monotone_precision_tightening": True,
         "adaptive_subproblem_gap_enabled": True,
         "adaptive_secondary_cut_selection_enabled": True,
         "secondary_cut_warmup_cuts": 40,
@@ -70,6 +89,9 @@ def selected_algorithm_parameters(**overrides: object) -> dict:
         ],
         "max_cuts_per_iteration": 2,
         "subproblem_time_budget_per_iteration": None,
+        "adaptive_gap_enabled": True,
+        "gamma_continuation_enabled": True,
+        "gamma_schedule": [0, 1],
     }
     selected.update(overrides)
     return selected
@@ -214,14 +236,11 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     assert configs["screen_relative_cut.yaml"]["random_seeds"] == [0, 1, 2]
     assert configs["final_evaluation_template.yaml"]["random_seeds"] == list(range(10, 20))
     selected = configs["selected_algorithm_parameters.yaml"]
-    assert selected["selection_status"] == "pending_parameter_screens"
-    for field in (
-        "adaptive_secondary_cut_selection_enabled",
-        "secondary_cut_warmup_cuts",
-        "secondary_cut_master_time_share_trigger",
-        "secondary_cut_recent_master_time_trigger",
-    ):
-        assert selected[field] is None
+    assert selected["selection_status"] == "selected"
+    assert selected["selection_frozen"] is True
+    assert selected["selected_variant"] == "joint_rho025_050"
+    assert selected["tuning_seeds_used"] == [0, 1, 2]
+    assert selected["final_evaluation_seeds"] == list(range(10, 20))
     secondary = configs["screen_secondary_cut_selection.yaml"]
     assert secondary["random_seeds"] == [0, 1, 2]
     assert secondary["instance_sizes"] == ["medium"]
@@ -303,7 +322,7 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
     }
 
     selected = configs["selected_algorithm_parameters.yaml"]
-    assert selected["selection_status"] == "pending_parameter_screens"
+    assert selected["selection_status"] == "selected"
     for field in (
         "adaptive_secondary_generation_enabled",
         "secondary_generation_lb_window",
@@ -313,7 +332,10 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
         "secondary_generation_min_remaining_time",
         "secondary_generation_min_solve_budget",
     ):
-        assert selected[field] is None
+        if field == "adaptive_secondary_generation_enabled":
+            assert selected[field] is False
+        else:
+            assert selected[field] is None
 
 
 def test_round2_tuning_configs_exist_and_parse() -> None:
@@ -775,6 +797,207 @@ def test_joint_error_budget_medium_large_confirmation_resolves_exactly() -> None
     ).precision_config
     assert joint_precision.master_error_budget_ratio == pytest.approx(0.25)
     assert joint_precision.subproblem_error_budget_ratio == pytest.approx(0.50)
+
+
+def test_selected_joint_policy_is_frozen_complete_and_round_trips() -> None:
+    selected_path = Path("experiments/configs/selected_algorithm_parameters.yaml")
+    selected = yaml.safe_load(selected_path.read_text(encoding="utf-8"))
+    expected = {
+        "subproblem_mode": "robust_dual_milp",
+        "precision_policy": "joint_error_budget",
+        "adaptive_master_precision_enabled": True,
+        "adaptive_subproblem_precision_enabled": True,
+        "master_gap_max": 0.02,
+        "master_gap_min": 0.0001,
+        "subproblem_gap_max": 0.05,
+        "subproblem_gap_min": 0.0001,
+        "fixed_master_mip_gap": 0.02,
+        "fixed_subproblem_mip_gap": 0.05,
+        "master_error_budget_ratio": 0.25,
+        "subproblem_error_budget_ratio": 0.50,
+        "monotone_precision_tightening": True,
+        "final_certification_enabled": True,
+        "final_certification_no_cut_patience": 2,
+        "cut_selection_enabled": False,
+        "adaptive_secondary_cut_selection_enabled": False,
+        "adaptive_secondary_generation_enabled": False,
+        "adaptive_subproblem_gap_enabled": False,
+        "max_cuts_per_iteration": 1,
+        "subproblem_time_budget_per_iteration": None,
+        "gamma_continuation_enabled": False,
+        "gamma_schedule": [2],
+        "adaptive_gap_enabled": False,
+    }
+
+    assert selected["selection_status"] == "selected"
+    assert selected["selection_frozen"] is True
+    assert selected["selected_variant"] == "joint_rho025_050"
+    assert selected["selection_evidence_configs"] == [
+        "experiments/configs/screen_joint_error_budget_v1.yaml",
+        "experiments/configs/confirm_joint_error_budget_medium_large_v1.yaml",
+    ]
+    assert selected["tuning_seeds_used"] == [0, 1, 2]
+    assert selected["final_evaluation_seeds"] == list(range(10, 20))
+    assert set(SELECTED_PARAMETER_FIELDS).issubset(selected)
+    for field, value in expected.items():
+        assert selected[field] == value
+
+    loaded = _apply_selected_parameters(
+        {
+            "parameters_must_be_fixed_from": str(selected_path),
+            "cut_selection_enabled": True,
+            "adaptive_secondary_generation_enabled": True,
+            "gamma_continuation_enabled": True,
+        }
+    )
+    for field in SELECTED_PARAMETER_FIELDS:
+        assert loaded[field] == selected[field]
+    assert loaded["cut_selection_enabled"] is False
+    assert loaded["adaptive_secondary_cut_selection_enabled"] is False
+    assert loaded["adaptive_secondary_generation_enabled"] is False
+    assert loaded["adaptive_subproblem_gap_enabled"] is False
+    assert loaded["adaptive_gap_enabled"] is False
+    assert loaded["gamma_continuation_enabled"] is False
+
+
+def test_no_variant_proposed_resolves_to_selected_joint_policy() -> None:
+    config = _apply_selected_parameters(
+        {
+            "parameters_must_be_fixed_from": (
+                "experiments/configs/selected_algorithm_parameters.yaml"
+            ),
+            "gamma_target": 2,
+            "mip_gap": 0.02,
+            "final_mip_gap": 0.0001,
+        }
+    )
+    base = _base_config(config, "medium_large", seed=0)
+    solver_method, flags, resolved = _apply_variant_config(
+        base,
+        "proposed_adaptive_benders",
+        {},
+    )
+    actual = _settings(resolved, solver_method)
+    precision = actual.precision_config
+
+    assert flags == {
+        "adaptive_gap_enabled": False,
+        "gamma_continuation_enabled": False,
+        "cut_selection_enabled": False,
+    }
+    assert actual.gamma_schedule == [2]
+    assert actual.cut_selection_enabled is False
+    assert actual.adaptive_secondary_cut_selection_enabled is False
+    assert actual.adaptive_secondary_generation_enabled is False
+    assert actual.max_cuts_per_iteration == 1
+    assert actual.final_certification_enabled is True
+    assert precision.precision_policy == "joint_error_budget"
+    assert precision.adaptive_master_precision_enabled is True
+    assert precision.adaptive_subproblem_precision_enabled is True
+    assert precision.master_error_budget_ratio == pytest.approx(0.25)
+    assert precision.subproblem_error_budget_ratio == pytest.approx(0.50)
+
+
+def test_final_joint_evaluation_resolves_all_five_methods_exactly() -> None:
+    path = Path("experiments/configs/final_evaluation_joint_v1.yaml")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    expected_names = [
+        "standard_benders",
+        "static_inexact_benders",
+        "mp_adaptive_rho050",
+        "sp_adaptive_rho050",
+        "proposed_joint_rho025_050",
+    ]
+
+    assert raw["variants"] == expected_names
+    assert set(raw["variant_settings"]) == set(expected_names)
+    assert raw["random_seeds"] == list(range(10, 20))
+    assert set(raw["random_seeds"]).isdisjoint({0, 1, 2})
+    assert raw["instance_sizes"] == ["medium_large"]
+    assert raw["output_dir"] == "experiments/results_final/final_evaluation_joint_v1"
+    assert raw["max_iterations"] == 10000
+    assert raw["time_limit"] == 600
+    assert raw["tol"] == pytest.approx(1e-4)
+    assert raw["save_iteration_log"] is True
+    assert raw["max_scenarios"] == 5000
+    assert raw["exact_scenarios"] is True
+    assert raw["variant_settings"]["proposed_joint_rho025_050"] == {}
+    assert "master_error_budget_ratio" not in raw
+    assert "subproblem_error_budget_ratio" not in raw
+
+    selected = _apply_selected_parameters(raw)
+    resolved_methods = {}
+    for name, method, variant in _variant_specs(selected):
+        base = _base_config(selected, "medium_large", seed=10)
+        solver_method, flags, resolved = _apply_variant_config(base, method, variant)
+        actual = _settings(resolved, solver_method)
+        resolved_methods[name] = actual
+
+        assert flags == {
+            "adaptive_gap_enabled": False,
+            "gamma_continuation_enabled": False,
+            "cut_selection_enabled": False,
+        }
+        assert actual.gamma_target == 2
+        assert actual.gamma_schedule == [2]
+        assert actual.max_cuts_per_iteration == 1
+        assert actual.cut_selection_enabled is False
+        assert actual.adaptive_secondary_cut_selection_enabled is False
+        assert actual.adaptive_secondary_generation_enabled is False
+        assert actual.max_iterations == 10000
+        assert actual.time_limit == pytest.approx(600)
+        assert actual.tol == pytest.approx(1e-4)
+        assert actual.subproblem_mode == "robust_dual_milp"
+        assert actual.max_scenarios == 5000
+        assert actual.exact_scenarios is True
+
+    standard = resolved_methods["standard_benders"]
+    assert standard.precision_config.precision_policy == "legacy"
+    assert standard.precision_config.adaptive_master_precision_enabled is False
+    assert standard.precision_config.adaptive_subproblem_precision_enabled is False
+    assert standard.precision_config.fixed_master_gap == pytest.approx(0.0001)
+    assert standard.precision_config.fixed_subproblem_gap == pytest.approx(0.0001)
+    assert standard.final_certification_enabled is False
+
+    static = resolved_methods["static_inexact_benders"]
+    assert static.precision_config.precision_policy == "legacy"
+    assert static.precision_config.adaptive_master_precision_enabled is False
+    assert static.precision_config.adaptive_subproblem_precision_enabled is False
+    assert static.precision_config.fixed_master_gap == pytest.approx(0.02)
+    assert static.precision_config.fixed_subproblem_gap == pytest.approx(0.02)
+    assert static.final_certification_enabled is True
+    assert static.final_certification_no_cut_patience == 2
+
+    mp_method = resolved_methods["mp_adaptive_rho050"]
+    mp_only = mp_method.precision_config
+    assert mp_only.precision_policy == "joint_error_budget"
+    assert mp_only.adaptive_master_precision_enabled is True
+    assert mp_only.fixed_master_gap == pytest.approx(0.02)
+    assert mp_only.master_error_budget_ratio == pytest.approx(0.50)
+    assert mp_only.adaptive_subproblem_precision_enabled is False
+    assert mp_only.fixed_subproblem_gap == pytest.approx(0.0001)
+    assert mp_method.final_certification_enabled is True
+    assert mp_method.final_certification_no_cut_patience == 2
+
+    sp_method = resolved_methods["sp_adaptive_rho050"]
+    sp_only = sp_method.precision_config
+    assert sp_only.precision_policy == "joint_error_budget"
+    assert sp_only.adaptive_master_precision_enabled is False
+    assert sp_only.fixed_master_gap == pytest.approx(0.0001)
+    assert sp_only.adaptive_subproblem_precision_enabled is True
+    assert sp_only.fixed_subproblem_gap == pytest.approx(0.05)
+    assert sp_only.subproblem_error_budget_ratio == pytest.approx(0.50)
+    assert sp_method.final_certification_enabled is True
+    assert sp_method.final_certification_no_cut_patience == 2
+
+    proposed = resolved_methods["proposed_joint_rho025_050"]
+    assert proposed.final_certification_enabled is True
+    assert proposed.final_certification_no_cut_patience == 2
+    assert proposed.precision_config.precision_policy == "joint_error_budget"
+    assert proposed.precision_config.adaptive_master_precision_enabled is True
+    assert proposed.precision_config.adaptive_subproblem_precision_enabled is True
+    assert proposed.precision_config.master_error_budget_ratio == pytest.approx(0.25)
+    assert proposed.precision_config.subproblem_error_budget_ratio == pytest.approx(0.50)
 
 
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:

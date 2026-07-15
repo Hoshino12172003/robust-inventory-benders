@@ -30,7 +30,23 @@ INSTANCE_SIZES: dict[str, dict[str, int]] = {
 }
 
 SELECTED_ALGORITHM_FIELDS = (
+    "subproblem_mode",
+    "cut_selection_enabled",
     "cut_selection_mode",
+    "final_certification_enabled",
+    "final_certification_no_cut_patience",
+    "precision_policy",
+    "adaptive_master_precision_enabled",
+    "adaptive_subproblem_precision_enabled",
+    "master_gap_max",
+    "master_gap_min",
+    "subproblem_gap_max",
+    "subproblem_gap_min",
+    "fixed_master_mip_gap",
+    "fixed_subproblem_mip_gap",
+    "master_error_budget_ratio",
+    "subproblem_error_budget_ratio",
+    "monotone_precision_tightening",
     "adaptive_subproblem_gap_enabled",
     "adaptive_secondary_cut_selection_enabled",
     "secondary_cut_warmup_cuts",
@@ -51,7 +67,26 @@ SELECTED_ALGORITHM_FIELDS = (
     "max_cuts_per_iteration",
     "subproblem_time_budget_per_iteration",
 )
-NULLABLE_SELECTED_ALGORITHM_FIELDS = {"subproblem_time_budget_per_iteration"}
+SELECTED_EXPERIMENT_FIELDS = (
+    "adaptive_gap_enabled",
+    "gamma_continuation_enabled",
+    "gamma_schedule",
+)
+SELECTED_PARAMETER_FIELDS = SELECTED_ALGORITHM_FIELDS + SELECTED_EXPERIMENT_FIELDS
+NULLABLE_SELECTED_ALGORITHM_FIELDS = {
+    "secondary_cut_warmup_cuts",
+    "secondary_cut_master_time_share_trigger",
+    "secondary_cut_recent_master_time_trigger",
+    "secondary_generation_lb_window",
+    "secondary_generation_stall_threshold",
+    "secondary_generation_cooldown_iterations",
+    "secondary_generation_max_subproblem_time_share",
+    "secondary_generation_min_remaining_time",
+    "secondary_generation_min_solve_budget",
+    "relative_cut_threshold",
+    "subproblem_gap_schedule",
+    "subproblem_time_budget_per_iteration",
+}
 
 RESULT_FIELDS = [
     "experiment_name",
@@ -322,6 +357,15 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> Non
             writer.writerow({field: _csv_value(row.get(field)) for field in fields})
 
 
+def _configured_or_default(
+    config: dict[str, Any],
+    field: str,
+    default: Any,
+) -> Any:
+    value = config.get(field)
+    return default if value is None else value
+
+
 def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: float | None = None) -> dict[str, Any]:
     size_cfg = dict(INSTANCE_SIZES[size_name])
     size_cfg.update(exp_cfg.get("instance_overrides", {}))
@@ -332,6 +376,10 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
     gamma_schedule = exp_cfg.get("gamma_schedule") or list(range(gamma_target + 1))
     return {
         "seed": seed,
+        "adaptive_gap_enabled": bool(exp_cfg.get("adaptive_gap_enabled", False)),
+        "gamma_continuation_enabled": bool(
+            exp_cfg.get("gamma_continuation_enabled", False)
+        ),
         "instance": {
             **size_cfg,
             "budget_factor": float(exp_cfg.get("budget_factor", 0.68)),
@@ -351,39 +399,71 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "delta_cut": float(exp_cfg.get("delta_cut", 0.0)),
             "cut_violation_tol": float(exp_cfg.get("cut_violation_tol", 1e-8)),
             "cut_selection_mode": str(exp_cfg.get("cut_selection_mode", "absolute")),
-            "relative_cut_threshold": float(exp_cfg.get("relative_cut_threshold", 1e-4)),
+            "relative_cut_threshold": float(
+                _configured_or_default(exp_cfg, "relative_cut_threshold", 1e-4)
+            ),
             "final_exact_gap": float(exp_cfg.get("final_exact_gap", 1e-2)),
             "cut_stall_patience": int(exp_cfg.get("cut_stall_patience", 5)),
             "adaptive_secondary_cut_selection_enabled": bool(
                 exp_cfg.get("adaptive_secondary_cut_selection_enabled", False)
             ),
-            "secondary_cut_warmup_cuts": int(exp_cfg.get("secondary_cut_warmup_cuts", 50)),
+            "secondary_cut_warmup_cuts": int(
+                _configured_or_default(exp_cfg, "secondary_cut_warmup_cuts", 50)
+            ),
             "secondary_cut_master_time_share_trigger": float(
-                exp_cfg.get("secondary_cut_master_time_share_trigger", 0.35)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_cut_master_time_share_trigger",
+                    0.35,
+                )
             ),
             "secondary_cut_recent_master_time_trigger": float(
-                exp_cfg.get("secondary_cut_recent_master_time_trigger", 0.5)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_cut_recent_master_time_trigger",
+                    0.5,
+                )
             ),
             "adaptive_secondary_generation_enabled": bool(
                 exp_cfg.get("adaptive_secondary_generation_enabled", False)
             ),
             "secondary_generation_lb_window": int(
-                exp_cfg.get("secondary_generation_lb_window", 5)
+                _configured_or_default(exp_cfg, "secondary_generation_lb_window", 5)
             ),
             "secondary_generation_stall_threshold": float(
-                exp_cfg.get("secondary_generation_stall_threshold", 1e-4)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_generation_stall_threshold",
+                    1e-4,
+                )
             ),
             "secondary_generation_cooldown_iterations": int(
-                exp_cfg.get("secondary_generation_cooldown_iterations", 5)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_generation_cooldown_iterations",
+                    5,
+                )
             ),
             "secondary_generation_max_subproblem_time_share": float(
-                exp_cfg.get("secondary_generation_max_subproblem_time_share", 0.75)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_generation_max_subproblem_time_share",
+                    0.75,
+                )
             ),
             "secondary_generation_min_remaining_time": float(
-                exp_cfg.get("secondary_generation_min_remaining_time", 2.0)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_generation_min_remaining_time",
+                    2.0,
+                )
             ),
             "secondary_generation_min_solve_budget": float(
-                exp_cfg.get("secondary_generation_min_solve_budget", 1.0)
+                _configured_or_default(
+                    exp_cfg,
+                    "secondary_generation_min_solve_budget",
+                    1.0,
+                )
             ),
             "final_certification_enabled": bool(
                 exp_cfg.get("final_certification_enabled", False)
@@ -458,12 +538,28 @@ def _apply_variant_config(
     variant: dict[str, Any],
 ) -> tuple[str, dict[str, bool], dict[str, Any]]:
     config = deepcopy(config)
-    has_variant_overrides = bool(variant)
     flags = {
-        "adaptive_gap_enabled": bool(variant.get("adaptive_gap_enabled", False)),
-        "gamma_continuation_enabled": bool(variant.get("gamma_continuation_enabled", False)),
-        "cut_selection_enabled": bool(variant.get("cut_selection_enabled", False)),
+        "adaptive_gap_enabled": bool(
+            variant.get(
+                "adaptive_gap_enabled",
+                config.get("adaptive_gap_enabled", False),
+            )
+        ),
+        "gamma_continuation_enabled": bool(
+            variant.get(
+                "gamma_continuation_enabled",
+                config.get("gamma_continuation_enabled", False),
+            )
+        ),
+        "cut_selection_enabled": bool(
+            variant.get(
+                "cut_selection_enabled",
+                config["algorithm"].get("cut_selection_enabled", False),
+            )
+        ),
     }
+    config["adaptive_gap_enabled"] = flags["adaptive_gap_enabled"]
+    config["gamma_continuation_enabled"] = flags["gamma_continuation_enabled"]
     gamma_target = int(config["robust"]["gamma_target"])
 
     config["algorithm"]["cut_selection_enabled"] = flags["cut_selection_enabled"]
@@ -581,8 +677,6 @@ def _apply_variant_config(
         config["algorithm"]["cut_selection_enabled"] = True
     elif method == "proposed_adaptive_benders":
         solver_method = "adaptive_gap_gamma_benders"
-        if not has_variant_overrides:
-            config["algorithm"]["cut_selection_enabled"] = True
     elif method == "scenario_benders_full":
         solver_method = "standard_benders"
         config["algorithm"]["subproblem_mode"] = "scenario_enumeration"
@@ -619,11 +713,15 @@ def _apply_variant_config(
             "gamma_continuation_enabled": False,
             "cut_selection_enabled": True,
         }
-    elif method == "proposed_adaptive_benders" and not has_variant_overrides:
+    elif method == "proposed_adaptive_benders":
         flags = {
-            "adaptive_gap_enabled": True,
-            "gamma_continuation_enabled": True,
-            "cut_selection_enabled": True,
+            "adaptive_gap_enabled": bool(config["adaptive_gap_enabled"]),
+            "gamma_continuation_enabled": bool(
+                config["gamma_continuation_enabled"]
+            ),
+            "cut_selection_enabled": bool(
+                config["algorithm"].get("cut_selection_enabled", False)
+            ),
         }
 
     return solver_method, flags, config
@@ -1172,45 +1270,107 @@ def _validate_relative_threshold_config(config: dict[str, Any]) -> None:
     )
 
 
-def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
+def _apply_selected_parameters(config: dict[str, Any]) -> dict[str, Any]:
     config = deepcopy(config)
-    exp_name = str(config.get("experiment_name", "experiment_suite"))
     selected_parameters_path = config.get("parameters_must_be_fixed_from")
-    if selected_parameters_path:
-        selected = load_config(str(selected_parameters_path))
-        if selected.get("selection_status") != "selected":
-            raise ValueError(
-                "Final evaluation is locked until selected_algorithm_parameters.yaml has selection_status: selected."
-            )
-        absent = [field for field in SELECTED_ALGORITHM_FIELDS if field not in selected]
-        if absent:
-            raise ValueError(f"Selected algorithm parameters are missing: {', '.join(absent)}")
-        missing = [
-            field
-            for field in SELECTED_ALGORITHM_FIELDS
-            if field not in NULLABLE_SELECTED_ALGORITHM_FIELDS and selected.get(field) is None
-        ]
-        if missing:
-            raise ValueError(f"Selected algorithm parameters are missing: {', '.join(missing)}")
-        if selected["cut_selection_mode"] not in {"absolute", "relative"}:
-            raise ValueError("Selected cut_selection_mode must be 'absolute' or 'relative'.")
+    if not selected_parameters_path:
+        return config
+
+    selected = load_config(str(selected_parameters_path))
+    if selected.get("selection_status") != "selected":
+        raise ValueError(
+            "Final evaluation is locked until selected_algorithm_parameters.yaml has selection_status: selected."
+        )
+    absent = [field for field in SELECTED_PARAMETER_FIELDS if field not in selected]
+    if absent:
+        raise ValueError(f"Selected algorithm parameters are missing: {', '.join(absent)}")
+    missing = [
+        field
+        for field in SELECTED_PARAMETER_FIELDS
+        if field not in NULLABLE_SELECTED_ALGORITHM_FIELDS
+        and selected.get(field) is None
+    ]
+    if missing:
+        raise ValueError(f"Selected algorithm parameters are missing: {', '.join(missing)}")
+
+    boolean_fields = (
+        "cut_selection_enabled",
+        "final_certification_enabled",
+        "adaptive_master_precision_enabled",
+        "adaptive_subproblem_precision_enabled",
+        "monotone_precision_tightening",
+        "adaptive_subproblem_gap_enabled",
+        "adaptive_secondary_cut_selection_enabled",
+        "adaptive_secondary_generation_enabled",
+        "adaptive_gap_enabled",
+        "gamma_continuation_enabled",
+    )
+    for field in boolean_fields:
+        if not isinstance(selected[field], bool):
+            raise ValueError(f"Selected {field} must be true or false.")
+
+    if selected["precision_policy"] not in {"legacy", "joint_error_budget"}:
+        raise ValueError(
+            "Selected precision_policy must be 'legacy' or 'joint_error_budget'."
+        )
+    if selected["cut_selection_mode"] not in {"absolute", "relative"}:
+        raise ValueError("Selected cut_selection_mode must be 'absolute' or 'relative'.")
+    if (
+        selected["cut_selection_mode"] != "relative"
+        and selected.get("relative_cut_threshold") is not None
+    ):
+        raise ValueError(
+            "relative_cut_threshold requires selected cut_selection_mode='relative'."
+        )
+    if (
+        selected["cut_selection_enabled"]
+        and selected["cut_selection_mode"] == "relative"
+        and selected.get("relative_cut_threshold") is None
+    ):
+        raise ValueError(
+            "Selected relative_cut_threshold is required for relative cut selection."
+        )
+
+    for field in (
+        "master_gap_max",
+        "master_gap_min",
+        "subproblem_gap_max",
+        "subproblem_gap_min",
+        "fixed_master_mip_gap",
+        "fixed_subproblem_mip_gap",
+        "master_error_budget_ratio",
+        "subproblem_error_budget_ratio",
+    ):
+        value = selected[field]
         if (
-            selected["cut_selection_mode"] != "relative"
-            and selected.get("relative_cut_threshold") is not None
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) < 0.0
         ):
-            raise ValueError(
-                "relative_cut_threshold requires selected cut_selection_mode='relative'."
-            )
-        if not isinstance(selected["adaptive_subproblem_gap_enabled"], bool):
-            raise ValueError("Selected adaptive_subproblem_gap_enabled must be true or false.")
-        if not isinstance(selected["adaptive_secondary_cut_selection_enabled"], bool):
-            raise ValueError(
-                "Selected adaptive_secondary_cut_selection_enabled must be true or false."
-            )
-        if not isinstance(selected["adaptive_secondary_generation_enabled"], bool):
-            raise ValueError(
-                "Selected adaptive_secondary_generation_enabled must be true or false."
-            )
+            raise ValueError(f"Selected {field} must be a finite nonnegative value.")
+    if float(selected["master_gap_min"]) > float(selected["master_gap_max"]):
+        raise ValueError("Selected master_gap_min must not exceed master_gap_max.")
+    if float(selected["subproblem_gap_min"]) > float(selected["subproblem_gap_max"]):
+        raise ValueError("Selected subproblem_gap_min must not exceed subproblem_gap_max.")
+
+    patience = selected["final_certification_no_cut_patience"]
+    if isinstance(patience, bool) or not isinstance(patience, int) or patience <= 0:
+        raise ValueError(
+            "Selected final_certification_no_cut_patience must be a positive integer."
+        )
+    max_cuts = selected["max_cuts_per_iteration"]
+    if isinstance(max_cuts, bool) or not isinstance(max_cuts, int) or max_cuts <= 0:
+        raise ValueError("Selected max_cuts_per_iteration must be a positive integer.")
+    gamma_schedule = selected["gamma_schedule"]
+    if (
+        not isinstance(gamma_schedule, list)
+        or not gamma_schedule
+        or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in gamma_schedule)
+    ):
+        raise ValueError("Selected gamma_schedule must be a nonempty list of nonnegative integers.")
+
+    if selected["adaptive_secondary_cut_selection_enabled"]:
         warmup_cuts = selected["secondary_cut_warmup_cuts"]
         if (
             isinstance(warmup_cuts, bool)
@@ -1230,6 +1390,8 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
                 or float(trigger_value) <= 0.0
             ):
                 raise ValueError(f"Selected {trigger_field} must be a positive finite value.")
+
+    if selected["adaptive_secondary_generation_enabled"]:
         lb_window = selected["secondary_generation_lb_window"]
         if isinstance(lb_window, bool) or not isinstance(lb_window, int) or lb_window <= 0:
             raise ValueError("Selected secondary_generation_lb_window must be a positive integer.")
@@ -1282,8 +1444,15 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
             raise ValueError(
                 "Selected secondary_generation_min_solve_budget must be a positive finite value."
             )
-        for field in SELECTED_ALGORITHM_FIELDS:
-            config[field] = deepcopy(selected[field])
+
+    for field in SELECTED_PARAMETER_FIELDS:
+        config[field] = deepcopy(selected[field])
+    return config
+
+
+def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
+    config = _apply_selected_parameters(config)
+    exp_name = str(config.get("experiment_name", "experiment_suite"))
     _validate_relative_threshold_config(config)
     output_dir = Path(str(config.get("output_dir", f"experiments/results/{exp_name}")))
     instances_dir = output_dir / "instances"

@@ -1,27 +1,61 @@
 experiment_name: selected_algorithm_parameters
 output_dir: experiments/results_diagnostics/selection_not_run
 random_seeds: [0, 1, 2]
-selection_status: pending_parameter_screens
-selection_date: null
+selection_status: selected
+selection_frozen: true
+selection_date: 2026-07-15
+selected_variant: joint_rho025_050
+selection_evidence_configs:
+  - experiments/configs/screen_joint_error_budget_v1.yaml
+  - experiments/configs/confirm_joint_error_budget_medium_large_v1.yaml
 tuning_seeds_used: [0, 1, 2]
-cut_selection_mode: null
-adaptive_subproblem_gap_enabled: null
-adaptive_secondary_cut_selection_enabled: null
+final_evaluation_seeds: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+subproblem_mode: robust_dual_milp
+
+precision_policy: joint_error_budget
+adaptive_master_precision_enabled: true
+adaptive_subproblem_precision_enabled: true
+master_gap_max: 0.02
+master_gap_min: 0.0001
+subproblem_gap_max: 0.05
+subproblem_gap_min: 0.0001
+fixed_master_mip_gap: 0.02
+fixed_subproblem_mip_gap: 0.05
+master_error_budget_ratio: 0.25
+subproblem_error_budget_ratio: 0.50
+monotone_precision_tightening: true
+
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+
+cut_selection_enabled: false
+cut_selection_mode: absolute
+relative_cut_threshold: null
+adaptive_secondary_cut_selection_enabled: false
 secondary_cut_warmup_cuts: null
 secondary_cut_master_time_share_trigger: null
 secondary_cut_recent_master_time_trigger: null
-adaptive_secondary_generation_enabled: null
+adaptive_secondary_generation_enabled: false
 secondary_generation_lb_window: null
 secondary_generation_stall_threshold: null
 secondary_generation_cooldown_iterations: null
 secondary_generation_max_subproblem_time_share: null
 secondary_generation_min_remaining_time: null
 secondary_generation_min_solve_budget: null
-relative_cut_threshold: null
+adaptive_subproblem_gap_enabled: false
+subproblem_gap_schedule: null
+max_cuts_per_iteration: 1
+subproblem_time_budget_per_iteration: null
+
+gamma_continuation_enabled: false
+gamma_schedule: [2]
+adaptive_gap_enabled: false
+
 cut_violation_tol: 1.0e-8
 final_exact_gap: 0.01
 cut_stall_patience: 5
-subproblem_gap_schedule: null
-max_cuts_per_iteration: null
-subproblem_time_budget_per_iteration: null
-selection_rationale: Pending diagnostic and screening runs; final evaluation must not run yet.
+selection_rationale: >-
+  joint_rho025_050 is permanently frozen from medium and medium-large
+  tuning evidence using only seeds 0-2. Held-out final evaluation must use
+  only seeds 10-19; no further tuning is permitted.
