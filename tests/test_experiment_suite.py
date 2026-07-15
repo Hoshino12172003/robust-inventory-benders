@@ -680,6 +680,103 @@ def test_joint_error_budget_screen_has_exact_isolated_variants() -> None:
         assert joint.subproblem_error_budget_ratio == pytest.approx(subproblem_ratio)
 
 
+def test_joint_error_budget_medium_large_confirmation_resolves_exactly() -> None:
+    path = Path(
+        "experiments/configs/confirm_joint_error_budget_medium_large_v1.yaml"
+    )
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    expected = [
+        "tight_tight",
+        "static_inexact",
+        "mp_adaptive_rho050",
+        "sp_adaptive_rho050",
+        "joint_rho025_050",
+    ]
+    expected_precision = {
+        "tight_tight": (False, 0.0001, False, 0.0001),
+        "static_inexact": (False, 0.02, False, 0.02),
+        "mp_adaptive_rho050": (True, 0.02, False, 0.0001),
+        "sp_adaptive_rho050": (False, 0.0001, True, 0.05),
+        "joint_rho025_050": (True, 0.02, True, 0.05),
+    }
+
+    assert config["variants"] == expected
+    assert set(config["variant_settings"]) == set(expected)
+    assert config["random_seeds"] == [0, 1, 2]
+    assert set(config["random_seeds"]).isdisjoint(range(10, 20))
+    assert config["instance_sizes"] == ["medium_large"]
+    assert config["time_limit"] == 300
+    assert config["max_iterations"] == 10000
+    assert config["save_iteration_log"] is True
+
+    for name in expected:
+        variant = config["variant_settings"][name]
+        base = _base_config(config, "medium_large", seed=0)
+        solver_method, flags, resolved = _apply_variant_config(
+            base,
+            "proposed_adaptive_benders",
+            variant,
+        )
+        actual = _settings(resolved, solver_method)
+        precision = actual.precision_config
+        adaptive_master, fixed_master, adaptive_subproblem, fixed_subproblem = (
+            expected_precision[name]
+        )
+
+        assert variant["adaptive_gap_enabled"] is False
+        assert variant["gamma_continuation_enabled"] is False
+        assert variant["gamma_schedule"] == [2]
+        assert variant["precision_policy"] == "joint_error_budget"
+        assert variant["cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_cut_selection_enabled"] is False
+        assert variant["adaptive_secondary_generation_enabled"] is False
+        assert variant["max_cuts_per_iteration"] == 1
+        assert variant["final_certification_enabled"] is True
+        assert flags["adaptive_gap_enabled"] is False
+
+        assert actual.gamma_target == 2
+        assert actual.gamma_schedule == [2]
+        assert actual.subproblem_mode == "robust_dual_milp"
+        assert actual.max_cuts_per_iteration == 1
+        assert actual.cut_selection_enabled is False
+        assert actual.adaptive_secondary_cut_selection_enabled is False
+        assert actual.adaptive_secondary_generation_enabled is False
+        assert actual.final_certification_enabled is True
+        assert actual.final_certification_no_cut_patience == 2
+        assert actual.adaptive_subproblem_gap_enabled is False
+        assert actual.max_iterations == 10000
+        assert actual.time_limit == pytest.approx(300)
+        assert actual.tol == pytest.approx(1e-4)
+        assert actual.max_scenarios == 5000
+        assert actual.exact_scenarios is True
+
+        assert precision.precision_policy == "joint_error_budget"
+        assert precision.master_gap_max == pytest.approx(0.02)
+        assert precision.master_gap_min == pytest.approx(0.0001)
+        assert precision.subproblem_gap_max == pytest.approx(0.05)
+        assert precision.subproblem_gap_min == pytest.approx(0.0001)
+        assert precision.monotone_precision_tightening is True
+        assert precision.adaptive_master_precision_enabled is adaptive_master
+        assert precision.fixed_master_gap == pytest.approx(fixed_master)
+        assert precision.adaptive_subproblem_precision_enabled is adaptive_subproblem
+        assert precision.fixed_subproblem_gap == pytest.approx(fixed_subproblem)
+
+    joint = config["variant_settings"]["joint_rho025_050"]
+    assert joint["master_error_budget_ratio"] == pytest.approx(0.25)
+    assert joint["subproblem_error_budget_ratio"] == pytest.approx(0.50)
+    _, _, joint_resolved = _apply_variant_config(
+        _base_config(config, "medium_large", seed=0),
+        "proposed_adaptive_benders",
+        joint,
+    )
+    joint_precision = _settings(
+        joint_resolved,
+        "adaptive_gap_gamma_benders",
+    ).precision_config
+    assert joint_precision.master_error_budget_ratio == pytest.approx(0.25)
+    assert joint_precision.subproblem_error_budget_ratio == pytest.approx(0.50)
+
+
 def test_screen_master_gamma_requires_selected_relative_threshold(tmp_path: Path) -> None:
     config_path = Path("experiments/configs/screen_master_gamma.yaml")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
