@@ -4,4 +4,6 @@ __pycache__/
 data/raw/
 data/processed/
 outputs/
+analysis/outputs/
+final_evaluation_joint_v1_analysis.zip
 .idea/
