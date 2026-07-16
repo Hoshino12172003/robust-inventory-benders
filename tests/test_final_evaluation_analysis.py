@@ -3,10 +3,12 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from src.final_evaluation_analysis import (
     AnalysisIntegrityError,
@@ -19,9 +21,12 @@ from src.final_evaluation_analysis import (
     generate_report,
     holm_adjust_by_family,
     method_summary,
+    method_summary_latex,
     paired_comparisons,
+    paired_comparison_summary_latex,
     performance_profile,
     runtime_ranks,
+    wilcoxon_signed_rank,
 )
 
 
@@ -33,6 +38,13 @@ METHODS = [
     "proposed_joint_rho025_050",
 ]
 SEEDS = list(range(10, 20))
+PAPER_LABELS = {
+    "standard_benders": "Tight-tolerance inexact Benders",
+    "static_inexact_benders": "Static inexact Benders",
+    "mp_adaptive_rho050": "MP-adaptive inexact Benders",
+    "sp_adaptive_rho050": "SP-adaptive inexact Benders",
+    "proposed_joint_rho025_050": "Joint adaptive inexact Benders",
+}
 
 
 def analysis_config() -> dict:
@@ -44,7 +56,8 @@ def analysis_config() -> dict:
         "method_order": METHODS,
         "reference_method": "proposed_joint_rho025_050",
         "paper_labels": {
-            method: {"English": method, "Chinese": method} for method in METHODS
+            method: {"English": PAPER_LABELS[method], "Chinese": PAPER_LABELS[method]}
+            for method in METHODS
         },
         "comparison_families": {
             "primary_confirmatory": [
@@ -167,6 +180,11 @@ def test_exact_expected_seed_variant_grid_passes() -> None:
     results, logs, resolved = synthetic_inputs()
     audit = audit_frames(results, logs, analysis_config(), resolved)
     assert audit["passed"].all(), audit.loc[~audit["passed"], ["check", "details"]]
+    checks = set(audit["check"])
+    assert "standard_baseline_matches_frozen_spec" in checks
+    assert "static_baseline_matches_frozen_spec" in checks
+    assert "standard_baseline_exact" not in checks
+    assert "static_baseline_exact" not in checks
 
 
 def test_missing_row_fails() -> None:
@@ -250,6 +268,42 @@ def test_bootstrap_output_is_deterministic() -> None:
     assert first == second
 
 
+def test_wilcoxon_no_zero_uses_exact_method() -> None:
+    decision = wilcoxon_signed_rank(np.array([-5.0, -3.0, -1.0, 2.0, 4.0]))
+    assert decision["calculation_method"] == "exact"
+    assert decision["zero_method"] == "pratt"
+    assert decision["alternative"] == "two-sided"
+    assert decision["continuity_correction"] is False
+    expected = stats.wilcoxon(
+        [-5.0, -3.0, -1.0, 2.0, 4.0],
+        zero_method="pratt",
+        correction=False,
+        alternative="two-sided",
+        method="exact",
+    )
+    assert decision["p_value"] == pytest.approx(expected.pvalue)
+
+
+def test_wilcoxon_zero_difference_uses_approximate_pratt_method() -> None:
+    values = np.array(
+        [-10.0, -9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0,
+         0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    )
+    decision = wilcoxon_signed_rank(values)
+    assert decision["calculation_method"] == "approx"
+    assert decision["zero_method"] == "pratt"
+    assert decision["alternative"] == "two-sided"
+    assert decision["continuity_correction"] is False
+    expected = stats.wilcoxon(
+        values,
+        zero_method="pratt",
+        correction=False,
+        alternative="two-sided",
+        method="approx",
+    )
+    assert decision["p_value"] == pytest.approx(expected.pvalue)
+
+
 def test_holm_is_independent_within_families() -> None:
     frame = pd.DataFrame(
         {
@@ -301,6 +355,47 @@ def test_generated_tables_contain_all_five_methods() -> None:
     assert summary["method"].tolist() == METHODS
 
 
+def test_percentage_saving_definitions_are_explicit_and_distinct() -> None:
+    results, _, _ = synthetic_inputs()
+    config = analysis_config()
+    ranks = runtime_ranks(results)
+    _, comparisons, _ = paired_comparisons(results, ranks, config)
+    row = comparisons.set_index("comparator").loc["standard_benders"]
+    pivot = results.pivot(index="seed", columns="variant_name", values="runtime")
+    proposed = pivot["proposed_joint_rho025_050"]
+    comparator = pivot["standard_benders"]
+    paired_percentages = 100.0 * (comparator - proposed) / comparator
+    aggregate = 100.0 * (comparator.mean() - proposed.mean()) / comparator.mean()
+    assert row["mean_paired_percentage_saving_percent"] == pytest.approx(
+        paired_percentages.mean()
+    )
+    assert row["median_paired_percentage_saving_percent"] == pytest.approx(
+        paired_percentages.median()
+    )
+    assert row["aggregate_mean_runtime_saving_percent"] == pytest.approx(aggregate)
+
+
+def test_paper_latex_tables_escape_labels_and_omit_internal_ids() -> None:
+    results, _, _ = synthetic_inputs()
+    config = analysis_config()
+    summary = method_summary(results, config)
+    summary.loc[
+        summary["method"] == "standard_benders", "paper_label_english"
+    ] = "Tight & safe_1"
+    ranks = runtime_ranks(results)
+    _, comparisons, _ = paired_comparisons(results, ranks, config)
+    config["paper_labels"]["standard_benders"]["English"] = "Tight & safe_1"
+
+    method_tex = method_summary_latex(summary)
+    paired_tex = paired_comparison_summary_latex(comparisons, config)
+    for latex in (method_tex, paired_tex):
+        assert re.search(r"(?<!\\)_", latex) is None
+        assert "Tight \\& safe\\_1" in latex
+        assert all(method not in latex for method in METHODS)
+    assert "mean_final_gap" not in method_tex
+    assert "aggregate_mean_runtime_saving_percent" not in paired_tex
+
+
 def test_generated_report_avoids_forbidden_overclaiming() -> None:
     results, _, _ = synthetic_inputs()
     config = analysis_config()
@@ -312,6 +407,9 @@ def test_generated_report_avoids_forbidden_overclaiming() -> None:
     lowered = report.lower()
     assert all(phrase not in lowered for phrase in FORBIDDEN_REPORT_PHRASES)
     assert "tight-tolerance inexact Benders" in report
+    assert "aggregate mean-runtime saving" in report
+    assert "seed-level paired percentage savings" in report
+    assert "terminal observed gap is carried forward" in report
 
 
 def test_input_hashes_are_deterministic_without_absolute_paths(tmp_path: Path) -> None:
