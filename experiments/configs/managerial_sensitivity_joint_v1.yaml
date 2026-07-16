@@ -1,0 +1,49 @@
+experiment_name: managerial_sensitivity_joint_v1
+output_dir: experiments/results_managerial/managerial_sensitivity_joint_v1
+random_seeds: [30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+instance_sizes: [medium_large]
+variants:
+  - proposed_joint_rho025_050
+variant_settings:
+  proposed_joint_rho025_050: {}
+time_limit: 900
+managerial_evaluation_time_limit: 300
+max_iterations: 10000
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+subproblem_mode: robust_dual_milp
+gamma_continuation_enabled: false
+max_cuts_per_iteration: 1
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+save_iteration_log: true
+final_certification_no_cut_patience: 2
+max_scenarios: 5000
+exact_scenarios: true
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml
+baseline:
+  gamma_target: 2
+  service_level: 0.90
+  budget_factor: 0.68
+  capacity_factor: 1.25
+sensitivity_axes:
+  gamma_target:
+    baseline_value: 2
+    values: [0, 1, 2, 3, 4]
+  service_level:
+    baseline_value: 0.90
+    values: [0.82, 0.86, 0.90, 0.94]
+  budget_factor:
+    baseline_value: 0.68
+    values: [0.55, 0.62, 0.68, 0.75, 0.82]
+  capacity_factor:
+    baseline_value: 1.25
+    values: [1.05, 1.15, 1.25, 1.35, 1.45]
+protocol_frozen: true
+protocol_version: 1
+protocol_purpose: one_factor_at_a_time_managerial_sensitivity
+

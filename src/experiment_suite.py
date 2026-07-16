@@ -16,6 +16,22 @@ from .benders import solve_benders
 from .config import load_config
 from .instance import InventoryInstance, generate_instance, save_instance
 from .monolithic import solve_monolithic
+from .experiment_protocol import (
+    ProtocolRunSpec,
+    atomic_write_csv,
+    atomic_write_json,
+    atomic_write_text,
+    atomic_write_yaml,
+    config_sha256,
+    decide_run_action,
+    git_commit,
+    load_run_record,
+    penalized_runtime_par2,
+    theoretical_maximum_hours,
+    update_run_manifest,
+    utc_now_iso,
+    write_run_state,
+)
 from .results import SolveResult
 from .scenarios import count_budget_scenarios
 from .status import normalize_run_status
@@ -97,10 +113,15 @@ RESULT_FIELDS = [
     "variant_name",
     "subproblem_mode",
     "status",
+    "solved_to_tolerance",
     "objective",
     "best_bound",
+    "lower_bound",
+    "upper_bound",
     "final_gap",
     "runtime",
+    "time_limit",
+    "penalized_runtime_par2",
     "master_time",
     "subproblem_time",
     "iterations",
@@ -176,6 +197,8 @@ RESULT_FIELDS = [
     "target_subproblem_status",
     "target_subproblem_mip_gap",
     "target_subproblem_objective_bound",
+    "best_y_values",
+    "best_x_values",
     "total_shortage",
     "service_violation",
     "first_stage_cost",
@@ -198,6 +221,9 @@ RESULT_FIELDS = [
     "iteration_to_gap_01pct",
     "subproblem_time_share",
     "mean_lb_improvement_per_iteration",
+    "run_key",
+    "config_sha256",
+    "git_commit",
 ]
 
 SUMMARY_FIELDS = [
@@ -216,6 +242,9 @@ SUMMARY_FIELDS = [
     "std_objective",
     "mean_runtime",
     "std_runtime",
+    "mean_penalized_runtime_par2",
+    "mean_solved_runtime",
+    "mean_unsolved_final_gap",
     "mean_final_gap",
     "mean_iterations",
     "mean_cuts_added",
@@ -349,12 +378,7 @@ def _std(values: list[float]) -> float | None:
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({field: _csv_value(row.get(field)) for field in fields})
+    atomic_write_csv(path, rows, fields, value_encoder=_csv_value)
 
 
 def _configured_or_default(
@@ -805,8 +829,17 @@ def _result_row(
     instance: InventoryInstance,
     instance_path: Path,
     error_message: str = "",
+    time_limit: float | None = None,
+    solve_tolerance: float = SOLVE_TOLERANCE,
 ) -> dict[str, Any]:
     meta = result.metadata
+    normalized_status = normalize_run_status(result.status)
+    solved_to_tolerance = bool(
+        result.objective is not None
+        and result.gap is not None
+        and float(result.gap) <= float(solve_tolerance)
+    )
+    configured_time_limit = float(time_limit) if time_limit is not None else float(result.runtime)
     return {
         "experiment_name": exp_name,
         "instance_name": instance.name,
@@ -815,11 +848,20 @@ def _result_row(
         "method": method,
         "variant_name": variant_name,
         "subproblem_mode": meta.get("subproblem_mode"),
-        "status": normalize_run_status(result.status),
+        "status": normalized_status,
+        "solved_to_tolerance": solved_to_tolerance,
         "objective": result.objective,
         "best_bound": result.lower_bound,
+        "lower_bound": result.lower_bound,
+        "upper_bound": result.upper_bound,
         "final_gap": result.gap,
         "runtime": result.runtime,
+        "time_limit": configured_time_limit,
+        "penalized_runtime_par2": penalized_runtime_par2(
+            solved_to_tolerance=solved_to_tolerance,
+            runtime=result.runtime,
+            time_limit=configured_time_limit,
+        ),
         "master_time": result.master_runtime,
         "subproblem_time": result.subproblem_runtime,
         "iterations": result.iterations,
@@ -936,6 +978,8 @@ def _result_row(
         "target_subproblem_status": meta.get("target_subproblem_status"),
         "target_subproblem_mip_gap": meta.get("target_subproblem_mip_gap"),
         "target_subproblem_objective_bound": meta.get("target_subproblem_objective_bound"),
+        "best_y_values": meta.get("best_y_values"),
+        "best_x_values": meta.get("best_x_values"),
         # TODO: derive second-stage shortage/service metrics from stored worst-case recourse solutions.
         "total_shortage": meta.get("total_shortage"),
         "service_violation": meta.get("service_violation"),
@@ -958,6 +1002,8 @@ def _failure_row(
     instance: InventoryInstance,
     instance_path: Path,
     exc: Exception,
+    time_limit: float | None = None,
+    solve_tolerance: float = SOLVE_TOLERANCE,
 ) -> dict[str, Any]:
     row = _result_row(
         exp_name,
@@ -970,6 +1016,8 @@ def _failure_row(
         instance,
         instance_path,
         error_message=str(exc),
+        time_limit=time_limit,
+        solve_tolerance=solve_tolerance,
     )
     row["status"] = "failed"
     return row
@@ -1033,6 +1081,21 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         solved = [row for row in rows if _is_solved(row)]
         objectives = [float(r["objective"]) for r in completed if r.get("objective") not in (None, "")]
         runtimes = [float(r["runtime"]) for r in completed if r.get("runtime") not in (None, "")]
+        par2_values = [
+            float(r["penalized_runtime_par2"])
+            for r in rows
+            if r.get("penalized_runtime_par2") not in (None, "")
+        ]
+        solved_runtimes = [
+            float(r["runtime"])
+            for r in solved
+            if r.get("runtime") not in (None, "")
+        ]
+        unsolved_gaps = [
+            float(r["final_gap"])
+            for r in rows
+            if r not in solved and r.get("final_gap") not in (None, "")
+        ]
         gaps = [float(r["final_gap"]) for r in completed if r.get("final_gap") not in (None, "")]
         iterations = [float(r["iterations"]) for r in completed if r.get("iterations") not in (None, "")]
         cuts_added = [float(r["cuts_added_total"]) for r in completed if r.get("cuts_added_total") not in (None, "")]
@@ -1094,6 +1157,9 @@ def _summary_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "std_objective": _std(objectives),
                 "mean_runtime": mean_runtime,
                 "std_runtime": _std(runtimes),
+                "mean_penalized_runtime_par2": _mean(par2_values),
+                "mean_solved_runtime": _mean(solved_runtimes),
+                "mean_unsolved_final_gap": _mean(unsolved_gaps),
                 "mean_final_gap": _mean(gaps),
                 "mean_iterations": _mean(iterations),
                 "mean_cuts_added": _mean(cuts_added),
@@ -1126,6 +1192,9 @@ def _is_completed(row: dict[str, Any]) -> bool:
 
 
 def _is_solved(row: dict[str, Any]) -> bool:
+    explicit = row.get("solved_to_tolerance")
+    if explicit not in (None, ""):
+        return explicit in {True, "True", "true", 1, "1"}
     if row.get("objective") in (None, ""):
         return False
     if normalize_run_status(row.get("status")) == "optimal":
@@ -1228,9 +1297,11 @@ def _write_iteration_log(
     method: str,
     variant_name: str,
     iteration_log: list[dict[str, Any]],
+    run_key: str | None = None,
 ) -> Path:
     filename = _safe_filename(
-        f"{experiment_name}__{instance_name}__seed_{seed}__{method}__{variant_name}"
+        run_key
+        or f"{experiment_name}__{instance_name}__seed_{seed}__{method}__{variant_name}"
     )
     path = output_dir / "iteration_logs" / f"{filename}.csv"
     rows = []
@@ -1450,7 +1521,72 @@ def _apply_selected_parameters(config: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
-def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
+def experiment_run_specs(config: dict[str, Any]) -> list[ProtocolRunSpec]:
+    exp_name = str(config.get("experiment_name", "experiment_suite"))
+    variants = _variant_specs(config)
+    specs: list[ProtocolRunSpec] = []
+    for seed, size_name, _alpha_key, gamma_override, alpha_value in _expanded_dimensions(config):
+        axis = "gamma_target" if gamma_override is not None else "service_level" if alpha_value is not None else None
+        value: int | float | None = gamma_override if gamma_override is not None else alpha_value
+        for variant_name, _method, _variant in variants:
+            specs.append(
+                ProtocolRunSpec(
+                    experiment_name=exp_name,
+                    instance_size=size_name,
+                    seed=seed,
+                    variant_name=variant_name,
+                    sensitivity_axis=axis,
+                    sensitivity_value=value,
+                )
+            )
+    return specs
+
+
+def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
+    resolved = _apply_selected_parameters(config)
+    specs = experiment_run_specs(resolved)
+    time_limit = float(resolved.get("time_limit", 0.0))
+    audit_errors: list[str] = []
+    if resolved.get("experiment_name") in {
+        "large_scale_evaluation_joint_v1",
+        "managerial_sensitivity_joint_v1",
+    }:
+        try:
+            from .extended_experiment_audit import audit_protocols
+
+            audit = audit_protocols()
+            audit_errors = [
+                str(check["check"])
+                for check in audit["checks"]
+                if check.get("required", True) and not check.get("passed", False)
+            ]
+        except Exception as exc:  # noqa: BLE001 - dry-run must report audit import failures.
+            audit_errors = [f"audit_execution_failed: {exc}"]
+    return {
+        "experiment_name": resolved.get("experiment_name"),
+        "total_run_count": len(specs),
+        "run_count_by_axis": {"none": len(specs)},
+        "seeds": sorted({spec.seed for spec in specs}),
+        "instance_sizes": sorted({spec.instance_size for spec in specs}),
+        "methods": [name for name, _method, _variant in _variant_specs(resolved)],
+        "output_dir": resolved.get("output_dir"),
+        "time_limit_seconds": time_limit,
+        "theoretical_maximum_seconds": len(specs) * time_limit,
+        "theoretical_maximum_hours": theoretical_maximum_hours(len(specs), time_limit),
+        "serial_upper_bound_not_runtime_prediction": True,
+        "automatic_parallelism_enabled": False,
+        "protocol_audit_errors": audit_errors,
+    }
+
+
+def run_experiment_suite(
+    config: dict[str, Any],
+    *,
+    resume: bool = False,
+    overwrite: bool = False,
+) -> dict[str, Path]:
+    if resume and overwrite:
+        raise ValueError("--resume and --overwrite are mutually exclusive.")
     config = _apply_selected_parameters(config)
     exp_name = str(config.get("experiment_name", "experiment_suite"))
     _validate_relative_threshold_config(config)
@@ -1458,28 +1594,97 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
     instances_dir = output_dir / "instances"
     output_dir.mkdir(parents=True, exist_ok=True)
     instances_dir.mkdir(parents=True, exist_ok=True)
-    resolved_config_path = output_dir / "resolved_config.yaml"
-    resolved_config_path.write_text(
-        yaml.safe_dump(config, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-        newline="\n",
-    )
+    resolved_config_path = atomic_write_yaml(output_dir / "resolved_config.yaml", config)
 
+    config_hash = config_sha256(config)
+    commit = git_commit(Path.cwd())
+    specs = experiment_run_specs(config)
+    run_keys = [spec.run_key for spec in specs]
+    skipped_run_count = 0
     results: list[dict[str, Any]] = []
     variants = _variant_specs(config)
+    spec_index = 0
+    manifest_path = update_run_manifest(
+        output_dir=output_dir,
+        run_keys=run_keys,
+        config_hash=config_hash,
+        commit=commit,
+        skipped_run_count=skipped_run_count,
+    )
+
     for seed, size_name, _alpha_key, gamma_override, alpha_value in _expanded_dimensions(config):
         run_cfg = _base_config(config, size_name, seed, alpha=alpha_value)
         if gamma_override is not None:
             run_cfg["robust"]["gamma_target"] = gamma_override
-            run_cfg["robust"]["gamma_schedule"] = list(range(gamma_override + 1))
+            run_cfg["robust"]["gamma_schedule"] = (
+                list(range(gamma_override + 1))
+                if bool(config.get("gamma_continuation_enabled", False))
+                else [gamma_override]
+            )
         instance = generate_instance(run_cfg, seed=seed)
         instance_path = instances_dir / f"{instance.name}.json"
-        save_instance(instance, instance_path)
+        atomic_write_json(instance_path, instance.to_dict())
         for variant_name, method, variant in variants:
+            spec = specs[spec_index]
+            spec_index += 1
+            run_key = spec.run_key
+            existing = load_run_record(output_dir, run_key)
+            action = decide_run_action(existing, resume=resume, overwrite=overwrite)
+            if action.startswith("skip"):
+                skipped_run_count += 1
+                if existing and isinstance(existing.get("result"), dict):
+                    results.append(dict(existing["result"]))
+                manifest_path = update_run_manifest(
+                    output_dir=output_dir,
+                    run_keys=run_keys,
+                    config_hash=config_hash,
+                    commit=commit,
+                    skipped_run_count=skipped_run_count,
+                )
+                continue
+
+            run_dir = output_dir / "runs" / run_key
+            resolution_error: Exception | None = None
             try:
-                method_cfg = deepcopy(run_cfg)
-                result, flags = _solve_experiment_method(method_cfg, instance, method, variant)
-                row = _result_row(exp_name, size_name, seed, method, variant_name, result, flags, instance, instance_path)
+                _solver_method, _resolved_flags, method_resolved_config = _apply_variant_config(
+                    deepcopy(run_cfg), method, variant
+                )
+            except Exception as exc:  # noqa: BLE001 - unsupported methods become failed rows.
+                resolution_error = exc
+                method_resolved_config = deepcopy(run_cfg)
+                method_resolved_config["resolution_error"] = f"{type(exc).__name__}: {exc}"
+            run_config_hash = config_sha256(method_resolved_config)
+            atomic_write_yaml(run_dir / "resolved_config.yaml", method_resolved_config)
+            write_run_state(
+                output_dir,
+                run_key,
+                state="running",
+                details={
+                    "config_sha256": run_config_hash,
+                    "git_commit": commit,
+                    "started_at": utc_now_iso(),
+                    "action": action,
+                },
+            )
+            try:
+                if resolution_error is not None:
+                    raise resolution_error
+                result, flags = _solve_experiment_method(
+                    deepcopy(run_cfg), instance, method, variant
+                )
+                row = _result_row(
+                    exp_name,
+                    size_name,
+                    seed,
+                    method,
+                    variant_name,
+                    result,
+                    flags,
+                    instance,
+                    instance_path,
+                    time_limit=float(run_cfg["benders"]["time_limit"]),
+                    solve_tolerance=float(run_cfg["benders"]["tol"]),
+                )
                 if bool(config.get("save_iteration_log", False)):
                     iteration_log_path = _write_iteration_log(
                         output_dir,
@@ -1489,20 +1694,88 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
                         method,
                         variant_name,
                         result.iteration_log,
+                        run_key=run_key,
                     )
                     row["iteration_log_path"] = str(iteration_log_path)
                 if gamma_override is not None:
                     row["gamma_target"] = gamma_override
                 if alpha_value is not None:
                     row["alpha"] = alpha_value
-                results.append(row)
+                success = row["status"] not in {"failed", "skipped"}
+                atomic_write_text(run_dir / "error.txt", "")
             except Exception as exc:  # noqa: BLE001 - experiments must keep running after failed methods.
                 flags = {
                     "adaptive_gap_enabled": bool(variant.get("adaptive_gap_enabled", False)),
                     "gamma_continuation_enabled": bool(variant.get("gamma_continuation_enabled", False)),
                     "cut_selection_enabled": bool(variant.get("cut_selection_enabled", False)),
                 }
-                results.append(_failure_row(exp_name, size_name, seed, method, variant_name, flags, instance, instance_path, exc))
+                row = _failure_row(
+                    exp_name,
+                    size_name,
+                    seed,
+                    method,
+                    variant_name,
+                    flags,
+                    instance,
+                    instance_path,
+                    exc,
+                    time_limit=float(run_cfg["benders"]["time_limit"]),
+                    solve_tolerance=float(run_cfg["benders"]["tol"]),
+                )
+                success = False
+                atomic_write_text(run_dir / "error.txt", f"{type(exc).__name__}: {exc}\n")
+                if bool(config.get("save_iteration_log", False)):
+                    row["iteration_log_path"] = str(
+                        _write_iteration_log(
+                            output_dir,
+                            exp_name,
+                            instance.name,
+                            seed,
+                            method,
+                            variant_name,
+                            [],
+                            run_key=run_key,
+                        )
+                    )
+
+            row.update(
+                {
+                    "run_key": run_key,
+                    "config_sha256": run_config_hash,
+                    "git_commit": commit,
+                }
+            )
+            results.append(row)
+            now = utc_now_iso()
+            record = {
+                "run_key": run_key,
+                "state": "complete",
+                "success": success,
+                "solved_to_tolerance": bool(row.get("solved_to_tolerance")),
+                "created_at": (existing or {}).get("created_at", now),
+                "updated_at": now,
+                "config_sha256": run_config_hash,
+                "git_commit": commit,
+                "result": row,
+            }
+            atomic_write_json(run_dir / "run.json", record)
+            write_run_state(
+                output_dir,
+                run_key,
+                state="complete",
+                details={
+                    "success": success,
+                    "solved_to_tolerance": bool(row.get("solved_to_tolerance")),
+                    "status": row.get("status"),
+                },
+            )
+            manifest_path = update_run_manifest(
+                output_dir=output_dir,
+                run_keys=run_keys,
+                config_hash=config_hash,
+                commit=commit,
+                skipped_run_count=skipped_run_count,
+            )
 
     results_path = output_dir / "results.csv"
     summary_path = output_dir / "summary.csv"
@@ -1534,6 +1807,7 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
         "results": results_path,
         "summary": summary_path,
         "resolved_config": resolved_config_path,
+        "run_manifest": manifest_path,
         "output_dir": output_dir,
     }
 
@@ -1541,8 +1815,19 @@ def run_experiment_suite(config: dict[str, Any]) -> dict[str, Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run robust inventory experiment suite.")
     parser.add_argument("--config", required=True)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    outputs = run_experiment_suite(load_config(args.config))
+    config = load_config(args.config)
+    if args.dry_run:
+        print(json.dumps(experiment_dry_run_report(config), ensure_ascii=False, indent=2))
+        return
+    outputs = run_experiment_suite(
+        config,
+        resume=args.resume,
+        overwrite=args.overwrite,
+    )
     print(json.dumps({key: str(value) for key, value in outputs.items()}, ensure_ascii=False, indent=2))
 
 
