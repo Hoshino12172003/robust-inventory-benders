@@ -34,7 +34,7 @@ The output directory contains:
 
 - `audit_checks.csv` and `audit_summary.json`;
 - `input_manifest.json` and `input_manifest.sha256`;
-- descriptive CSV and LaTeX tables;
+- complete descriptive CSV tables and compact paper-facing LaTeX tables;
 - seed-level results and deterministic runtime ranks;
 - paired comparison, bootstrap, Wilcoxon, effect-size, and Holm-adjustment tables;
 - PDF and 300-dpi PNG figures under `figures/`;
@@ -64,13 +64,21 @@ Holm correction is computed independently within each family. Confirmatory wordi
 
 ## Bootstrap and paired tests
 
-Paired differences are defined as joint-method runtime minus comparator runtime. The configured NumPy random seed makes percentile bootstrap intervals deterministic. The pipeline uses 100,000 resamples for the paired mean and paired median, two-sided Wilcoxon signed-rank tests with the Pratt zero-difference convention, and paired rank-biserial effect sizes.
+Paired differences are defined as joint-method runtime minus comparator runtime. The configured NumPy random seed makes percentile bootstrap intervals deterministic. The pipeline uses 100,000 resamples for the paired mean and paired median, two-sided Wilcoxon signed-rank tests with the Pratt zero-difference convention, no continuity correction, and paired rank-biserial effect sizes. It records the actual Wilcoxon calculation method: `exact` when no paired difference is zero, and `approx` with Pratt handling when zero differences are present.
+
+Two percentage-saving summaries are deliberately kept distinct:
+
+- `mean_paired_percentage_saving_percent` is the arithmetic mean of the ten seed-level percentage savings;
+- `median_paired_percentage_saving_percent` is the median of those seed-level percentage savings;
+- `aggregate_mean_runtime_saving_percent` is `100 * (comparator mean runtime - proposed mean runtime) / comparator mean runtime`.
+
+The aggregate ratio is not interchangeable with the mean of paired percentages, because seeds with different comparator runtimes receive different implicit weights. The Markdown report names both definitions and prefers the aggregate mean-runtime saving in its main narrative.
 
 Sample standard deviation (`ddof=1`) is used in paper-facing descriptive tables.
 
 ## Convergence curves
 
-The convergence plot uses a common 0--600 second grid. For each run, the most recent observed global gap is forward-filled. The procedure does not interpolate between unobserved solver states. The plot shows the across-seed median and interquartile band on a logarithmic axis and marks the `1e-4` termination tolerance.
+The convergence plot uses a common 0--600 second grid. For each run, the most recent observed global gap is forward-filled. Once a run has completed, its terminal observed gap is carried forward over the remaining common time grid. The procedure does not interpolate between unobserved solver states. The plot shows the across-seed median and interquartile band on a logarithmic axis and marks the `1e-4` termination tolerance.
 
 ## Interpretation limits
 

@@ -509,7 +509,12 @@ def audit_frames(
         and pd.to_numeric(standard["fixed_subproblem_mip_gap"], errors="coerce").map(lambda value: _close(value, 0.0001)).all()
         and (~_bool_series(standard["final_certification_enabled"])).all()
     )
-    _check_record(records, "standard_baseline_exact", standard_ok, str(standard_ok))
+    _check_record(
+        records,
+        "standard_baseline_matches_frozen_spec",
+        standard_ok,
+        str(standard_ok),
+    )
 
     static = by_variant.get("static_inexact_benders", pd.DataFrame())
     patience = None if resolved_config is None else resolved_config.get("final_certification_no_cut_patience")
@@ -522,7 +527,12 @@ def audit_frames(
         and _bool_series(static["final_certification_enabled"]).all()
         and patience == 2
     )
-    _check_record(records, "static_baseline_exact", static_ok, f"passed={static_ok},patience={patience}")
+    _check_record(
+        records,
+        "static_baseline_matches_frozen_spec",
+        static_ok,
+        f"passed={static_ok},patience={patience}",
+    )
 
     objective_ok = True
     objective_details: list[str] = []
@@ -707,6 +717,36 @@ def _rank_biserial(differences: np.ndarray) -> float:
     return (positive - negative) / (positive + negative)
 
 
+def wilcoxon_signed_rank(
+    differences: np.ndarray | list[float],
+) -> dict[str, float | str | bool]:
+    """Run the prespecified two-sided paired test and expose its actual method."""
+    values = np.asarray(differences, dtype=float)
+    if values.ndim != 1 or len(values) == 0 or not np.isfinite(values).all():
+        raise ValueError("Wilcoxon differences must be a finite nonempty vector")
+    has_zero = bool(np.isclose(values, 0.0, atol=1e-12, rtol=0.0).any())
+    calculation_method = "approx" if has_zero else "exact"
+    if np.isclose(values, 0.0, atol=1e-12, rtol=0.0).all():
+        statistic, p_value = 0.0, 1.0
+    else:
+        test = stats.wilcoxon(
+            values,
+            zero_method="pratt",
+            correction=False,
+            alternative="two-sided",
+            method=calculation_method,
+        )
+        statistic, p_value = float(test.statistic), float(test.pvalue)
+    return {
+        "statistic": statistic,
+        "p_value": p_value,
+        "zero_method": "pratt",
+        "alternative": "two-sided",
+        "continuity_correction": False,
+        "calculation_method": calculation_method,
+    }
+
+
 def holm_adjust_by_family(
     frame: pd.DataFrame,
     *,
@@ -750,7 +790,12 @@ def paired_comparisons(
         proposed_runtime = pivot[reference]
         comparator_runtime = pivot[comparator]
         differences = (proposed_runtime - comparator_runtime).to_numpy(float)
-        savings = 100.0 * (comparator_runtime - proposed_runtime) / comparator_runtime
+        paired_savings = 100.0 * (
+            comparator_runtime - proposed_runtime
+        ) / comparator_runtime
+        aggregate_saving = 100.0 * (
+            float(comparator_runtime.mean()) - float(proposed_runtime.mean())
+        ) / float(comparator_runtime.mean())
         for seed in pivot.index:
             difference = float(proposed_runtime.loc[seed] - comparator_runtime.loc[seed])
             outcome = "win" if difference < -1e-12 else "loss" if difference > 1e-12 else "tie"
@@ -782,17 +827,7 @@ def paired_comparisons(
             resamples=int(config["bootstrap_resamples"]),
             confidence_level=float(config["confidence_level"]),
         )
-        if np.isclose(differences, 0.0, atol=1e-12, rtol=0.0).all():
-            statistic, p_value = 0.0, 1.0
-        else:
-            test = stats.wilcoxon(
-                differences,
-                zero_method="pratt",
-                correction=False,
-                alternative="two-sided",
-                method="auto",
-            )
-            statistic, p_value = float(test.statistic), float(test.pvalue)
+        wilcoxon = wilcoxon_signed_rank(differences)
         summary_rows.append(
             {
                 "reference_method": reference,
@@ -804,16 +839,25 @@ def paired_comparisons(
                 "ties": int(np.sum(np.isclose(differences, 0.0, atol=1e-12, rtol=0.0))),
                 "paired_mean_difference": float(np.mean(differences)),
                 "paired_median_difference": float(np.median(differences)),
-                "mean_percentage_saving": float(np.mean(savings)),
-                "median_percentage_saving": float(np.median(savings)),
+                "mean_paired_percentage_saving_percent": float(
+                    np.mean(paired_savings)
+                ),
+                "median_paired_percentage_saving_percent": float(
+                    np.median(paired_savings)
+                ),
+                "aggregate_mean_runtime_saving_percent": aggregate_saving,
                 "bootstrap_mean_ci_lower": mean_ci[0],
                 "bootstrap_mean_ci_upper": mean_ci[1],
                 "bootstrap_median_ci_lower": median_ci[0],
                 "bootstrap_median_ci_upper": median_ci[1],
-                "wilcoxon_statistic": statistic,
-                "raw_p_value": p_value,
-                "wilcoxon_zero_method": "pratt",
-                "wilcoxon_calculation_method": "auto",
+                "wilcoxon_statistic": wilcoxon["statistic"],
+                "raw_p_value": wilcoxon["p_value"],
+                "wilcoxon_zero_method": wilcoxon["zero_method"],
+                "wilcoxon_alternative": wilcoxon["alternative"],
+                "wilcoxon_continuity_correction": wilcoxon[
+                    "continuity_correction"
+                ],
+                "wilcoxon_calculation_method": wilcoxon["calculation_method"],
                 "paired_rank_biserial": _rank_biserial(differences),
             }
         )
@@ -828,6 +872,8 @@ def paired_comparisons(
             "raw_p_value",
             "holm_adjusted_p_value",
             "wilcoxon_zero_method",
+            "wilcoxon_alternative",
+            "wilcoxon_continuity_correction",
             "wilcoxon_calculation_method",
             "paired_rank_biserial",
         ]
@@ -1086,10 +1132,18 @@ def generate_report(
     primary_lines = []
     secondary_lines = []
     for row in comparisons.itertuples(index=False):
+        comparator_label = config["paper_labels"][row.comparator]["English"]
         line = (
-            f"- Versus `{row.comparator}`: wins/losses/ties = "
-            f"{row.wins}/{row.losses}/{row.ties}; mean paired difference "
-            f"{row.paired_mean_difference:.3f} s; raw p = {row.raw_p_value:.6g}; "
+            f"- Versus {comparator_label}: wins/losses/ties = "
+            f"{row.wins}/{row.losses}/{row.ties}; aggregate mean-runtime saving = "
+            f"{row.aggregate_mean_runtime_saving_percent:.2f}%; paired mean difference "
+            f"{row.paired_mean_difference:.3f} s (bootstrap 95% CI "
+            f"[{row.bootstrap_mean_ci_lower:.3f}, {row.bootstrap_mean_ci_upper:.3f}] s). "
+            f"The mean and median seed-level paired percentage savings are "
+            f"{row.mean_paired_percentage_saving_percent:.2f}% and "
+            f"{row.median_paired_percentage_saving_percent:.2f}%, respectively; these "
+            f"pairwise percentage summaries are distinct from the aggregate saving. "
+            f"Raw p = {row.raw_p_value:.6g}; "
             f"Holm-adjusted p = {row.holm_adjusted_p_value:.6g}."
         )
         if row.comparison_family == "primary_confirmatory":
@@ -1110,6 +1164,9 @@ def generate_report(
             f"The lowest mean runtime is observed for `{fastest_mean}`, while the lowest "
             f"median runtime is observed for `{fastest_median}`."
         )
+    )
+    wilcoxon_methods = ", ".join(
+        sorted(set(comparisons["wilcoxon_calculation_method"].astype(str)))
     )
     report = f"""# Final evaluation report: {config['experiment_name']}
 
@@ -1137,7 +1194,7 @@ All 50 runs terminated with an optimal solver status, a valid conservative upper
 
 ## 5. Statistical inference
 
-Wilcoxon signed-rank tests are two-sided, use the Pratt zero-difference convention, and are adjusted with Holm's method separately within the primary and secondary families. Bootstrap intervals use {int(config['bootstrap_resamples'])} deterministic percentile resamples at the {100 * float(config['confidence_level']):.0f}% level. Adjusted p-values, rather than raw p-values alone, govern confirmatory wording.
+Wilcoxon signed-rank tests are two-sided, use the Pratt zero-difference convention, disable continuity correction, and record the actual calculation method ({wilcoxon_methods} in these comparisons). Exact calculation is used when there are no zero differences; an approximate Pratt calculation is used when zero differences are present. Holm adjustment is applied separately within the primary and secondary families. Bootstrap intervals use {int(config['bootstrap_resamples'])} deterministic percentile resamples at the {100 * float(config['confidence_level']):.0f}% level. Adjusted p-values, rather than raw p-values alone, govern confirmatory wording.
 
 ## 6. MP/SP time decomposition
 
@@ -1145,7 +1202,7 @@ For the joint method, mean total/master/robust-subproblem times are {decompositi
 
 ## 7. Convergence-stage interpretation
 
-The convergence figure uses forward-filled observed solver states on a common 0--600 s grid, without interpolation between observations. Median trajectories and interquartile bands summarize the timing of progress but do not establish a continuous-time convergence law.
+The convergence figure uses forward-filled observed solver states on a common 0--600 s grid, without interpolation between observations. After a run completes, its terminal observed gap is carried forward over the remainder of the common grid. Median trajectories and interquartile bands summarize the timing of progress but do not establish a continuous-time convergence law.
 
 ## 8. Final-certification behavior
 
@@ -1166,14 +1223,114 @@ The held-out analysis supports cautious comparison of joint adaptive inexact Ben
     return report
 
 
-def _write_table(frame: pd.DataFrame, csv_path: Path, tex_path: Path | None = None) -> None:
-    frame.to_csv(csv_path, index=False, lineterminator="\n")
-    if tex_path is not None:
-        tex_path.write_text(
-            frame.to_latex(index=False, float_format=lambda value: f"{value:.4f}"),
-            encoding="utf-8",
-            newline="\n",
+def _latex_escape(value: Any) -> str:
+    replacements = {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
+    return "".join(replacements.get(character, character) for character in str(value))
+
+
+def _paper_latex_table(
+    headers: list[str], rows: list[list[str]], alignment: str
+) -> str:
+    lines = [
+        rf"\begin{{tabular}}{{{alignment}}}",
+        r"\toprule",
+        " & ".join(headers) + r" \\",
+        r"\midrule",
+    ]
+    lines.extend(" & ".join(row) + r" \\" for row in rows)
+    lines.extend([r"\bottomrule", r"\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def method_summary_latex(summary: pd.DataFrame) -> str:
+    """Return the compact paper-facing descriptive table."""
+    rows: list[list[str]] = []
+    for row in summary.itertuples(index=False):
+        rows.append(
+            [
+                _latex_escape(row.paper_label_english),
+                f"{int(row.n)}",
+                f"{row.runtime_mean:.3f} \\(\\pm\\) {row.runtime_sd_sample:.3f}",
+                f"{row.runtime_median:.3f}",
+                f"{row.runtime_q1:.3f}--{row.runtime_q3:.3f}",
+                f"{row.mean_iterations:.1f}",
+                f"{row.mean_master_time:.3f}",
+                f"{row.mean_subproblem_time:.3f}",
+                f"{row.mean_time_to_gap_1pct:.3f}",
+                f"{row.mean_time_to_gap_01pct:.3f}",
+                f"{int(row.final_certification_trigger_count)}",
+            ]
         )
+    headers = [
+        "Method",
+        r"$n$",
+        r"Runtime mean \(\pm\) sample SD (s)",
+        "Runtime median (s)",
+        "Runtime Q1--Q3 (s)",
+        "Mean iterations",
+        "Mean master time (s)",
+        "Mean subproblem time (s)",
+        r"Mean time to 1\% gap (s)",
+        r"Mean time to 0.1\% gap (s)",
+        "Certification triggers",
+    ]
+    return _paper_latex_table(headers, rows, "l" + "r" * 10)
+
+
+def paired_comparison_summary_latex(
+    comparisons: pd.DataFrame, config: Mapping[str, Any]
+) -> str:
+    """Return the compact paper-facing paired-comparison table."""
+    family_labels = {
+        "primary_confirmatory": "Primary confirmatory",
+        "secondary_ablation": "Secondary ablation",
+    }
+    rows: list[list[str]] = []
+    for row in comparisons.itertuples(index=False):
+        comparator_label = config["paper_labels"][row.comparator]["English"]
+        family_label = family_labels.get(
+            row.comparison_family, str(row.comparison_family)
+        )
+        rows.append(
+            [
+                _latex_escape(comparator_label),
+                _latex_escape(family_label),
+                f"{row.wins}/{row.losses}/{row.ties}",
+                f"{row.paired_mean_difference:.3f} "
+                f"[{row.bootstrap_mean_ci_lower:.3f}, {row.bootstrap_mean_ci_upper:.3f}]",
+                f"{row.paired_median_difference:.3f} "
+                f"[{row.bootstrap_median_ci_lower:.3f}, {row.bootstrap_median_ci_upper:.3f}]",
+                f"{row.raw_p_value:.6g}",
+                f"{row.holm_adjusted_p_value:.6g}",
+                f"{row.paired_rank_biserial:.3f}",
+            ]
+        )
+    headers = [
+        "Comparator",
+        "Family",
+        "W/L/T",
+        r"Paired mean difference [95\% CI] (s)",
+        r"Paired median difference [95\% CI] (s)",
+        "Raw Wilcoxon $p$",
+        "Holm-adjusted $p$",
+        "Paired rank-biserial",
+    ]
+    return _paper_latex_table(headers, rows, "ll" + "r" * 6)
+
+
+def _write_table(frame: pd.DataFrame, csv_path: Path) -> None:
+    frame.to_csv(csv_path, index=False, lineterminator="\n")
 
 
 def run_analysis(
@@ -1223,16 +1380,20 @@ def run_analysis(
     objective = objective_consistency(inputs.results, float(config["tolerance"]))
     details, comparison_summary, statistical = paired_comparisons(inputs.results, ranks, config)
 
-    _write_table(summary, output_dir / "method_summary.csv", output_dir / "method_summary.tex")
+    _write_table(summary, output_dir / "method_summary.csv")
+    (output_dir / "method_summary.tex").write_text(
+        method_summary_latex(summary), encoding="utf-8", newline="\n"
+    )
     _write_table(seed_results, output_dir / "seed_level_results.csv")
     _write_table(ranks, output_dir / "seed_runtime_ranks.csv")
     _write_table(cert, output_dir / "certification_summary.csv")
     _write_table(objective, output_dir / "objective_consistency.csv")
     _write_table(details, output_dir / "paired_runtime_differences.csv")
-    _write_table(
-        comparison_summary,
-        output_dir / "paired_comparison_summary.csv",
-        output_dir / "paired_comparison_summary.tex",
+    _write_table(comparison_summary, output_dir / "paired_comparison_summary.csv")
+    (output_dir / "paired_comparison_summary.tex").write_text(
+        paired_comparison_summary_latex(comparison_summary, config),
+        encoding="utf-8",
+        newline="\n",
     )
     _write_table(statistical, output_dir / "statistical_tests.csv")
 
