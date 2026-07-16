@@ -1,0 +1,42 @@
+experiment_name: final_evaluation_joint_v1
+expected_seeds: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+expected_instance_size: medium_large
+tolerance: 1.0e-4
+
+method_order:
+  - standard_benders
+  - static_inexact_benders
+  - mp_adaptive_rho050
+  - sp_adaptive_rho050
+  - proposed_joint_rho025_050
+
+reference_method: proposed_joint_rho025_050
+
+paper_labels:
+  standard_benders:
+    Chinese: 固定紧精度不精确 Benders
+    English: Tight-tolerance inexact Benders
+  static_inexact_benders:
+    Chinese: 固定不精确 Benders
+    English: Static inexact Benders
+  mp_adaptive_rho050:
+    Chinese: 主问题自适应不精确 Benders
+    English: MP-adaptive inexact Benders
+  sp_adaptive_rho050:
+    Chinese: 子问题自适应不精确 Benders
+    English: SP-adaptive inexact Benders
+  proposed_joint_rho025_050:
+    Chinese: 双层自适应不精确 Benders
+    English: Joint adaptive inexact Benders
+
+comparison_families:
+  primary_confirmatory:
+    - [proposed_joint_rho025_050, standard_benders]
+    - [proposed_joint_rho025_050, static_inexact_benders]
+  secondary_ablation:
+    - [proposed_joint_rho025_050, mp_adaptive_rho050]
+    - [proposed_joint_rho025_050, sp_adaptive_rho050]
+
+bootstrap_seed: 20260716
+bootstrap_resamples: 100000
+confidence_level: 0.95
