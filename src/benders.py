@@ -776,6 +776,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     best_first_stage = None
     best_robust_cost = None
     best_objective = None
+    best_y_values: list[float] | None = None
+    best_x_values: list[list[float]] | None = None
     cuts = 0
     cuts_skipped = 0
     secondary_cuts_added = 0
@@ -1025,6 +1027,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             best_first_stage = first_stage
             best_robust_cost = conservative_target_cost
             best_objective = candidate_upper
+            best_y_values = [float(y_values[i]) for i in instance.I]
+            best_x_values = [
+                [float(x_values[i, j]) for j in instance.J]
+                for i in instance.I
+            ]
 
         lower_bound = max(lower_bound, float(model.ObjBound))
         lower_bound_history.append(lower_bound)
@@ -1575,6 +1582,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "duplicate_cuts_rejected": duplicate_cuts_rejected,
             "duplicate_patterns_rejected": duplicate_patterns_rejected,
             "additional_subproblem_time": additional_subproblem_time,
+            "best_y_values": best_y_values,
+            "best_x_values": best_x_values,
             **scenario_metadata,
         },
         iteration_log=log,

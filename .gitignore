@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+.pytest_cache/
+.pytest_tmp_*/
 .venv/
 data/raw/
 data/processed/
