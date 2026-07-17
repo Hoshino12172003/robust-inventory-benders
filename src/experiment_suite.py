@@ -1616,11 +1616,7 @@ def run_experiment_suite(
         run_cfg = _base_config(config, size_name, seed, alpha=alpha_value)
         if gamma_override is not None:
             run_cfg["robust"]["gamma_target"] = gamma_override
-            run_cfg["robust"]["gamma_schedule"] = (
-                list(range(gamma_override + 1))
-                if bool(config.get("gamma_continuation_enabled", False))
-                else [gamma_override]
-            )
+            run_cfg["robust"]["gamma_schedule"] = list(range(gamma_override + 1))
         instance = generate_instance(run_cfg, seed=seed)
         instance_path = instances_dir / f"{instance.name}.json"
         atomic_write_json(instance_path, instance.to_dict())

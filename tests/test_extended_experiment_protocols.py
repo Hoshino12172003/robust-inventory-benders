@@ -143,4 +143,8 @@ def test_static_protocol_audit_passes_and_frozen_files_are_unchanged() -> None:
     by_name = {check["check"]: check for check in report["checks"]}
     assert by_name["selected_algorithm_parameters_unchanged"]["passed"] is True
     assert by_name["final_evaluation_config_unchanged"]["passed"] is True
-
+    assert by_name["large_size_definition_8_8_12"]["passed"] is True
+    assert by_name["large_static_inexact_gaps_002_002"]["passed"] is True
+    assert by_name["large_common_settings"]["passed"] is True
+    assert by_name["managerial_common_settings"]["passed"] is True
+    assert by_name["managerial_protocol_document_matches_levels"]["passed"] is True

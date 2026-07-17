@@ -163,8 +163,27 @@ def test_suite_resume_skips_success_reruns_failure_and_overwrite_forces_run(
     record["result"]["status"] = "failed"
     atomic_write_json(record_path, record)
 
+    first_stage = record["result"]
+    assert first_stage["best_y_values"] == [1.0, 0.0]
+    assert first_stage["best_x_values"] == [[1.0, 2.0], [0.0, 0.0]]
+    json.dumps(first_stage["best_y_values"])
+    json.dumps(first_stage["best_x_values"])
+
     suite.run_experiment_suite(config, resume=True)
     assert calls["count"] == 2
     suite.run_experiment_suite(config, overwrite=True)
     assert calls["count"] == 3
 
+
+def test_atomic_json_write_replaces_complete_file_without_leaving_temp(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "run.json"
+    atomic_write_json(target, {"version": 1, "payload": "old"})
+    atomic_write_json(target, {"version": 2, "payload": "new"})
+
+    assert json.loads(target.read_text(encoding="utf-8")) == {
+        "payload": "new",
+        "version": 2,
+    }
+    assert not target.with_name(f".{target.name}.tmp").exists()

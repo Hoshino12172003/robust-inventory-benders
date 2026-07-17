@@ -8,9 +8,12 @@ from typing import Any
 from .config import load_config
 from .experiment_protocol import atomic_write_json, file_sha256, git_commit, utc_now_iso
 from .experiment_suite import (
+    INSTANCE_SIZES,
     SELECTED_ALGORITHM_FIELDS,
     SELECTED_EXPERIMENT_FIELDS,
     _apply_selected_parameters,
+    _apply_variant_config,
+    _base_config,
     experiment_run_specs,
 )
 from .managerial_sensitivity_suite import managerial_run_config, managerial_run_specs
@@ -100,12 +103,23 @@ def audit_protocols(repo_root: str | Path | None = None) -> dict[str, Any]:
     ]
     managerial_match = not managerial_mismatches
 
+    _solver_method, _flags, static_large = _apply_variant_config(
+        _base_config(large, "large", seed=20),
+        "static_inexact_benders",
+        large_raw.get("variant_settings", {}).get("static_inexact_benders", {}),
+    )
+    managerial_document = (
+        root / "docs/managerial_sensitivity_protocol.md"
+    ).read_text(encoding="utf-8")
+
     common_large_checks = {
         "subproblem_mode": "robust_dual_milp",
         "gamma_continuation_enabled": False,
         "cut_selection_enabled": False,
         "adaptive_secondary_cut_selection_enabled": False,
         "adaptive_secondary_generation_enabled": False,
+        "adaptive_subproblem_gap_enabled": False,
+        "adaptive_gap_enabled": False,
         "max_cuts_per_iteration": 1,
     }
     common_managerial_checks = dict(common_large_checks)
@@ -156,6 +170,17 @@ def audit_protocols(repo_root: str | Path | None = None) -> dict[str, Any]:
             "managerial_instance_size",
             managerial_raw.get("instance_sizes") == ["medium_large"],
             managerial_raw.get("instance_sizes"),
+        ),
+        _check(
+            "large_size_definition_8_8_12",
+            INSTANCE_SIZES.get("large")
+            == {"num_warehouses": 8, "num_products": 8, "num_regions": 12},
+            INSTANCE_SIZES.get("large"),
+        ),
+        _check(
+            "large_static_inexact_gaps_002_002",
+            static_large["algorithm"]["fixed_master_mip_gap"] == 0.02
+            and static_large["algorithm"]["fixed_subproblem_mip_gap"] == 0.02,
         ),
         _check(
             "large_common_settings",
@@ -224,6 +249,18 @@ def audit_protocols(repo_root: str | Path | None = None) -> dict[str, Any]:
                 "capacity_factor": 1.25,
             },
             managerial_raw.get("baseline"),
+        ),
+        _check(
+            "managerial_protocol_document_matches_levels",
+            all(
+                expected in managerial_document
+                for expected in (
+                    "| `gamma_target` | 0, 1, 2, 3, 4 | 50 |",
+                    "| `service_level` | 0.82, 0.86, 0.90, 0.94 | 40 |",
+                    "| `budget_factor` | 0.55, 0.62, 0.68, 0.75, 0.82 | 50 |",
+                    "| `capacity_factor` | 1.05, 1.15, 1.25, 1.35, 1.45 | 50 |",
+                )
+            ),
         ),
         _check(
             "large_runtime_protocol",

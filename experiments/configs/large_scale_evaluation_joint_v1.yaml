@@ -51,4 +51,3 @@ parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters
 protocol_frozen: true
 protocol_version: 1
 protocol_purpose: out_of_sample_large_scale_evaluation
-

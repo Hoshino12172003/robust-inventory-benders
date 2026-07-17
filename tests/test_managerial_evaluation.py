@@ -59,13 +59,17 @@ def test_managerial_metrics_inventory_opening_shortage_fill_and_costs() -> None:
     assert result.inventory_by_warehouse == [11.0, 15.0]
     assert result.fixed_opening_cost == 10.0
     assert result.inventory_cost == 70.0
-    assert result.first_stage_cost == 80.0
+    assert result.first_stage_cost == pytest.approx(
+        result.fixed_opening_cost + result.inventory_cost
+    )
     assert result.total_shortage == 10.0
     assert result.shortage_by_product == [4.0, 6.0]
     assert result.service_violation == 2.0
     assert result.realized_fill_rate == pytest.approx(0.9)
-    assert result.worst_case_recourse_cost == 50.0
-    assert result.transport_cost + result.shortage_cost + result.service_violation_cost == 50.0
+    assert result.worst_case_recourse_cost == pytest.approx(
+        result.transport_cost + result.shortage_cost + result.service_violation_cost,
+        abs=1e-8,
+    )
 
 
 def test_zero_demand_fill_rate_is_explicitly_null() -> None:

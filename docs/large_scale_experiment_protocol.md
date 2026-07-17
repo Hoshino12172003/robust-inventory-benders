@@ -118,4 +118,3 @@ Static audit:
 ```bash
 python -m src.extended_experiment_audit --output protocol_audit.json
 ```
-
