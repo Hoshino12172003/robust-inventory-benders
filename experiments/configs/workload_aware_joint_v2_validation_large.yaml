@@ -1,0 +1,52 @@
+experiment_name: workload_aware_joint_v2_validation_large
+output_dir: experiments/results_workload_v2/validation_large
+random_seeds: [45, 46, 47, 48, 49, 50, 51, 52, 53, 54]
+instance_sizes: [large]
+variants:
+  - mp_adaptive_rho050
+  - proposed_joint_rho025_050
+  - proposed_workload_aware_joint_v2
+variant_settings:
+  mp_adaptive_rho050:
+    precision_policy: joint_error_budget
+    adaptive_master_precision_enabled: true
+    fixed_master_mip_gap: 0.02
+    master_error_budget_ratio: 0.50
+    adaptive_subproblem_precision_enabled: false
+    fixed_subproblem_mip_gap: 0.0001
+    final_certification_enabled: true
+  proposed_joint_rho025_050: {}
+  proposed_workload_aware_joint_v2:
+    precision_policy: workload_aware_joint
+    adaptive_master_precision_enabled: true
+    adaptive_subproblem_precision_enabled: true
+    final_certification_enabled: true
+time_limit: 1800
+max_iterations: 20000
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [2]
+gamma_continuation_enabled: false
+subproblem_mode: robust_dual_milp
+save_iteration_log: true
+max_cuts_per_iteration: 1
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+final_certification_no_cut_patience: 2
+max_scenarios: 5000
+exact_scenarios: true
+workload_ema_decay: 0.80
+workload_total_error_budget_ratio: 0.75
+workload_master_weight_min: 0.3333333333333333
+workload_master_weight_max: 0.6666666666666666
+workload_time_epsilon: 1.0e-9
+workload_initial_master_weight: 0.3333333333333333
+workload_initial_subproblem_weight: 0.6666666666666666
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml
+protocol_phase: validation
+v2_parameters_frozen: true

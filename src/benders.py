@@ -13,10 +13,15 @@ from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState,
 from .precision_policy import (
     PrecisionPolicyConfig,
     PrecisionPolicyDecision,
+    WorkloadAwarePrecisionConfig,
     initialize_precision_state,
+    initialize_workload_aware_state,
     precision_policy_config,
     select_joint_error_budget_precision,
+    select_workload_aware_precision,
+    update_workload_time_ema,
     valid_global_gap_for_precision,
+    workload_aware_precision_config,
 )
 from .results import SolveResult
 from .robust_dual_subproblem import RobustDualSubproblemResult, solve_robust_dual_subproblem
@@ -54,6 +59,7 @@ class BendersSettings:
     final_certification_enabled: bool
     final_certification_no_cut_patience: int
     precision_config: PrecisionPolicyConfig
+    workload_precision_config: WorkloadAwarePrecisionConfig | None
     adaptive_subproblem_gap_enabled: bool
     subproblem_gap_schedule: list[dict[str, float]]
     max_cuts_per_iteration: int
@@ -135,6 +141,11 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         fixed_subproblem_gap=float(benders_cfg.get("final_mip_gap", 1e-4)),
         legacy_subproblem_gaps=[item["mip_gap"] for item in subproblem_schedule],
     )
+    workload_precision_config = (
+        workload_aware_precision_config(algorithm_cfg)
+        if precision_config.precision_policy == "workload_aware_joint"
+        else None
+    )
     return BendersSettings(
         method=method,
         gamma_target=gamma_target,
@@ -203,6 +214,7 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
             1, int(algorithm_cfg.get("final_certification_no_cut_patience", 2))
         ),
         precision_config=precision_config,
+        workload_precision_config=workload_precision_config,
         adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
         subproblem_gap_schedule=subproblem_schedule,
         max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
@@ -805,6 +817,10 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     gap_policy = _make_gap_policy(settings)
     certification_state = FinalCertificationState()
     precision_state = initialize_precision_state(settings.precision_config)
+    workload_state = initialize_workload_aware_state(settings.precision_config)
+    workload_master_weights: list[float] = []
+    workload_subproblem_weights: list[float] = []
+    workload_fallback_count = 0
 
     for iteration in range(settings.max_iterations):
         remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
@@ -832,7 +848,21 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             if settings.adaptive_subproblem_gap_enabled
             else settings.precision_config.fixed_subproblem_gap
         )
-        if settings.precision_config.precision_policy == "joint_error_budget":
+        workload_decision = None
+        if settings.precision_config.precision_policy == "workload_aware_joint":
+            if settings.workload_precision_config is None:
+                raise RuntimeError("Workload-aware precision config is unavailable")
+            workload_decision = select_workload_aware_precision(
+                settings.precision_config,
+                settings.workload_precision_config,
+                workload_state,
+                upper_bound=(None if upper_bound == float("inf") else upper_bound),
+                lower_bound=(None if lower_bound == -float("inf") else lower_bound),
+                update_state=not certification_active,
+            )
+            workload_state = workload_decision.next_state
+            precision_decision = workload_decision.precision_decision
+        elif settings.precision_config.precision_policy == "joint_error_budget":
             precision_decision = select_joint_error_budget_precision(
                 settings.precision_config,
                 precision_state,
@@ -1013,6 +1043,24 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             iteration_additional_subproblem_time = 0.0
         iteration_subproblem_time = active_sub_time + target_sub_time + iteration_additional_subproblem_time
         subproblem_runtime += iteration_subproblem_time
+
+        if workload_decision is not None and not certification_active:
+            if settings.workload_precision_config is None:
+                raise RuntimeError("Workload-aware precision config is unavailable")
+            workload_master_weights.append(
+                workload_decision.master_weight_selected
+            )
+            workload_subproblem_weights.append(
+                workload_decision.subproblem_weight_selected
+            )
+            if workload_decision.fallback_used:
+                workload_fallback_count += 1
+            workload_state = update_workload_time_ema(
+                settings.workload_precision_config,
+                workload_state,
+                master_time=master_elapsed,
+                subproblem_time=iteration_subproblem_time,
+            )
 
         conservative_target_cost, valid_ub, ub_uses_subproblem_bound = target_upper_cost(
             settings.subproblem_mode,
@@ -1289,6 +1337,66 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "monotone_precision_tightening": (
                     settings.precision_config.monotone_precision_tightening
                 ),
+                "workload_policy_active": (
+                    workload_decision is not None and not certification_active
+                ),
+                "workload_ema_decay": (
+                    settings.workload_precision_config.ema_decay
+                    if workload_decision is not None
+                    and settings.workload_precision_config is not None
+                    else None
+                ),
+                "workload_master_time_ema": (
+                    workload_decision.master_time_ema
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_subproblem_time_ema": (
+                    workload_decision.subproblem_time_ema
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_master_share_raw": (
+                    workload_decision.master_share_raw
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_master_weight_selected": (
+                    workload_decision.master_weight_selected
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_subproblem_weight_selected": (
+                    workload_decision.subproblem_weight_selected
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_master_ratio_selected": (
+                    workload_decision.master_ratio_selected
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_subproblem_ratio_selected": (
+                    workload_decision.subproblem_ratio_selected
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
+                "workload_total_error_budget_ratio": (
+                    settings.workload_precision_config.total_error_budget_ratio
+                    if workload_decision is not None
+                    and settings.workload_precision_config is not None
+                    else None
+                ),
+                "workload_fallback_used": (
+                    workload_decision.fallback_used
+                    if workload_decision is not None and not certification_active
+                    else False
+                ),
+                "workload_fallback_reason": (
+                    workload_decision.fallback_reason
+                    if workload_decision is not None and not certification_active
+                    else None
+                ),
                 "realized_master_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "achieved_master_mip_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "master_status": int(model.Status),
@@ -1530,6 +1638,41 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "monotone_precision_tightening": (
                 settings.precision_config.monotone_precision_tightening
             ),
+            "workload_aware_policy_enabled": (
+                settings.precision_config.precision_policy
+                == "workload_aware_joint"
+            ),
+            "workload_final_master_time_ema": (
+                workload_state.master_time_ema
+                if settings.precision_config.precision_policy
+                == "workload_aware_joint"
+                else None
+            ),
+            "workload_final_subproblem_time_ema": (
+                workload_state.subproblem_time_ema
+                if settings.precision_config.precision_policy
+                == "workload_aware_joint"
+                else None
+            ),
+            "workload_final_master_weight": (
+                workload_master_weights[-1] if workload_master_weights else None
+            ),
+            "workload_final_subproblem_weight": (
+                workload_subproblem_weights[-1]
+                if workload_subproblem_weights
+                else None
+            ),
+            "workload_mean_master_weight": (
+                sum(workload_master_weights) / len(workload_master_weights)
+                if workload_master_weights
+                else None
+            ),
+            "workload_mean_subproblem_weight": (
+                sum(workload_subproblem_weights) / len(workload_subproblem_weights)
+                if workload_subproblem_weights
+                else None
+            ),
+            "workload_fallback_count": workload_fallback_count,
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
             "secondary_cuts_added_total": secondary_cuts_added,
