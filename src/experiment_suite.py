@@ -89,6 +89,15 @@ SELECTED_EXPERIMENT_FIELDS = (
     "gamma_schedule",
 )
 SELECTED_PARAMETER_FIELDS = SELECTED_ALGORITHM_FIELDS + SELECTED_EXPERIMENT_FIELDS
+WORKLOAD_AWARE_CONFIG_FIELDS = (
+    "workload_ema_decay",
+    "workload_total_error_budget_ratio",
+    "workload_master_weight_min",
+    "workload_master_weight_max",
+    "workload_time_epsilon",
+    "workload_initial_master_weight",
+    "workload_initial_subproblem_weight",
+)
 NULLABLE_SELECTED_ALGORITHM_FIELDS = {
     "secondary_cut_warmup_cuts",
     "secondary_cut_master_time_share_trigger",
@@ -171,6 +180,14 @@ RESULT_FIELDS = [
     "master_error_budget_ratio",
     "subproblem_error_budget_ratio",
     "monotone_precision_tightening",
+    "workload_aware_policy_enabled",
+    "workload_final_master_time_ema",
+    "workload_final_subproblem_time_ema",
+    "workload_final_master_weight",
+    "workload_final_subproblem_weight",
+    "workload_mean_master_weight",
+    "workload_mean_subproblem_weight",
+    "workload_fallback_count",
     "secondary_solves_attempted_total",
     "secondary_solves_avoided_total",
     "last_secondary_solve_trigger_reason",
@@ -344,6 +361,18 @@ ITERATION_LOG_FIELDS = [
     "master_error_budget_ratio",
     "subproblem_error_budget_ratio",
     "monotone_precision_tightening",
+    "workload_policy_active",
+    "workload_ema_decay",
+    "workload_master_time_ema",
+    "workload_subproblem_time_ema",
+    "workload_master_share_raw",
+    "workload_master_weight_selected",
+    "workload_subproblem_weight_selected",
+    "workload_master_ratio_selected",
+    "workload_subproblem_ratio_selected",
+    "workload_total_error_budget_ratio",
+    "workload_fallback_used",
+    "workload_fallback_reason",
     "elapsed_time",
 ]
 
@@ -538,6 +567,27 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "monotone_precision_tightening": bool(
                 exp_cfg.get("monotone_precision_tightening", True)
             ),
+            "workload_ema_decay": float(
+                exp_cfg.get("workload_ema_decay", 0.80)
+            ),
+            "workload_total_error_budget_ratio": float(
+                exp_cfg.get("workload_total_error_budget_ratio", 0.75)
+            ),
+            "workload_master_weight_min": float(
+                exp_cfg.get("workload_master_weight_min", 1.0 / 3.0)
+            ),
+            "workload_master_weight_max": float(
+                exp_cfg.get("workload_master_weight_max", 2.0 / 3.0)
+            ),
+            "workload_time_epsilon": float(
+                exp_cfg.get("workload_time_epsilon", 1.0e-9)
+            ),
+            "workload_initial_master_weight": float(
+                exp_cfg.get("workload_initial_master_weight", 1.0 / 3.0)
+            ),
+            "workload_initial_subproblem_weight": float(
+                exp_cfg.get("workload_initial_subproblem_weight", 2.0 / 3.0)
+            ),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -618,6 +668,7 @@ def _apply_variant_config(
         "master_error_budget_ratio",
         "subproblem_error_budget_ratio",
         "monotone_precision_tightening",
+        *WORKLOAD_AWARE_CONFIG_FIELDS,
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -943,6 +994,28 @@ def _result_row(
         "monotone_precision_tightening": meta.get(
             "monotone_precision_tightening"
         ),
+        "workload_aware_policy_enabled": meta.get(
+            "workload_aware_policy_enabled", False
+        ),
+        "workload_final_master_time_ema": meta.get(
+            "workload_final_master_time_ema"
+        ),
+        "workload_final_subproblem_time_ema": meta.get(
+            "workload_final_subproblem_time_ema"
+        ),
+        "workload_final_master_weight": meta.get(
+            "workload_final_master_weight"
+        ),
+        "workload_final_subproblem_weight": meta.get(
+            "workload_final_subproblem_weight"
+        ),
+        "workload_mean_master_weight": meta.get(
+            "workload_mean_master_weight"
+        ),
+        "workload_mean_subproblem_weight": meta.get(
+            "workload_mean_subproblem_weight"
+        ),
+        "workload_fallback_count": meta.get("workload_fallback_count", 0),
         "secondary_solves_attempted_total": meta.get("secondary_solves_attempted_total"),
         "secondary_solves_avoided_total": meta.get("secondary_solves_avoided_total"),
         "last_secondary_solve_trigger_reason": meta.get(
@@ -1547,7 +1620,20 @@ def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
     specs = experiment_run_specs(resolved)
     time_limit = float(resolved.get("time_limit", 0.0))
     audit_errors: list[str] = []
-    if resolved.get("experiment_name") in {
+    experiment_name = str(resolved.get("experiment_name", ""))
+    if experiment_name.startswith("workload_aware_joint_v2_"):
+        try:
+            from .workload_aware_v2_audit import audit_workload_aware_v2
+
+            audit = audit_workload_aware_v2()
+            audit_errors = [
+                str(check["check"])
+                for check in audit["checks"]
+                if check.get("required", True) and not check.get("passed", False)
+            ]
+        except Exception as exc:  # noqa: BLE001 - dry-run reports audit failures.
+            audit_errors = [f"audit_execution_failed: {exc}"]
+    elif experiment_name in {
         "large_scale_evaluation_joint_v1",
         "managerial_sensitivity_joint_v1",
     }:
