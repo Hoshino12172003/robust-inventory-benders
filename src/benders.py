@@ -8,6 +8,22 @@ from typing import Any, Callable
 import gurobipy as gp
 from gurobipy import GRB
 
+from .cut_strengthening import (
+    CorePointState,
+    CutStrengtheningConfig,
+    V3SecondaryCutDecision,
+    V3SecondaryPatternMemory,
+    core_point_cut_acceptance,
+    cut_strengthening_config,
+    initialize_core_point_state,
+    normalized_core_improvement,
+    pattern_distance,
+    should_attempt_core_point_strengthening,
+    should_attempt_v3_secondary_cut,
+    update_core_point_state,
+    update_secondary_pattern_memory,
+    v3_secondary_cut_acceptance,
+)
 from .instance import InventoryInstance
 from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState, RLInspiredGapPolicy
 from .precision_policy import (
@@ -19,7 +35,13 @@ from .precision_policy import (
     valid_global_gap_for_precision,
 )
 from .results import SolveResult
-from .robust_dual_subproblem import RobustDualSubproblemResult, solve_robust_dual_subproblem
+from .robust_dual_subproblem import (
+    CorePointStrengtheningSolveResult,
+    RobustDualSubproblemResult,
+    discretize_robust_pattern,
+    solve_core_point_strengthened_dual_cut,
+    solve_robust_dual_subproblem,
+)
 from .scenarios import DemandScenario, ScenarioEnumerationResult, enumerate_budget_scenarios_with_metadata
 from .status import gurobi_status_name
 from .subproblem import SubproblemResult, solve_recourse_subproblem
@@ -54,6 +76,7 @@ class BendersSettings:
     final_certification_enabled: bool
     final_certification_no_cut_patience: int
     precision_config: PrecisionPolicyConfig
+    cut_strengthening_config: CutStrengtheningConfig
     adaptive_subproblem_gap_enabled: bool
     subproblem_gap_schedule: list[dict[str, float]]
     max_cuts_per_iteration: int
@@ -203,6 +226,7 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
             1, int(algorithm_cfg.get("final_certification_no_cut_patience", 2))
         ),
         precision_config=precision_config,
+        cut_strengthening_config=cut_strengthening_config(algorithm_cfg),
         adaptive_subproblem_gap_enabled=bool(algorithm_cfg.get("adaptive_subproblem_gap_enabled", False)),
         subproblem_gap_schedule=subproblem_schedule,
         max_cuts_per_iteration=max(1, int(algorithm_cfg.get("max_cuts_per_iteration", 1))),
@@ -543,6 +567,15 @@ def _pattern_key(cut: RobustDualSubproblemResult) -> tuple[int, ...]:
     return tuple(int(round(cut.z_values[key])) for key in sorted(cut.z_values))
 
 
+def _pattern_dict_from_key(
+    pattern_key: tuple[int, ...],
+    ordered_keys: list[tuple[int, int]],
+) -> dict[tuple[int, int], int]:
+    if len(pattern_key) != len(ordered_keys):
+        raise ValueError("Pattern key length does not match robust pattern dimensions")
+    return {key: int(value) for key, value in zip(ordered_keys, pattern_key)}
+
+
 def _cut_key(cut: SubproblemResult | RobustDualSubproblemResult, digits: int = 8) -> tuple[float, ...]:
     coefficients = tuple(round(cut.x_coefficients[key], digits) for key in sorted(cut.x_coefficients))
     return (round(cut.constant, digits), *coefficients)
@@ -805,6 +838,22 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     gap_policy = _make_gap_policy(settings)
     certification_state = FinalCertificationState()
     precision_state = initialize_precision_state(settings.precision_config)
+    core_point_state = initialize_core_point_state()
+    v3_pattern_memory = V3SecondaryPatternMemory()
+    v3_last_secondary_attempt_iteration: int | None = None
+    core_point_attempt_count = 0
+    core_point_success_count = 0
+    core_point_fallback_count = 0
+    core_point_stage1_total_runtime = 0.0
+    core_point_stage2_total_runtime = 0.0
+    core_point_improvements: list[float] = []
+    v3_secondary_trigger_count = 0
+    v3_secondary_solve_count = 0
+    v3_secondary_incumbent_count = 0
+    v3_secondary_cut_added_count = 0
+    v3_secondary_duplicate_count = 0
+    v3_secondary_total_runtime = 0.0
+    v3_primary_cuts_added = 0
 
     for iteration in range(settings.max_iterations):
         remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
@@ -896,6 +945,41 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             0,
         )
         generation_subproblem_time_share = 0.0
+        core_point_available = core_point_state.core_x is not None
+        core_point_observations_before = core_point_state.observations
+        core_point_distance_value: float | None = None
+        core_point_attempted = False
+        core_point_skipped_reason: str | None = "component_disabled"
+        core_point_stage1_status: str | None = None
+        core_point_stage1_runtime = 0.0
+        core_point_stage1_objective: float | None = None
+        core_point_stage2_status: str | None = None
+        core_point_stage2_runtime = 0.0
+        core_point_current_value_floor: float | None = None
+        core_point_dual_feasible = False
+        core_point_original_value_at_current: float | None = None
+        core_point_strengthened_value_at_current: float | None = None
+        core_point_original_value_at_core: float | None = None
+        core_point_strengthened_value_at_core: float | None = None
+        core_point_normalized_improvement: float | None = None
+        core_point_cut_accepted = False
+        core_point_cut_fallback_reason: str | None = None
+        core_point_auxiliary_bound_used_for_ub = False
+        v3_secondary_decision = V3SecondaryCutDecision(
+            False,
+            None,
+            "component_disabled",
+            None,
+            0,
+            None,
+        )
+        v3_secondary_cut: RobustDualSubproblemResult | None = None
+        v3_secondary_runtime = 0.0
+        v3_secondary_pattern_distance: int | None = None
+        v3_secondary_cut_violation: float | None = None
+        v3_secondary_cut_added = False
+        v3_secondary_cut_skip_reason: str | None = None
+        v3_secondary_bound_used_for_ub = False
 
         if settings.subproblem_mode == "scenario_enumeration":
             if target_enum is None:
@@ -951,50 +1035,280 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             generation_subproblem_time_share = (
                 projected_subproblem_time / elapsed_before_secondary
             )
-            secondary_generation = secondary_generation_decision(
-                enabled=settings.adaptive_secondary_generation_enabled,
-                max_cuts_per_iteration=settings.max_cuts_per_iteration,
-                primary_has_incumbent=active_cut.has_incumbent,
-                lower_bound_history=lower_bound_history,
-                rolling_window=settings.secondary_generation_lb_window,
-                stall_threshold=settings.secondary_generation_stall_threshold,
-                current_iteration=iteration + 1,
-                last_secondary_solve_iteration=last_secondary_solve_iteration,
-                cooldown_iterations=settings.secondary_generation_cooldown_iterations,
-                cumulative_subproblem_time_share=generation_subproblem_time_share,
-                max_subproblem_time_share=(
-                    settings.secondary_generation_max_subproblem_time_share
-                ),
-                remaining_time=global_remaining,
-                available_budget=additional_budget,
-                min_remaining_time=settings.secondary_generation_min_remaining_time,
-                min_solve_budget=settings.secondary_generation_min_solve_budget,
-                certification_active=certification_active,
-            )
-            if secondary_generation.attempt:
-                secondary_solves_attempted += 1
-                last_secondary_solve_iteration = iteration + 1
-            elif settings.max_cuts_per_iteration > 1:
-                secondary_solves_avoided += 1
-            additional_batch = generate_gated_additional_robust_cuts(
-                secondary_generation,
-                active_cut,
-                settings.max_cuts_per_iteration,
-                additional_budget,
-                lambda excluded, extra_remaining: solve_robust_dual(
-                    active_gamma,
+            if settings.cut_strengthening_config.policy == "none":
+                secondary_generation = secondary_generation_decision(
+                    enabled=settings.adaptive_secondary_generation_enabled,
+                    max_cuts_per_iteration=settings.max_cuts_per_iteration,
+                    primary_has_incumbent=active_cut.has_incumbent,
+                    lower_bound_history=lower_bound_history,
+                    rolling_window=settings.secondary_generation_lb_window,
+                    stall_threshold=settings.secondary_generation_stall_threshold,
+                    current_iteration=iteration + 1,
+                    last_secondary_solve_iteration=last_secondary_solve_iteration,
+                    cooldown_iterations=settings.secondary_generation_cooldown_iterations,
+                    cumulative_subproblem_time_share=generation_subproblem_time_share,
+                    max_subproblem_time_share=(
+                        settings.secondary_generation_max_subproblem_time_share
+                    ),
+                    remaining_time=global_remaining,
+                    available_budget=additional_budget,
+                    min_remaining_time=settings.secondary_generation_min_remaining_time,
+                    min_solve_budget=settings.secondary_generation_min_solve_budget,
+                    certification_active=certification_active,
+                )
+                if secondary_generation.attempt:
+                    secondary_solves_attempted += 1
+                    last_secondary_solve_iteration = iteration + 1
+                elif settings.max_cuts_per_iteration > 1:
+                    secondary_solves_avoided += 1
+                additional_batch = generate_gated_additional_robust_cuts(
+                    secondary_generation,
+                    active_cut,
+                    settings.max_cuts_per_iteration,
+                    additional_budget,
+                    lambda excluded, extra_remaining: solve_robust_dual(
+                        active_gamma,
+                        x_values,
+                        extra_remaining,
+                        requested_subproblem_gap,
+                        excluded_patterns=excluded,
+                    ),
+                )
+                iteration_additional_subproblem_time = additional_batch.runtime
+                additional_subproblem_time += iteration_additional_subproblem_time
+                subproblem_nonoptimal += additional_batch.nonoptimal_count
+                subproblem_without_incumbent += additional_batch.without_incumbent_count
+                duplicate_patterns_rejected += additional_batch.duplicate_patterns_rejected
+                active_candidates.extend(additional_batch.cuts)
+            else:
+                original_primary_cut = active_cut
+                original_primary_rhs = (
+                    original_primary_cut.cut_value(x_values)
+                    if original_primary_cut.has_incumbent
+                    else float(theta.X)
+                )
+                original_primary_absolute_violation = calculate_cut_violations(
+                    original_primary_rhs,
+                    float(theta.X),
+                )[0]
+                remaining_for_core = max(
+                    0.0,
+                    settings.time_limit - (time.perf_counter() - start),
+                )
+                core_attempt = should_attempt_core_point_strengthening(
+                    settings.cut_strengthening_config,
+                    core_point_state,
                     x_values,
-                    extra_remaining,
-                    requested_subproblem_gap,
-                    excluded_patterns=excluded,
-                ),
-            )
-            iteration_additional_subproblem_time = additional_batch.runtime
-            additional_subproblem_time += iteration_additional_subproblem_time
-            subproblem_nonoptimal += additional_batch.nonoptimal_count
-            subproblem_without_incumbent += additional_batch.without_incumbent_count
-            duplicate_patterns_rejected += additional_batch.duplicate_patterns_rejected
-            active_candidates.extend(additional_batch.cuts)
+                    subproblem_mode=settings.subproblem_mode,
+                    primary_has_incumbent=original_primary_cut.has_incumbent,
+                    primary_absolute_violation=original_primary_absolute_violation,
+                    primary_violation_tolerance=settings.cut_violation_tol,
+                    global_gap=current_gap,
+                    remaining_time=remaining_for_core,
+                    certification_active=certification_active,
+                )
+                core_point_distance_value = core_attempt.distance
+                core_point_skipped_reason = core_attempt.skipped_reason
+                if core_attempt.attempt:
+                    if core_point_state.core_x is None:
+                        raise RuntimeError("Core-point attempt lacks a saved core point")
+                    core_point_attempted = True
+                    core_point_attempt_count += 1
+                    core_result = solve_core_point_strengthened_dual_cut(
+                        instance,
+                        x_values,
+                        core_point_state.core_x,
+                        original_primary_cut,
+                        stage1_time_limit=(
+                            settings.cut_strengthening_config.core_point_stage1_time_limit
+                        ),
+                        stage2_time_limit=(
+                            settings.cut_strengthening_config.core_point_stage2_time_limit
+                        ),
+                        remaining_global_time=remaining_for_core,
+                        current_abs_tol=(
+                            settings.cut_strengthening_config.core_point_current_abs_tol
+                        ),
+                        current_rel_tol=(
+                            settings.cut_strengthening_config.core_point_current_rel_tol
+                        ),
+                        output_flag=settings.output_flag,
+                    )
+                    core_point_stage1_status = core_result.stage1_status
+                    core_point_stage1_runtime = core_result.stage1_runtime
+                    core_point_stage1_objective = core_result.stage1_objective
+                    core_point_stage2_status = core_result.stage2_status
+                    core_point_stage2_runtime = core_result.stage2_runtime
+                    core_point_current_value_floor = core_result.current_value_floor
+                    core_point_dual_feasible = core_result.dual_feasible
+                    core_point_original_value_at_current = (
+                        core_result.original_value_at_current
+                    )
+                    core_point_strengthened_value_at_current = (
+                        core_result.strengthened_value_at_current
+                    )
+                    core_point_original_value_at_core = core_result.original_value_at_core
+                    core_point_strengthened_value_at_core = (
+                        core_result.strengthened_value_at_core
+                    )
+                    core_point_auxiliary_bound_used_for_ub = (
+                        core_result.auxiliary_bound_used_for_ub
+                    )
+                    core_point_stage1_total_runtime += core_result.stage1_runtime
+                    core_point_stage2_total_runtime += core_result.stage2_runtime
+                    current_tolerance = (
+                        settings.cut_strengthening_config.core_point_current_abs_tol
+                        + settings.cut_strengthening_config.core_point_current_rel_tol
+                        * max(1.0, abs(core_result.stage1_objective or 0.0))
+                    )
+                    strengthened_duplicate = bool(
+                        core_result.strengthened_cut is not None
+                        and _cut_key(core_result.strengthened_cut) in known_cut_keys
+                    )
+                    acceptance = core_point_cut_acceptance(
+                        stage1_optimal=core_result.stage1_status == "optimal",
+                        stage2_optimal=core_result.stage2_status == "optimal",
+                        dual_feasible=core_result.dual_feasible,
+                        strengthened_value_at_current=(
+                            core_result.strengthened_value_at_current
+                        ),
+                        current_value_floor=core_result.current_value_floor,
+                        original_value_at_current=core_result.original_value_at_current,
+                        strengthened_value_at_core=core_result.strengthened_value_at_core,
+                        original_value_at_core=core_result.original_value_at_core,
+                        current_tolerance=current_tolerance,
+                        minimum_normalized_improvement=(
+                            settings.cut_strengthening_config
+                            .core_point_min_normalized_improvement
+                        ),
+                        duplicate=strengthened_duplicate,
+                        original_primary_violated=(
+                            original_primary_absolute_violation
+                            > settings.cut_violation_tol
+                        ),
+                        certification_active=certification_active,
+                    )
+                    core_point_normalized_improvement = (
+                        acceptance.normalized_improvement
+                    )
+                    core_point_cut_accepted = acceptance.accepted
+                    core_point_cut_fallback_reason = (
+                        acceptance.fallback_reason or core_result.failure_reason
+                    )
+                    if acceptance.accepted:
+                        if core_result.strengthened_cut is None:
+                            raise RuntimeError("Accepted strengthening has no cut")
+                        active_candidates = [core_result.strengthened_cut]
+                        core_point_success_count += 1
+                        if acceptance.normalized_improvement is not None:
+                            core_point_improvements.append(
+                                acceptance.normalized_improvement
+                            )
+                    else:
+                        core_point_fallback_count += 1
+
+                primary_pattern = discretize_robust_pattern(
+                    instance,
+                    original_primary_cut.z_values,
+                )
+                elapsed_for_v3 = max(1.0e-12, time.perf_counter() - start)
+                remaining_for_v3 = max(
+                    0.0,
+                    settings.time_limit - elapsed_for_v3,
+                )
+                v3_secondary_decision = should_attempt_v3_secondary_cut(
+                    settings.cut_strengthening_config,
+                    subproblem_mode=settings.subproblem_mode,
+                    active_gamma=active_gamma,
+                    target_gamma=settings.gamma_target,
+                    certification_active=certification_active,
+                    primary_has_incumbent=original_primary_cut.has_incumbent,
+                    primary_pattern_valid=primary_pattern is not None,
+                    global_gap=current_gap,
+                    lower_bound_history=lower_bound_history,
+                    current_iteration=iteration + 1,
+                    last_attempt_iteration=v3_last_secondary_attempt_iteration,
+                    remaining_time=remaining_for_v3,
+                    extra_runtime=v3_secondary_total_runtime,
+                    elapsed_time=elapsed_for_v3,
+                )
+                if v3_secondary_decision.attempt:
+                    if primary_pattern is None or v3_secondary_decision.time_limit is None:
+                        raise RuntimeError("V3 secondary attempt lacks a valid pattern or limit")
+                    v3_secondary_trigger_count += 1
+                    v3_secondary_solve_count += 1
+                    v3_last_secondary_attempt_iteration = iteration + 1
+                    ordered_keys = sorted(primary_pattern)
+                    primary_pattern_key = tuple(primary_pattern[key] for key in ordered_keys)
+                    excluded_patterns = [primary_pattern]
+                    excluded_patterns.extend(
+                        _pattern_dict_from_key(pattern, ordered_keys)
+                        for pattern in v3_pattern_memory.patterns
+                    )
+                    v3_secondary_cut = solve_robust_dual(
+                        active_gamma,
+                        x_values,
+                        v3_secondary_decision.time_limit,
+                        requested_subproblem_gap,
+                        excluded_patterns=excluded_patterns,
+                    )
+                    v3_secondary_runtime = v3_secondary_cut.runtime
+                    v3_secondary_total_runtime += v3_secondary_runtime
+                    additional_subproblem_time += v3_secondary_runtime
+                    if v3_secondary_cut.status != "optimal":
+                        subproblem_nonoptimal += 1
+                    if not v3_secondary_cut.has_incumbent:
+                        subproblem_without_incumbent += 1
+                    if v3_secondary_cut.has_incumbent:
+                        v3_secondary_incumbent_count += 1
+                        secondary_pattern = discretize_robust_pattern(
+                            instance,
+                            v3_secondary_cut.z_values,
+                        )
+                        if secondary_pattern is None:
+                            v3_secondary_cut_skip_reason = "invalid_secondary_pattern"
+                        else:
+                            secondary_key = tuple(
+                                secondary_pattern[key] for key in ordered_keys
+                            )
+                            v3_secondary_pattern_distance = pattern_distance(
+                                primary_pattern_key,
+                                secondary_key,
+                            )
+                            pattern_was_in_memory = secondary_key in v3_pattern_memory.patterns
+                            if v3_secondary_pattern_distance > 0 and not pattern_was_in_memory:
+                                v3_pattern_memory = update_secondary_pattern_memory(
+                                    v3_pattern_memory,
+                                    secondary_key,
+                                    settings.cut_strengthening_config
+                                    .v3_secondary_pattern_memory,
+                                )
+                            v3_secondary_cut_violation = calculate_cut_violations(
+                                v3_secondary_cut.cut_value(x_values),
+                                float(theta.X),
+                            )[0]
+                            secondary_cut_key = _cut_key(v3_secondary_cut)
+                            secondary_acceptance = v3_secondary_cut_acceptance(
+                                has_incumbent=True,
+                                pattern_differs_from_primary=(
+                                    v3_secondary_pattern_distance > 0
+                                ),
+                                pattern_in_memory=pattern_was_in_memory,
+                                duplicate_cut=(
+                                    secondary_cut_key in known_cut_keys
+                                    or secondary_cut_key == _cut_key(active_candidates[0])
+                                ),
+                                absolute_violation=v3_secondary_cut_violation,
+                                violation_tolerance=settings.cut_violation_tol,
+                                certification_active=certification_active,
+                                already_added_this_iteration=False,
+                            )
+                            v3_secondary_cut_skip_reason = secondary_acceptance.skip_reason
+                            if secondary_acceptance.accepted:
+                                active_candidates.append(v3_secondary_cut)
+                    else:
+                        v3_secondary_cut_skip_reason = "no_incumbent"
+                iteration_additional_subproblem_time = v3_secondary_runtime
             active_scenario_name = "robust_dual_milp"
             target_scenario_name = "robust_dual_milp"
             active_scenario_mode = "not_applicable"
@@ -1098,6 +1412,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     skip_reason = "duplicate_cut"
                 elif absolute_violation <= settings.cut_violation_tol:
                     skip_reason = "not_violated"
+                elif settings.cut_strengthening_config.policy != "none":
+                    # V3's differentiated cut is accepted solely by validity,
+                    # novelty, and absolute violation; legacy relative cut
+                    # selection is intentionally outside the V3 mechanism.
+                    add_cut = True
                 elif final_exact_phase:
                     add_cut = True
                     add_reason = "final_exact_phase"
@@ -1227,6 +1546,32 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 if decision["cut_role"] == "secondary"
             )
         )
+        if settings.cut_strengthening_config.policy != "none" and cut_added:
+            v3_primary_cuts_added += 1
+        if v3_secondary_cut is not None and v3_secondary_cut.has_incumbent:
+            v3_cut_decision = next(
+                (
+                    decision
+                    for decision in cut_decisions
+                    if decision["cut_role"] == "secondary"
+                    and decision["cut"] is v3_secondary_cut
+                ),
+                None,
+            )
+            if v3_cut_decision is not None:
+                v3_secondary_cut_violation = v3_cut_decision["absolute_violation"]
+                v3_secondary_cut_added = bool(v3_cut_decision["add"])
+                v3_secondary_cut_skip_reason = v3_cut_decision["skip_reason"]
+                if v3_secondary_cut_added:
+                    v3_secondary_cut_added_count += 1
+                if v3_cut_decision["skip_reason"] == "duplicate_cut":
+                    v3_secondary_duplicate_count += 1
+            elif v3_secondary_cut_skip_reason in {
+                "same_as_primary_pattern",
+                "pattern_in_memory",
+                "duplicate_cut",
+            }:
+                v3_secondary_duplicate_count += 1
         forced_cut_added = any(decision["add_reason"] is not None for decision in cut_decisions)
         forced_cut_reason = next(
             (decision["add_reason"] for decision in cut_decisions if decision["add_reason"] is not None),
@@ -1245,6 +1590,13 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             no_cut_patience=settings.final_certification_no_cut_patience,
         )
         certification_state = certification_transition.state
+        if settings.cut_strengthening_config.core_point_enabled:
+            core_point_state = update_core_point_state(
+                core_point_state,
+                x_values,
+                settings.cut_strengthening_config.core_point_update_weight,
+                update_state=not certification_active,
+            )
         lb_improvement = (
             None if previous_lower_bound == -float("inf") else max(0.0, lower_bound - previous_lower_bound)
         )
@@ -1289,6 +1641,84 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "monotone_precision_tightening": (
                     settings.precision_config.monotone_precision_tightening
                 ),
+                "cut_strengthening_policy": (
+                    settings.cut_strengthening_config.policy
+                ),
+                "core_point_available": core_point_available,
+                "core_point_observations": core_point_observations_before,
+                "core_point_distance": core_point_distance_value,
+                "core_point_attempted": core_point_attempted,
+                "core_point_skipped_reason": core_point_skipped_reason,
+                "core_point_stage1_status": core_point_stage1_status,
+                "core_point_stage1_runtime": core_point_stage1_runtime,
+                "core_point_stage1_objective": core_point_stage1_objective,
+                "core_point_stage2_status": core_point_stage2_status,
+                "core_point_stage2_runtime": core_point_stage2_runtime,
+                "core_point_current_value_floor": core_point_current_value_floor,
+                "core_point_dual_feasible": core_point_dual_feasible,
+                "core_point_original_value_at_current": (
+                    core_point_original_value_at_current
+                ),
+                "core_point_strengthened_value_at_current": (
+                    core_point_strengthened_value_at_current
+                ),
+                "core_point_original_value_at_core": (
+                    core_point_original_value_at_core
+                ),
+                "core_point_strengthened_value_at_core": (
+                    core_point_strengthened_value_at_core
+                ),
+                "core_point_normalized_improvement": (
+                    core_point_normalized_improvement
+                ),
+                "core_point_cut_accepted": core_point_cut_accepted,
+                "core_point_cut_fallback_reason": (
+                    core_point_cut_fallback_reason
+                ),
+                "core_point_auxiliary_bound_used_for_UB": (
+                    core_point_auxiliary_bound_used_for_ub
+                ),
+                "v3_secondary_attempted": v3_secondary_decision.attempt,
+                "v3_secondary_trigger_reason": (
+                    v3_secondary_decision.trigger_reason
+                ),
+                "v3_secondary_skipped_reason": (
+                    v3_secondary_decision.skipped_reason
+                ),
+                "v3_secondary_recent_lb_improvement": (
+                    v3_secondary_decision.recent_lb_improvement
+                ),
+                "v3_secondary_cooldown_remaining": (
+                    v3_secondary_decision.cooldown_remaining
+                ),
+                "v3_secondary_time_limit": v3_secondary_decision.time_limit,
+                "v3_secondary_runtime": v3_secondary_runtime,
+                "v3_secondary_status": (
+                    v3_secondary_cut.status if v3_secondary_cut is not None else None
+                ),
+                "v3_secondary_has_incumbent": (
+                    v3_secondary_cut.has_incumbent
+                    if v3_secondary_cut is not None
+                    else False
+                ),
+                "v3_secondary_pattern_distance": v3_secondary_pattern_distance,
+                "v3_secondary_pattern_memory_size": len(
+                    v3_pattern_memory.patterns
+                ),
+                "v3_secondary_cut_violation": v3_secondary_cut_violation,
+                "v3_secondary_cut_added": v3_secondary_cut_added,
+                "v3_secondary_cut_skip_reason": v3_secondary_cut_skip_reason,
+                "v3_secondary_objective": (
+                    v3_secondary_cut.objective
+                    if v3_secondary_cut is not None
+                    else None
+                ),
+                "v3_secondary_objective_bound": (
+                    v3_secondary_cut.objective_bound
+                    if v3_secondary_cut is not None
+                    else None
+                ),
+                "v3_secondary_bound_used_for_UB": v3_secondary_bound_used_for_ub,
                 "realized_master_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "achieved_master_mip_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "master_status": int(model.Status),
@@ -1530,6 +1960,47 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "monotone_precision_tightening": (
                 settings.precision_config.monotone_precision_tightening
             ),
+            "cut_strengthening_policy": settings.cut_strengthening_config.policy,
+            "core_point_attempt_count": core_point_attempt_count,
+            "core_point_success_count": core_point_success_count,
+            "core_point_fallback_count": core_point_fallback_count,
+            "core_point_total_runtime": (
+                core_point_stage1_total_runtime + core_point_stage2_total_runtime
+            ),
+            "core_point_stage1_total_runtime": core_point_stage1_total_runtime,
+            "core_point_stage2_total_runtime": core_point_stage2_total_runtime,
+            "core_point_mean_normalized_improvement": (
+                sum(core_point_improvements) / len(core_point_improvements)
+                if core_point_improvements
+                else None
+            ),
+            "core_point_final_observations": core_point_state.observations,
+            "v3_secondary_trigger_count": v3_secondary_trigger_count,
+            "v3_secondary_solve_count": v3_secondary_solve_count,
+            "v3_secondary_incumbent_count": v3_secondary_incumbent_count,
+            "v3_secondary_cut_added_count": v3_secondary_cut_added_count,
+            "v3_secondary_duplicate_count": v3_secondary_duplicate_count,
+            "v3_secondary_total_runtime": v3_secondary_total_runtime,
+            "v3_secondary_final_pattern_memory_size": len(
+                v3_pattern_memory.patterns
+            ),
+            "v3_total_extra_cut_runtime": (
+                core_point_stage1_total_runtime
+                + core_point_stage2_total_runtime
+                + v3_secondary_total_runtime
+            ),
+            "v3_extra_cut_runtime_share": (
+                (
+                    core_point_stage1_total_runtime
+                    + core_point_stage2_total_runtime
+                    + v3_secondary_total_runtime
+                )
+                / max(1.0e-12, runtime)
+                if settings.cut_strengthening_config.policy != "none"
+                else 0.0
+            ),
+            "v3_primary_cuts_added": v3_primary_cuts_added,
+            "v3_secondary_cuts_added": v3_secondary_cut_added_count,
             "cuts_added_total": cuts,
             "cuts_skipped_total": cuts_skipped,
             "secondary_cuts_added_total": secondary_cuts_added,

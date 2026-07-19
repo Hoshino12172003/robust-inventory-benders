@@ -8,4 +8,5 @@ data/processed/
 outputs/
 analysis/outputs/
 final_evaluation_joint_v1_analysis.zip
+experiments/results_cut_v3/
 .idea/
