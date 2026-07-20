@@ -28,6 +28,7 @@ from .experiment_suite import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+VALIDATION_DECISION_DOCUMENT = "cut_strengthened_joint_v3_validation_decision.md"
 VALIDATION_SEEDS = list(range(80, 90))
 FINAL_SEEDS = set(range(90, 110))
 EXPECTED_VARIANTS = [
@@ -158,6 +159,7 @@ def audit_cut_strengthened_v3_validation(
     root = Path(repo_root) if repo_root is not None else REPO_ROOT
     config_dir = root / "experiments/configs"
     document_path = root / "docs/cut_strengthened_joint_v3_validation_protocol.md"
+    decision_document_path = root / "docs" / VALIDATION_DECISION_DOCUMENT
     checks: list[dict[str, Any]] = []
 
     for name, expected_hash in FROZEN_CONFIG_SHA256.items():
@@ -173,6 +175,38 @@ def audit_cut_strengthened_v3_validation(
             candidate_hash == SELECTED_CANDIDATE_CONFIG_SHA256,
             candidate_hash,
         )
+    )
+
+    decision_document = (
+        decision_document_path.read_text(encoding="utf-8")
+        if decision_document_path.exists()
+        else ""
+    )
+    checks.extend(
+        [
+            _check(
+                "validation_decision_is_frozen_pass",
+                all(
+                    token in decision_document
+                    for token in (
+                        "decision: validation_pass",
+                        "selected_candidate: joint_v1_core_point_strengthened",
+                        "next_authorized_stage: final_protocol_only",
+                        "formal_inference_allowed: false",
+                        "648556b1956008e93bfc8ac0459cdc3260ab93be",
+                    )
+                ),
+            ),
+            _check(
+                "validation_decision_keeps_final_seeds_sealed",
+                "90--109 remain sealed" in decision_document
+                and "does not authorize a final run" in decision_document,
+            ),
+            _check(
+                "read_only_validation_results_audit_available",
+                (root / "src/cut_v3_validation_results_audit.py").exists(),
+            ),
+        ]
     )
 
     all_validation_outputs: set[str] = set()
