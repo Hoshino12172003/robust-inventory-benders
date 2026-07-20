@@ -41,8 +41,10 @@ def _audit_sandbox(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     config_dir = root / "experiments/configs"
     docs_dir = root / "docs"
+    src_dir = root / "src"
     config_dir.mkdir(parents=True)
     docs_dir.mkdir(parents=True)
+    src_dir.mkdir(parents=True)
     names = set(FROZEN_CONFIG_SHA256) | {
         "selected_cut_strengthened_joint_v3_candidate.yaml",
         "cut_strengthened_joint_v3_development_medium_large.yaml",
@@ -54,6 +56,14 @@ def _audit_sandbox(tmp_path: Path) -> Path:
     shutil.copy2(
         ROOT / "docs/cut_strengthened_joint_v3_validation_protocol.md",
         docs_dir / "cut_strengthened_joint_v3_validation_protocol.md",
+    )
+    shutil.copy2(
+        ROOT / "docs/cut_strengthened_joint_v3_validation_decision.md",
+        docs_dir / "cut_strengthened_joint_v3_validation_decision.md",
+    )
+    shutil.copy2(
+        ROOT / "src/cut_v3_validation_results_audit.py",
+        src_dir / "cut_v3_validation_results_audit.py",
     )
     return root
 
