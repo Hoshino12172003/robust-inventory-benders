@@ -88,18 +88,25 @@ def test_selected_candidate_evidence_and_file_hash_are_frozen() -> None:
     assert evidence["large_results_zip"]["sha256"] == LARGE_RESULTS_ZIP_SHA256
 
 
-def test_reserved_validation_and_final_seeds_remain_unused() -> None:
-    reserved = (
-        RESERVED_VALIDATION_SEEDS
-        | RESERVED_MEDIUM_FINAL_SEEDS
-        | RESERVED_LARGE_FINAL_SEEDS
+def test_validation_seeds_are_isolated_and_final_seeds_remain_unused() -> None:
+    validation_paths = list(
+        CONFIG_DIR.glob("cut_strengthened_joint_v3_validation*.yaml")
     )
-    used: set[int] = set()
-    for path in CONFIG_DIR.glob("*cut_strengthened_joint_v3*.yaml"):
-        used.update(int(seed) for seed in load_config(path).get("random_seeds", []))
+    assert len(validation_paths) == 2
+    for path in validation_paths:
+        assert set(load_config(path)["random_seeds"]) == RESERVED_VALIDATION_SEEDS
 
-    assert used.isdisjoint(reserved)
-    assert not list(CONFIG_DIR.glob("*cut_strengthened_joint_v3*validation*.yaml"))
+    non_validation_used: set[int] = set()
+    for path in CONFIG_DIR.glob("*cut_strengthened_joint_v3*.yaml"):
+        if path in validation_paths:
+            continue
+        non_validation_used.update(
+            int(seed) for seed in load_config(path).get("random_seeds", [])
+        )
+    assert non_validation_used.isdisjoint(RESERVED_VALIDATION_SEEDS)
+    assert non_validation_used.isdisjoint(
+        RESERVED_MEDIUM_FINAL_SEEDS | RESERVED_LARGE_FINAL_SEEDS
+    )
     assert not list(CONFIG_DIR.glob("*cut_strengthened_joint_v3*final*.yaml"))
 
 

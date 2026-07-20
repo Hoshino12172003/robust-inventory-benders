@@ -24,6 +24,7 @@ from .experiment_protocol import (
     atomic_write_yaml,
     config_sha256,
     decide_run_action,
+    file_sha256,
     git_commit,
     load_run_record,
     penalized_runtime_par2,
@@ -1470,11 +1471,50 @@ def _validate_relative_threshold_config(config: dict[str, Any]) -> None:
     )
 
 
+def _apply_frozen_v3_candidate(config: dict[str, Any]) -> dict[str, Any]:
+    candidate_path = config.get("candidate_parameters_must_be_fixed_from")
+    if not candidate_path:
+        return config
+
+    expected_hash = str(config.get("candidate_config_sha256", "")).upper()
+    actual_hash = file_sha256(candidate_path).upper()
+    if not expected_hash or actual_hash != expected_hash:
+        raise ValueError(
+            "Frozen V3 candidate SHA256 mismatch: "
+            f"expected {expected_hash or '<missing>'}, got {actual_hash}."
+        )
+
+    candidate = load_config(str(candidate_path))
+    components = candidate.get("components", {})
+    algorithm = candidate.get("algorithm", {})
+    robust = candidate.get("robust", {})
+    if (
+        candidate.get("selection_frozen") is not True
+        or candidate.get("selected_variant") != "joint_v1_core_point_strengthened"
+        or algorithm.get("cut_strengthening_policy") != "core_point"
+        or components.get("core_point_strengthening_enabled") is not True
+        or components.get("stall_secondary_enabled") is not False
+        or components.get("workload_aware_v2_enabled") is not False
+    ):
+        raise ValueError("The frozen V3 candidate must be the selected core-only policy.")
+
+    allowed_algorithm_fields = set(SELECTED_ALGORITHM_FIELDS) | set(
+        CUT_STRENGTHENING_CONFIG_FIELDS
+    )
+    for field, value in algorithm.items():
+        if field in allowed_algorithm_fields or field in SELECTED_EXPERIMENT_FIELDS:
+            config[field] = deepcopy(value)
+    for field in ("gamma_target", "gamma_schedule", "gamma_continuation_enabled"):
+        if field in robust:
+            config[field] = deepcopy(robust[field])
+    return config
+
+
 def _apply_selected_parameters(config: dict[str, Any]) -> dict[str, Any]:
     config = deepcopy(config)
     selected_parameters_path = config.get("parameters_must_be_fixed_from")
     if not selected_parameters_path:
-        return config
+        return _apply_frozen_v3_candidate(config)
 
     selected = load_config(str(selected_parameters_path))
     if selected.get("selection_status") != "selected":
@@ -1647,7 +1687,7 @@ def _apply_selected_parameters(config: dict[str, Any]) -> dict[str, Any]:
 
     for field in SELECTED_PARAMETER_FIELDS:
         config[field] = deepcopy(selected[field])
-    return config
+    return _apply_frozen_v3_candidate(config)
 
 
 def experiment_run_specs(config: dict[str, Any]) -> list[ProtocolRunSpec]:
@@ -1677,7 +1717,21 @@ def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
     time_limit = float(resolved.get("time_limit", 0.0))
     audit_errors: list[str] = []
     experiment_name = str(resolved.get("experiment_name", ""))
-    if experiment_name.startswith("cut_strengthened_joint_v3_"):
+    if experiment_name.startswith("cut_strengthened_joint_v3_validation_"):
+        try:
+            from .cut_strengthened_v3_validation_audit import (
+                audit_cut_strengthened_v3_validation,
+            )
+
+            audit = audit_cut_strengthened_v3_validation()
+            audit_errors = [
+                str(check["check"])
+                for check in audit["checks"]
+                if check.get("required", True) and not check.get("passed", False)
+            ]
+        except Exception as exc:  # noqa: BLE001 - dry-run reports audit failures.
+            audit_errors = [f"audit_execution_failed: {exc}"]
+    elif experiment_name.startswith("cut_strengthened_joint_v3_"):
         try:
             from .cut_strengthened_v3_audit import audit_cut_strengthened_v3
 
