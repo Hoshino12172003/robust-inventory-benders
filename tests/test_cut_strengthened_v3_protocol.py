@@ -103,7 +103,7 @@ def test_v3_static_audit_passes_and_v1_hashes_are_unchanged() -> None:
     assert report["passed_check_count"] == report["required_check_count"]
 
 
-def test_only_frozen_validation_configs_and_no_final_configs_exist() -> None:
+def test_only_frozen_validation_and_authorized_final_configs_exist() -> None:
     assert {
         path.name
         for path in CONFIG_DIR.glob("cut_strengthened_joint_v3_validation*.yaml")
@@ -111,5 +111,11 @@ def test_only_frozen_validation_configs_and_no_final_configs_exist() -> None:
         "cut_strengthened_joint_v3_validation_medium_large.yaml",
         "cut_strengthened_joint_v3_validation_large.yaml",
     }
-    assert not list(CONFIG_DIR.glob("cut_strengthened_joint_v3_final*.yaml"))
+    assert {
+        path.name
+        for path in CONFIG_DIR.glob("cut_strengthened_joint_v3_final*.yaml")
+    } == {
+        "cut_strengthened_joint_v3_final_medium_large.yaml",
+        "cut_strengthened_joint_v3_final_large.yaml",
+    }
     assert "experiments/results_cut_v3/" in (ROOT / ".gitignore").read_text(encoding="utf-8")

@@ -1,0 +1,89 @@
+experiment_name: cut_strengthened_joint_v3_final_medium_large
+output_dir: experiments/results_cut_v3/final_medium_large
+random_seeds: [90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
+instance_sizes: [medium_large]
+time_limit: 600
+max_iterations: 10000
+variants:
+  - proposed_joint_rho025_050
+  - joint_v1_core_point_strengthened
+variant_settings:
+  proposed_joint_rho025_050:
+    cut_strengthening_policy: none
+    max_cuts_per_iteration: 1
+  joint_v1_core_point_strengthened:
+    cut_strengthening_policy: core_point
+    max_cuts_per_iteration: 1
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [2]
+gamma_continuation_enabled: false
+subproblem_mode: robust_dual_milp
+save_iteration_log: true
+max_cuts_per_iteration: 1
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+max_scenarios: 5000
+exact_scenarios: true
+cut_strengthening_policy: none
+core_point_update_weight: 0.50
+core_point_min_distance: 1.0e-9
+core_point_stage1_time_limit: 2.0
+core_point_stage2_time_limit: 2.0
+core_point_min_remaining_time: 10.0
+core_point_min_global_gap: 5.0e-4
+core_point_current_abs_tol: 1.0e-7
+core_point_current_rel_tol: 1.0e-8
+core_point_min_normalized_improvement: 1.0e-7
+v3_secondary_lb_window: 5
+v3_secondary_stall_threshold: 1.0e-4
+v3_secondary_cooldown_iterations: 10
+v3_secondary_min_global_gap: 1.0e-3
+v3_secondary_min_remaining_time: 30.0
+v3_secondary_max_time_per_attempt: 10.0
+v3_secondary_max_time_fraction_of_remaining: 0.05
+v3_secondary_max_extra_time_share: 0.10
+v3_secondary_pattern_memory: 10
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml
+candidate_parameters_must_be_fixed_from: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+candidate_config_sha256: 7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6
+protocol_phase: final
+formal_inference_allowed: true
+final_analysis:
+  primary_metrics:
+    - large_paired_mean_par2
+    - large_solved_rate
+  secondary_metrics:
+    - medium_large_mean_par2
+    - mean_iterations
+    - paired_win_counts
+    - master_subproblem_core_time
+    - core_success_rate
+    - core_extra_time_share
+    - final_gap
+    - solved_rate
+  confirmation_outcomes:
+    confirmed: final_confirmed
+    not_confirmed: final_not_confirmed
+  paired_comparison_key: seed
+  par2_unsolved_multiplier: 2
+  development_validation_pooling_allowed: false
+  seed_replacement_allowed: false
+  retuning_allowed: false
+  auxiliary_inference:
+    enabled: true
+    role: auxiliary_only
+    scope: large
+    estimand: mean_paired_par2_difference_core_minus_v1
+    method: paired_nonparametric_bootstrap_percentile
+    confidence_level: 0.95
+    resamples: 10000
+    analysis_random_seed: 20260720
+    replaces_confirmation_thresholds: false

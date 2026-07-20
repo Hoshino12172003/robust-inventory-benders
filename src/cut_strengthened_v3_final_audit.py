@@ -28,9 +28,9 @@ from .experiment_suite import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-VALIDATION_DECISION_DOCUMENT = "cut_strengthened_joint_v3_validation_decision.md"
-VALIDATION_SEEDS = list(range(80, 90))
-FINAL_SEEDS = set(range(90, 110))
+MEDIUM_FINAL_SEEDS = list(range(90, 100))
+LARGE_FINAL_SEEDS = list(range(100, 110))
+PRE_FINAL_SEEDS = set(range(75, 90))
 EXPECTED_VARIANTS = [
     "proposed_joint_rho025_050",
     "joint_v1_core_point_strengthened",
@@ -45,39 +45,68 @@ EXPECTED_VARIANT_SETTINGS = {
         "max_cuts_per_iteration": 1,
     },
 }
-EXPECTED_VALIDATION_CONFIGS = {
-    "cut_strengthened_joint_v3_validation_medium_large.yaml": {
-        "development": "cut_strengthened_joint_v3_development_medium_large.yaml",
+EXPECTED_FINAL_ANALYSIS = {
+    "primary_metrics": ["large_paired_mean_par2", "large_solved_rate"],
+    "secondary_metrics": [
+        "medium_large_mean_par2",
+        "mean_iterations",
+        "paired_win_counts",
+        "master_subproblem_core_time",
+        "core_success_rate",
+        "core_extra_time_share",
+        "final_gap",
+        "solved_rate",
+    ],
+    "confirmation_outcomes": {
+        "confirmed": "final_confirmed",
+        "not_confirmed": "final_not_confirmed",
+    },
+    "paired_comparison_key": "seed",
+    "par2_unsolved_multiplier": 2,
+    "development_validation_pooling_allowed": False,
+    "seed_replacement_allowed": False,
+    "retuning_allowed": False,
+    "auxiliary_inference": {
+        "enabled": True,
+        "role": "auxiliary_only",
+        "scope": "large",
+        "estimand": "mean_paired_par2_difference_core_minus_v1",
+        "method": "paired_nonparametric_bootstrap_percentile",
+        "confidence_level": 0.95,
+        "resamples": 10000,
+        "analysis_random_seed": 20260720,
+        "replaces_confirmation_thresholds": False,
+    },
+}
+EXPECTED_FINAL_CONFIGS = {
+    "cut_strengthened_joint_v3_final_medium_large.yaml": {
+        "validation": "cut_strengthened_joint_v3_validation_medium_large.yaml",
         "instance_size": "medium_large",
+        "seeds": MEDIUM_FINAL_SEEDS,
         "time_limit": 600,
         "max_iterations": 10000,
-        "output_dir": "experiments/results_cut_v3/validation_medium_large",
-        "sha256": "eb7070b8045cfd3fc57b4f7dc906059f8c9ca60d9c0ad58b75cd6e8e98d41007",
+        "output_dir": "experiments/results_cut_v3/final_medium_large",
+        "sha256": "1d41a19bb47218f2844c2bdfeadf9b044e8776db944c37989ef8c26feb9c0867",
     },
-    "cut_strengthened_joint_v3_validation_large.yaml": {
-        "development": "cut_strengthened_joint_v3_development_large.yaml",
+    "cut_strengthened_joint_v3_final_large.yaml": {
+        "validation": "cut_strengthened_joint_v3_validation_large.yaml",
         "instance_size": "large",
+        "seeds": LARGE_FINAL_SEEDS,
         "time_limit": 1800,
         "max_iterations": 20000,
-        "output_dir": "experiments/results_cut_v3/validation_large",
-        "sha256": "44106f8a1f12d4caca961439ca4b5eebf8ca263afac567512ce541f4e80ace27",
+        "output_dir": "experiments/results_cut_v3/final_large",
+        "sha256": "60fdf4a9a642485a46e473a25ddb7502198a84eea927d9a60e670b764f8542f3",
     },
 }
-EXPECTED_FINAL_CONFIG_NAMES = {
-    "cut_strengthened_joint_v3_final_medium_large.yaml",
-    "cut_strengthened_joint_v3_final_large.yaml",
-}
-ALLOWED_DEVELOPMENT_DIFFERENCE_FIELDS = {
+ALLOWED_VALIDATION_DIFFERENCE_FIELDS = {
     "experiment_name",
     "output_dir",
     "random_seeds",
-    "variants",
-    "variant_settings",
     "protocol_phase",
-    "candidate_parameters_must_be_fixed_from",
-    "candidate_config_sha256",
+    "formal_inference_allowed",
+    "final_analysis",
 }
-FORBIDDEN_VALIDATION_KEYS = {
+FORBIDDEN_FINAL_KEYS = {
     "fairness",
     "equity",
     "protected_group",
@@ -98,9 +127,9 @@ def _check(name: str, passed: bool, details: Any = "") -> dict[str, Any]:
     return {"check": name, "required": True, "passed": bool(passed), "details": details}
 
 
-def _normalized_for_development_comparison(config: dict[str, Any]) -> dict[str, Any]:
+def _normalized_for_validation_comparison(config: dict[str, Any]) -> dict[str, Any]:
     normalized = deepcopy(config)
-    for field in ALLOWED_DEVELOPMENT_DIFFERENCE_FIELDS:
+    for field in ALLOWED_VALIDATION_DIFFERENCE_FIELDS:
         normalized.pop(field, None)
     return normalized
 
@@ -119,10 +148,11 @@ def _recursive_keys(value: Any) -> set[str]:
 
 def _absolute_lock_paths(config: dict[str, Any], config_dir: Path) -> dict[str, Any]:
     resolved = deepcopy(config)
-    selected_path = Path(str(resolved["parameters_must_be_fixed_from"])).name
-    candidate_path = Path(str(resolved["candidate_parameters_must_be_fixed_from"])).name
-    resolved["parameters_must_be_fixed_from"] = str(config_dir / selected_path)
-    resolved["candidate_parameters_must_be_fixed_from"] = str(config_dir / candidate_path)
+    for field in (
+        "parameters_must_be_fixed_from",
+        "candidate_parameters_must_be_fixed_from",
+    ):
+        resolved[field] = str(config_dir / Path(str(resolved[field])).name)
     return resolved
 
 
@@ -157,13 +187,13 @@ def _run_key_set(config: dict[str, Any]) -> set[str]:
     }
 
 
-def audit_cut_strengthened_v3_validation(
+def audit_cut_strengthened_v3_final(
     repo_root: str | Path | None = None,
 ) -> dict[str, Any]:
     root = Path(repo_root) if repo_root is not None else REPO_ROOT
     config_dir = root / "experiments/configs"
-    document_path = root / "docs/cut_strengthened_joint_v3_validation_protocol.md"
-    decision_document_path = root / "docs" / VALIDATION_DECISION_DOCUMENT
+    document_path = root / "docs/cut_strengthened_joint_v3_final_protocol.md"
+    validation_decision_path = root / "docs/cut_strengthened_joint_v3_validation_decision.md"
     checks: list[dict[str, Any]] = []
 
     for name, expected_hash in FROZEN_CONFIG_SHA256.items():
@@ -181,54 +211,44 @@ def audit_cut_strengthened_v3_validation(
         )
     )
 
-    decision_document = (
-        decision_document_path.read_text(encoding="utf-8")
-        if decision_document_path.exists()
+    decision = (
+        validation_decision_path.read_text(encoding="utf-8")
+        if validation_decision_path.exists()
         else ""
     )
-    actual_final_names = {
-        path.name
-        for path in config_dir.glob("cut_strengthened_joint_v3_final*.yaml")
-    }
-    checks.extend(
-        [
-            _check(
-                "validation_decision_is_frozen_pass",
-                all(
-                    token in decision_document
-                    for token in (
-                        "decision: validation_pass",
-                        "selected_candidate: joint_v1_core_point_strengthened",
-                        "next_authorized_stage: final_protocol_only",
-                        "formal_inference_allowed: false",
-                        "648556b1956008e93bfc8ac0459cdc3260ab93be",
-                    )
-                ),
+    checks.append(
+        _check(
+            "validation_pass_authorizes_final_protocol_only",
+            all(
+                token in decision
+                for token in (
+                    "decision: validation_pass",
+                    "selected_candidate: joint_v1_core_point_strengthened",
+                    "next_authorized_stage: final_protocol_only",
+                    "648556b1956008e93bfc8ac0459cdc3260ab93be",
+                )
             ),
-            _check(
-                "validation_decision_keeps_final_seeds_sealed",
-                "90--109 remain sealed" in decision_document
-                and "does not authorize a final run" in decision_document,
-            ),
-            _check(
-                "read_only_validation_results_audit_available",
-                (root / "src/cut_v3_validation_results_audit.py").exists(),
-            ),
-        ]
+        )
     )
 
-    all_validation_outputs: set[str] = set()
-    all_validation_keys: set[str] = set()
-    all_development_outputs: set[str] = set()
-    all_development_keys: set[str] = set()
-    for filename, expected in EXPECTED_VALIDATION_CONFIGS.items():
+    final_outputs: set[str] = set()
+    final_run_keys: set[str] = set()
+    prior_outputs: set[str] = set()
+    prior_run_keys: set[str] = set()
+    final_seed_sets: list[set[int]] = []
+
+    for filename, expected in EXPECTED_FINAL_CONFIGS.items():
         path = config_dir / filename
         raw = load_config(path) if path.exists() else {}
-        development_path = config_dir / str(expected["development"])
-        development = load_config(development_path) if development_path.exists() else {}
+        validation_path = config_dir / str(expected["validation"])
+        validation = load_config(validation_path) if validation_path.exists() else {}
         prefix = filename.removesuffix(".yaml")
-
+        seeds = set(raw.get("random_seeds", []))
+        final_seed_sets.append({int(seed) for seed in seeds})
         actual_hash = file_sha256(path).lower() if path.exists() else "missing"
+        output_dir = str(raw.get("output_dir", ""))
+        output_path = root / output_dir
+
         checks.extend(
             [
                 _check(
@@ -237,13 +257,14 @@ def audit_cut_strengthened_v3_validation(
                     actual_hash,
                 ),
                 _check(
-                    f"{prefix}_seeds_exact_80_89",
-                    raw.get("random_seeds") == VALIDATION_SEEDS,
+                    f"{prefix}_seeds_exact",
+                    raw.get("random_seeds") == expected["seeds"],
                     raw.get("random_seeds"),
                 ),
                 _check(
-                    f"{prefix}_final_seeds_excluded",
-                    set(raw.get("random_seeds", [])).isdisjoint(FINAL_SEEDS),
+                    f"{prefix}_pre_final_seeds_excluded",
+                    seeds.isdisjoint(PRE_FINAL_SEEDS),
+                    sorted(seeds & PRE_FINAL_SEEDS),
                 ),
                 _check(
                     f"{prefix}_only_v1_and_core_candidate",
@@ -272,28 +293,34 @@ def audit_cut_strengthened_v3_validation(
                     == SELECTED_CANDIDATE_CONFIG_SHA256,
                 ),
                 _check(
-                    f"{prefix}_validation_phase_only",
-                    raw.get("protocol_phase") == "validation"
-                    and raw.get("formal_inference_allowed") is False,
+                    f"{prefix}_final_phase_and_analysis_frozen",
+                    raw.get("protocol_phase") == "final"
+                    and raw.get("formal_inference_allowed") is True
+                    and raw.get("final_analysis") == EXPECTED_FINAL_ANALYSIS,
                 ),
                 _check(
-                    f"{prefix}_development_equivalence",
-                    _normalized_for_development_comparison(raw)
-                    == _normalized_for_development_comparison(development),
+                    f"{prefix}_validation_equivalence",
+                    _normalized_for_validation_comparison(raw)
+                    == _normalized_for_validation_comparison(validation),
                 ),
                 _check(
                     f"{prefix}_no_fairness_managerial_or_new_uncertainty_keys",
-                    _recursive_keys(raw).isdisjoint(FORBIDDEN_VALIDATION_KEYS),
-                    sorted(_recursive_keys(raw) & FORBIDDEN_VALIDATION_KEYS),
+                    _recursive_keys(raw).isdisjoint(FORBIDDEN_FINAL_KEYS),
+                    sorted(_recursive_keys(raw) & FORBIDDEN_FINAL_KEYS),
                 ),
                 _check(
                     f"{prefix}_isolated_output_directory",
-                    raw.get("output_dir") == expected["output_dir"]
-                    and raw.get("output_dir") != development.get("output_dir")
-                    and "validation" in str(raw.get("output_dir", ""))
-                    and "development" not in str(raw.get("output_dir", ""))
-                    and "final" not in str(raw.get("output_dir", "")),
-                    raw.get("output_dir"),
+                    output_dir == expected["output_dir"]
+                    and "final" in output_dir
+                    and "development" not in output_dir
+                    and "validation" not in output_dir
+                    and output_dir != str(validation.get("output_dir", "")),
+                    output_dir,
+                ),
+                _check(
+                    f"{prefix}_no_instances_or_results_generated",
+                    not output_path.exists(),
+                    str(output_path),
                 ),
             ]
         )
@@ -315,12 +342,16 @@ def audit_cut_strengthened_v3_validation(
                 and candidate.get("cut_strengthening_policy") == "core_point"
                 and v1.get("max_cuts_per_iteration") == 1
                 and candidate.get("max_cuts_per_iteration") == 1
-                and candidate.get("adaptive_secondary_generation_enabled") is False
                 and candidate.get("cut_selection_enabled") is False
+                and candidate.get("adaptive_secondary_cut_selection_enabled") is False
+                and candidate.get("adaptive_secondary_generation_enabled") is False
+                and candidate.get("adaptive_subproblem_gap_enabled") is False
+                and candidate.get("subproblem_mode") == "robust_dual_milp"
+                and resolved.get("gamma_continuation_enabled") is False
+                and resolved.get("gamma_schedule") == [2]
             )
             resolution_error = ""
         except Exception as exc:  # noqa: BLE001 - audit reports malformed locks.
-            resolved = raw
             effective_ok = False
             resolution_error = f"{type(exc).__name__}: {exc}"
         checks.append(
@@ -332,64 +363,87 @@ def audit_cut_strengthened_v3_validation(
         )
 
         if raw:
-            all_validation_outputs.add(str(raw.get("output_dir")))
-            all_validation_keys.update(_run_key_set(raw))
-        if development:
-            all_development_outputs.add(str(development.get("output_dir")))
-            all_development_keys.update(_run_key_set(development))
+            final_outputs.add(output_dir)
+            final_run_keys.update(_run_key_set(raw))
+        if validation:
+            prior_outputs.add(str(validation.get("output_dir")))
+            prior_run_keys.update(_run_key_set(validation))
 
-    actual_validation_names = {
-        path.name
-        for path in config_dir.glob("cut_strengthened_joint_v3_validation*.yaml")
+    for prior_name in (
+        "cut_strengthened_joint_v3_development_medium_large.yaml",
+        "cut_strengthened_joint_v3_development_large.yaml",
+    ):
+        prior_path = config_dir / prior_name
+        if prior_path.exists():
+            prior = load_config(prior_path)
+            prior_outputs.add(str(prior.get("output_dir")))
+            prior_run_keys.update(_run_key_set(prior))
+
+    actual_final_names = {
+        path.name for path in config_dir.glob("cut_strengthened_joint_v3_final*.yaml")
     }
     checks.extend(
         [
             _check(
-                "only_expected_validation_configs_exist",
-                actual_validation_names == set(EXPECTED_VALIDATION_CONFIGS),
-                sorted(actual_validation_names),
-            ),
-            _check(
-                "final_protocol_presence_consistent_with_validation_decision",
-                actual_final_names in (set(), EXPECTED_FINAL_CONFIG_NAMES)
-                and (
-                    not actual_final_names
-                    or "next_authorized_stage: final_protocol_only" in decision_document
-                ),
+                "only_expected_final_configs_exist",
+                actual_final_names == set(EXPECTED_FINAL_CONFIGS),
                 sorted(actual_final_names),
             ),
             _check(
-                "resume_outputs_and_run_keys_isolated_from_development",
-                all_validation_outputs.isdisjoint(all_development_outputs)
-                and all_validation_keys.isdisjoint(all_development_keys),
+                "final_seed_groups_disjoint",
+                len(final_seed_sets) == 2
+                and final_seed_sets[0].isdisjoint(final_seed_sets[1]),
+            ),
+            _check(
+                "final_outputs_and_resume_keys_isolated",
+                final_outputs.isdisjoint(prior_outputs)
+                and final_run_keys.isdisjoint(prior_run_keys),
             ),
         ]
     )
 
     document = document_path.read_text(encoding="utf-8") if document_path.exists() else ""
-    checks.append(
-        _check(
-            "validation_decision_rules_frozen_in_document",
-            all(
-                token in document
-                for token in (
-                    "Validation **pass**",
-                    "Validation **fail**",
-                    "Validation **inconclusive**",
-                    "7.5%",
-                    "15%",
-                    "至少 6 个",
-                    "2 × time_limit",
-                    "seeds 90–109",
-                    "不得合并进行正式统计推断",
-                )
+    checks.extend(
+        [
+            _check(
+                "final_confirmation_rules_frozen_in_document",
+                all(
+                    token in document
+                    for token in (
+                        "final_confirmed",
+                        "final_not_confirmed",
+                        "103%",
+                        "7.5%",
+                        "15%",
+                        "at least 6/10",
+                        "mean paired rank",
+                    )
+                ),
             ),
-        )
+            _check(
+                "auxiliary_inference_frozen_in_document",
+                all(
+                    token in document
+                    for token in (
+                        "paired nonparametric percentile bootstrap",
+                        "95%",
+                        "10,000",
+                        "20260720",
+                        "cannot replace",
+                    )
+                ),
+            ),
+            _check(
+                "final_not_a_retuning_or_seed_replacement_stage",
+                "does not authorize seed replacement" in document
+                and "not a tuning stage" in document,
+            ),
+        ]
     )
 
     failed = [check["check"] for check in checks if not check["passed"]]
     return {
-        "audit_name": "cut_strengthened_joint_v3_validation_protocol",
+        "audit_name": "cut_strengthened_joint_v3_final_protocol",
         "created_at": utc_now_iso(),
         "git_commit": git_commit(root),
         "all_required_checks_passed": not failed,
@@ -402,11 +456,11 @@ def audit_cut_strengthened_v3_validation(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Audit the frozen cut-strengthened Joint V3 validation protocol."
+        description="Audit the frozen cut-strengthened Joint V3 final protocol."
     )
     parser.add_argument("--output")
     args = parser.parse_args()
-    report = audit_cut_strengthened_v3_validation()
+    report = audit_cut_strengthened_v3_final()
     if args.output:
         atomic_write_json(args.output, report)
     print(json.dumps(report, ensure_ascii=False, indent=2))

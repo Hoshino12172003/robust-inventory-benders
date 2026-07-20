@@ -1717,7 +1717,21 @@ def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
     time_limit = float(resolved.get("time_limit", 0.0))
     audit_errors: list[str] = []
     experiment_name = str(resolved.get("experiment_name", ""))
-    if experiment_name.startswith("cut_strengthened_joint_v3_validation_"):
+    if experiment_name.startswith("cut_strengthened_joint_v3_final_"):
+        try:
+            from .cut_strengthened_v3_final_audit import (
+                audit_cut_strengthened_v3_final,
+            )
+
+            audit = audit_cut_strengthened_v3_final()
+            audit_errors = [
+                str(check["check"])
+                for check in audit["checks"]
+                if check.get("required", True) and not check.get("passed", False)
+            ]
+        except Exception as exc:  # noqa: BLE001 - dry-run reports audit failures.
+            audit_errors = [f"audit_execution_failed: {exc}"]
+    elif experiment_name.startswith("cut_strengthened_joint_v3_validation_"):
         try:
             from .cut_strengthened_v3_validation_audit import (
                 audit_cut_strengthened_v3_validation,
