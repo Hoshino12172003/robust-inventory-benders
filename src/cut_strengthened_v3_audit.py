@@ -66,6 +66,10 @@ EXPECTED_CONFIGS = {
         "max_iterations": 20000,
     },
 }
+EXPECTED_VALIDATION_CONFIG_NAMES = {
+    "cut_strengthened_joint_v3_validation_medium_large.yaml",
+    "cut_strengthened_joint_v3_validation_large.yaml",
+}
 
 
 def _check(name: str, passed: bool, details: Any = "") -> dict[str, Any]:
@@ -111,10 +115,11 @@ def audit_cut_strengthened_v3(repo_root: str | Path | None = None) -> dict[str, 
     selected_robust = selected_candidate.get("robust", {})
     selected_evidence = selected_candidate.get("evidence", {})
     selected_strengthening = cut_strengthening_config(selected_algorithm)
-    v3_config_paths = list(config_dir.glob("*cut_strengthened_joint_v3*.yaml"))
-    used_v3_seeds = {
+    development_config_paths = [config_dir / name for name in EXPECTED_CONFIGS]
+    development_config_paths.append(selected_candidate_path)
+    used_development_seeds = {
         int(seed)
-        for path in v3_config_paths
+        for path in development_config_paths
         for seed in load_config(path).get("random_seeds", [])
     }
     checks.extend(
@@ -208,17 +213,23 @@ def audit_cut_strengthened_v3(repo_root: str | Path | None = None) -> dict[str, 
                 and selected_candidate.get("formal_statistical_inference_allowed") is False,
             ),
             _check(
-                "reserved_seeds_80_109_not_used",
-                used_v3_seeds.isdisjoint(
+                "development_does_not_use_reserved_seeds_80_109",
+                used_development_seeds.isdisjoint(
                     RESERVED_VALIDATION_SEEDS
                     | RESERVED_MEDIUM_FINAL_SEEDS
                     | RESERVED_LARGE_FINAL_SEEDS
                 ),
-                sorted(used_v3_seeds),
+                sorted(used_development_seeds),
             ),
             _check(
-                "no_validation_or_final_config_created",
-                not any(config_dir.glob("*cut_strengthened_joint_v3*validation*.yaml"))
+                "only_expected_validation_configs_and_no_final_config",
+                {
+                    path.name
+                    for path in config_dir.glob(
+                        "cut_strengthened_joint_v3_validation*.yaml"
+                    )
+                }
+                == EXPECTED_VALIDATION_CONFIG_NAMES
                 and not any(config_dir.glob("*cut_strengthened_joint_v3*final*.yaml")),
             ),
         ]
