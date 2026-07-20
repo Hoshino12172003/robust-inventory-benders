@@ -89,6 +89,27 @@ SELECTED_EXPERIMENT_FIELDS = (
     "gamma_schedule",
 )
 SELECTED_PARAMETER_FIELDS = SELECTED_ALGORITHM_FIELDS + SELECTED_EXPERIMENT_FIELDS
+CUT_STRENGTHENING_CONFIG_FIELDS = (
+    "cut_strengthening_policy",
+    "core_point_update_weight",
+    "core_point_min_distance",
+    "core_point_stage1_time_limit",
+    "core_point_stage2_time_limit",
+    "core_point_min_remaining_time",
+    "core_point_min_global_gap",
+    "core_point_current_abs_tol",
+    "core_point_current_rel_tol",
+    "core_point_min_normalized_improvement",
+    "v3_secondary_lb_window",
+    "v3_secondary_stall_threshold",
+    "v3_secondary_cooldown_iterations",
+    "v3_secondary_min_global_gap",
+    "v3_secondary_min_remaining_time",
+    "v3_secondary_max_time_per_attempt",
+    "v3_secondary_max_time_fraction_of_remaining",
+    "v3_secondary_max_extra_time_share",
+    "v3_secondary_pattern_memory",
+)
 NULLABLE_SELECTED_ALGORITHM_FIELDS = {
     "secondary_cut_warmup_cuts",
     "secondary_cut_master_time_share_trigger",
@@ -171,6 +192,26 @@ RESULT_FIELDS = [
     "master_error_budget_ratio",
     "subproblem_error_budget_ratio",
     "monotone_precision_tightening",
+    "cut_strengthening_policy",
+    "core_point_attempt_count",
+    "core_point_success_count",
+    "core_point_fallback_count",
+    "core_point_total_runtime",
+    "core_point_stage1_total_runtime",
+    "core_point_stage2_total_runtime",
+    "core_point_mean_normalized_improvement",
+    "core_point_final_observations",
+    "v3_secondary_trigger_count",
+    "v3_secondary_solve_count",
+    "v3_secondary_incumbent_count",
+    "v3_secondary_cut_added_count",
+    "v3_secondary_duplicate_count",
+    "v3_secondary_total_runtime",
+    "v3_secondary_final_pattern_memory_size",
+    "v3_total_extra_cut_runtime",
+    "v3_extra_cut_runtime_share",
+    "v3_primary_cuts_added",
+    "v3_secondary_cuts_added",
     "secondary_solves_attempted_total",
     "secondary_solves_avoided_total",
     "last_secondary_solve_trigger_reason",
@@ -344,6 +385,44 @@ ITERATION_LOG_FIELDS = [
     "master_error_budget_ratio",
     "subproblem_error_budget_ratio",
     "monotone_precision_tightening",
+    "cut_strengthening_policy",
+    "core_point_available",
+    "core_point_observations",
+    "core_point_distance",
+    "core_point_attempted",
+    "core_point_skipped_reason",
+    "core_point_stage1_status",
+    "core_point_stage1_runtime",
+    "core_point_stage1_objective",
+    "core_point_stage2_status",
+    "core_point_stage2_runtime",
+    "core_point_current_value_floor",
+    "core_point_dual_feasible",
+    "core_point_original_value_at_current",
+    "core_point_strengthened_value_at_current",
+    "core_point_original_value_at_core",
+    "core_point_strengthened_value_at_core",
+    "core_point_normalized_improvement",
+    "core_point_cut_accepted",
+    "core_point_cut_fallback_reason",
+    "core_point_auxiliary_bound_used_for_UB",
+    "v3_secondary_attempted",
+    "v3_secondary_trigger_reason",
+    "v3_secondary_skipped_reason",
+    "v3_secondary_recent_lb_improvement",
+    "v3_secondary_cooldown_remaining",
+    "v3_secondary_time_limit",
+    "v3_secondary_runtime",
+    "v3_secondary_status",
+    "v3_secondary_has_incumbent",
+    "v3_secondary_pattern_distance",
+    "v3_secondary_pattern_memory_size",
+    "v3_secondary_cut_violation",
+    "v3_secondary_cut_added",
+    "v3_secondary_cut_skip_reason",
+    "v3_secondary_objective",
+    "v3_secondary_objective_bound",
+    "v3_secondary_bound_used_for_UB",
     "elapsed_time",
 ]
 
@@ -538,6 +617,31 @@ def _base_config(exp_cfg: dict[str, Any], size_name: str, seed: int, alpha: floa
             "monotone_precision_tightening": bool(
                 exp_cfg.get("monotone_precision_tightening", True)
             ),
+            "cut_strengthening_policy": str(
+                exp_cfg.get("cut_strengthening_policy", "none")
+            ),
+            "core_point_update_weight": float(exp_cfg.get("core_point_update_weight", 0.50)),
+            "core_point_min_distance": float(exp_cfg.get("core_point_min_distance", 1.0e-9)),
+            "core_point_stage1_time_limit": float(exp_cfg.get("core_point_stage1_time_limit", 2.0)),
+            "core_point_stage2_time_limit": float(exp_cfg.get("core_point_stage2_time_limit", 2.0)),
+            "core_point_min_remaining_time": float(exp_cfg.get("core_point_min_remaining_time", 10.0)),
+            "core_point_min_global_gap": float(exp_cfg.get("core_point_min_global_gap", 5.0e-4)),
+            "core_point_current_abs_tol": float(exp_cfg.get("core_point_current_abs_tol", 1.0e-7)),
+            "core_point_current_rel_tol": float(exp_cfg.get("core_point_current_rel_tol", 1.0e-8)),
+            "core_point_min_normalized_improvement": float(
+                exp_cfg.get("core_point_min_normalized_improvement", 1.0e-7)
+            ),
+            "v3_secondary_lb_window": int(exp_cfg.get("v3_secondary_lb_window", 5)),
+            "v3_secondary_stall_threshold": float(exp_cfg.get("v3_secondary_stall_threshold", 1.0e-4)),
+            "v3_secondary_cooldown_iterations": int(exp_cfg.get("v3_secondary_cooldown_iterations", 10)),
+            "v3_secondary_min_global_gap": float(exp_cfg.get("v3_secondary_min_global_gap", 1.0e-3)),
+            "v3_secondary_min_remaining_time": float(exp_cfg.get("v3_secondary_min_remaining_time", 30.0)),
+            "v3_secondary_max_time_per_attempt": float(exp_cfg.get("v3_secondary_max_time_per_attempt", 10.0)),
+            "v3_secondary_max_time_fraction_of_remaining": float(
+                exp_cfg.get("v3_secondary_max_time_fraction_of_remaining", 0.05)
+            ),
+            "v3_secondary_max_extra_time_share": float(exp_cfg.get("v3_secondary_max_extra_time_share", 0.10)),
+            "v3_secondary_pattern_memory": int(exp_cfg.get("v3_secondary_pattern_memory", 10)),
             "adaptive_subproblem_gap_enabled": bool(
                 exp_cfg.get("adaptive_subproblem_gap_enabled", False)
             ),
@@ -618,6 +722,7 @@ def _apply_variant_config(
         "master_error_budget_ratio",
         "subproblem_error_budget_ratio",
         "monotone_precision_tightening",
+        *CUT_STRENGTHENING_CONFIG_FIELDS,
         "adaptive_subproblem_gap_enabled",
         "subproblem_gap_schedule",
         "max_cuts_per_iteration",
@@ -943,6 +1048,30 @@ def _result_row(
         "monotone_precision_tightening": meta.get(
             "monotone_precision_tightening"
         ),
+        "cut_strengthening_policy": meta.get("cut_strengthening_policy", "none"),
+        "core_point_attempt_count": meta.get("core_point_attempt_count", 0),
+        "core_point_success_count": meta.get("core_point_success_count", 0),
+        "core_point_fallback_count": meta.get("core_point_fallback_count", 0),
+        "core_point_total_runtime": meta.get("core_point_total_runtime", 0.0),
+        "core_point_stage1_total_runtime": meta.get("core_point_stage1_total_runtime", 0.0),
+        "core_point_stage2_total_runtime": meta.get("core_point_stage2_total_runtime", 0.0),
+        "core_point_mean_normalized_improvement": meta.get(
+            "core_point_mean_normalized_improvement"
+        ),
+        "core_point_final_observations": meta.get("core_point_final_observations", 0),
+        "v3_secondary_trigger_count": meta.get("v3_secondary_trigger_count", 0),
+        "v3_secondary_solve_count": meta.get("v3_secondary_solve_count", 0),
+        "v3_secondary_incumbent_count": meta.get("v3_secondary_incumbent_count", 0),
+        "v3_secondary_cut_added_count": meta.get("v3_secondary_cut_added_count", 0),
+        "v3_secondary_duplicate_count": meta.get("v3_secondary_duplicate_count", 0),
+        "v3_secondary_total_runtime": meta.get("v3_secondary_total_runtime", 0.0),
+        "v3_secondary_final_pattern_memory_size": meta.get(
+            "v3_secondary_final_pattern_memory_size", 0
+        ),
+        "v3_total_extra_cut_runtime": meta.get("v3_total_extra_cut_runtime", 0.0),
+        "v3_extra_cut_runtime_share": meta.get("v3_extra_cut_runtime_share", 0.0),
+        "v3_primary_cuts_added": meta.get("v3_primary_cuts_added", 0),
+        "v3_secondary_cuts_added": meta.get("v3_secondary_cuts_added", 0),
         "secondary_solves_attempted_total": meta.get("secondary_solves_attempted_total"),
         "secondary_solves_avoided_total": meta.get("secondary_solves_avoided_total"),
         "last_secondary_solve_trigger_reason": meta.get(
@@ -1547,7 +1676,20 @@ def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
     specs = experiment_run_specs(resolved)
     time_limit = float(resolved.get("time_limit", 0.0))
     audit_errors: list[str] = []
-    if resolved.get("experiment_name") in {
+    experiment_name = str(resolved.get("experiment_name", ""))
+    if experiment_name.startswith("cut_strengthened_joint_v3_"):
+        try:
+            from .cut_strengthened_v3_audit import audit_cut_strengthened_v3
+
+            audit = audit_cut_strengthened_v3()
+            audit_errors = [
+                str(check["check"])
+                for check in audit["checks"]
+                if check.get("required", True) and not check.get("passed", False)
+            ]
+        except Exception as exc:  # noqa: BLE001 - dry-run reports audit failures.
+            audit_errors = [f"audit_execution_failed: {exc}"]
+    elif experiment_name in {
         "large_scale_evaluation_joint_v1",
         "managerial_sensitivity_joint_v1",
     }:

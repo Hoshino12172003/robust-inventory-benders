@@ -1,0 +1,74 @@
+experiment_name: selected_cut_strengthened_joint_v3_candidate
+output_dir: experiments/results_cut_v3/selection_not_run
+random_seeds: [75, 76, 77, 78, 79]
+selection_name: selected_cut_strengthened_joint_v3_candidate
+selection_status: frozen_for_validation_protocol
+selection_frozen: true
+selection_phase: development
+selected_variant: joint_v1_core_point_strengthened
+development_experiment_commit: 8eabc10f9248878f4f5e409bbcd75ead288e168b
+selection_date: 2026-07-20
+parameter_revision_used: false
+validation_started: false
+final_test_started: false
+formal_statistical_inference_allowed: false
+
+evidence:
+  medium_large_results_zip:
+    filename: cut_strengthened_joint_v3_development_medium_large_results.zip
+    sha256: D778D9B988BB360BBFF898A7A80887D8E68103E525512617EBC924C9DC76C492
+  large_results_zip:
+    filename: cut_strengthened_joint_v3_development_large_results.zip
+    sha256: 8516D345BDB752F946CB5643B10A560C14B6B7DBF8109F2BCE5F2A78521826E4
+
+components:
+  core_point_strengthening_enabled: true
+  stall_secondary_enabled: false
+  workload_aware_v2_enabled: false
+
+algorithm:
+  subproblem_mode: robust_dual_milp
+  precision_policy: joint_error_budget
+  adaptive_master_precision_enabled: true
+  adaptive_subproblem_precision_enabled: true
+  master_gap_max: 0.02
+  master_gap_min: 0.0001
+  subproblem_gap_max: 0.05
+  subproblem_gap_min: 0.0001
+  fixed_master_mip_gap: 0.02
+  fixed_subproblem_mip_gap: 0.05
+  master_error_budget_ratio: 0.25
+  subproblem_error_budget_ratio: 0.50
+  monotone_precision_tightening: true
+
+  cut_strengthening_policy: core_point
+  core_point_update_weight: 0.50
+  core_point_min_distance: 1.0e-9
+  core_point_stage1_time_limit: 2.0
+  core_point_stage2_time_limit: 2.0
+  core_point_min_remaining_time: 10.0
+  core_point_min_global_gap: 5.0e-4
+  core_point_current_abs_tol: 1.0e-7
+  core_point_current_rel_tol: 1.0e-8
+  core_point_min_normalized_improvement: 1.0e-7
+
+  max_cuts_per_iteration: 1
+  cut_selection_enabled: false
+  adaptive_secondary_cut_selection_enabled: false
+  adaptive_secondary_generation_enabled: false
+  adaptive_subproblem_gap_enabled: false
+  adaptive_gap_enabled: false
+  final_certification_enabled: true
+  final_certification_no_cut_patience: 2
+
+robust:
+  gamma_target: 2
+  gamma_schedule: [2]
+  gamma_continuation_enabled: false
+
+selection_rationale: >-
+  Both core-only and full V3 passed the pre-registered development gates.
+  Core-only is frozen because it has the lower large mean PAR-2, lower large
+  mean iteration count, lower medium-large mean PAR-2, and fewer components.
+  Secondary-only failed the medium-large and large performance gates. No
+  development-stage parameter revision was used. Validation has not started.
