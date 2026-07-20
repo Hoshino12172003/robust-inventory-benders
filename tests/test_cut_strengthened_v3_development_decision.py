@@ -88,7 +88,7 @@ def test_selected_candidate_evidence_and_file_hash_are_frozen() -> None:
     assert evidence["large_results_zip"]["sha256"] == LARGE_RESULTS_ZIP_SHA256
 
 
-def test_validation_seeds_are_isolated_and_final_seeds_remain_unused() -> None:
+def test_validation_and_final_protocol_seeds_are_isolated() -> None:
     validation_paths = list(
         CONFIG_DIR.glob("cut_strengthened_joint_v3_validation*.yaml")
     )
@@ -96,18 +96,36 @@ def test_validation_seeds_are_isolated_and_final_seeds_remain_unused() -> None:
     for path in validation_paths:
         assert set(load_config(path)["random_seeds"]) == RESERVED_VALIDATION_SEEDS
 
-    non_validation_used: set[int] = set()
+    final_paths = {
+        path.name: path
+        for path in CONFIG_DIR.glob("cut_strengthened_joint_v3_final*.yaml")
+    }
+    assert set(final_paths) == {
+        "cut_strengthened_joint_v3_final_medium_large.yaml",
+        "cut_strengthened_joint_v3_final_large.yaml",
+    }
+    assert set(
+        load_config(final_paths["cut_strengthened_joint_v3_final_medium_large.yaml"])[
+            "random_seeds"
+        ]
+    ) == RESERVED_MEDIUM_FINAL_SEEDS
+    assert set(
+        load_config(final_paths["cut_strengthened_joint_v3_final_large.yaml"])[
+            "random_seeds"
+        ]
+    ) == RESERVED_LARGE_FINAL_SEEDS
+
+    pre_final_used: set[int] = set()
     for path in CONFIG_DIR.glob("*cut_strengthened_joint_v3*.yaml"):
-        if path in validation_paths:
+        if path in validation_paths or path.name in final_paths:
             continue
-        non_validation_used.update(
+        pre_final_used.update(
             int(seed) for seed in load_config(path).get("random_seeds", [])
         )
-    assert non_validation_used.isdisjoint(RESERVED_VALIDATION_SEEDS)
-    assert non_validation_used.isdisjoint(
+    assert pre_final_used.isdisjoint(RESERVED_VALIDATION_SEEDS)
+    assert pre_final_used.isdisjoint(
         RESERVED_MEDIUM_FINAL_SEEDS | RESERVED_LARGE_FINAL_SEEDS
     )
-    assert not list(CONFIG_DIR.glob("*cut_strengthened_joint_v3*final*.yaml"))
 
 
 def test_secondary_and_full_v3_remain_as_unselected_ablation_variants() -> None:

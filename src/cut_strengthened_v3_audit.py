@@ -70,6 +70,10 @@ EXPECTED_VALIDATION_CONFIG_NAMES = {
     "cut_strengthened_joint_v3_validation_medium_large.yaml",
     "cut_strengthened_joint_v3_validation_large.yaml",
 }
+EXPECTED_FINAL_CONFIG_NAMES = {
+    "cut_strengthened_joint_v3_final_medium_large.yaml",
+    "cut_strengthened_joint_v3_final_large.yaml",
+}
 
 
 def _check(name: str, passed: bool, details: Any = "") -> dict[str, Any]:
@@ -222,7 +226,7 @@ def audit_cut_strengthened_v3(repo_root: str | Path | None = None) -> dict[str, 
                 sorted(used_development_seeds),
             ),
             _check(
-                "only_expected_validation_configs_and_no_final_config",
+                "only_expected_validation_and_authorized_final_configs",
                 {
                     path.name
                     for path in config_dir.glob(
@@ -230,7 +234,13 @@ def audit_cut_strengthened_v3(repo_root: str | Path | None = None) -> dict[str, 
                     )
                 }
                 == EXPECTED_VALIDATION_CONFIG_NAMES
-                and not any(config_dir.glob("*cut_strengthened_joint_v3*final*.yaml")),
+                and {
+                    path.name
+                    for path in config_dir.glob(
+                        "cut_strengthened_joint_v3_final*.yaml"
+                    )
+                }
+                in (set(), EXPECTED_FINAL_CONFIG_NAMES),
             ),
         ]
     )
