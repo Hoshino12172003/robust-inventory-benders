@@ -193,6 +193,8 @@ def audit_cut_strengthened_v3_final(
     root = Path(repo_root) if repo_root is not None else REPO_ROOT
     config_dir = root / "experiments/configs"
     document_path = root / "docs/cut_strengthened_joint_v3_final_protocol.md"
+    decision_path = root / "docs/cut_strengthened_joint_v3_final_decision.md"
+    results_audit_path = root / "src/cut_v3_final_results_audit.py"
     validation_decision_path = root / "docs/cut_strengthened_joint_v3_validation_decision.md"
     checks: list[dict[str, Any]] = []
 
@@ -403,6 +405,7 @@ def audit_cut_strengthened_v3_final(
     )
 
     document = document_path.read_text(encoding="utf-8") if document_path.exists() else ""
+    final_decision = decision_path.read_text(encoding="utf-8") if decision_path.exists() else ""
     checks.extend(
         [
             _check(
@@ -437,6 +440,41 @@ def audit_cut_strengthened_v3_final(
                 "final_not_a_retuning_or_seed_replacement_stage",
                 "does not authorize seed replacement" in document
                 and "not a tuning stage" in document,
+            ),
+            _check(
+                "final_decision_frozen_after_read_only_audit",
+                all(
+                    token in final_decision
+                    for token in (
+                        "decision: final_confirmed",
+                        "selected_algorithm: joint_v1_core_point_strengthened",
+                        "v3_status: completed",
+                        "retuning_allowed: false",
+                        "seed_replacement_allowed: false",
+                        "development_validation_pooling_allowed: false",
+                        "next_authorized_stage: fairness_diagnostic_only",
+                    )
+                ),
+            ),
+            _check(
+                "final_decision_evidence_identity_frozen",
+                all(
+                    token in final_decision
+                    for token in (
+                        "11020383bfaf49b6f538f672089704f1cdf8b860",
+                        "1388446BC75E44E8E8AFC9E7973F011B14B7172AEBC8BB400749C6FE7C1D1E7A",
+                        "6641DCD67F8BFD6FA15F7580459AD31148BFF7DF64034E16C1A36F98B78985F4",
+                        "skipped_run_count: 4",
+                        "-774.4814981500152",
+                        "-977.7605067112486",
+                        "-594.9803125280666",
+                    )
+                ),
+            ),
+            _check(
+                "read_only_final_results_audit_present",
+                results_audit_path.exists()
+                and "def audit_cut_v3_final_results(" in results_audit_path.read_text(encoding="utf-8"),
             ),
         ]
     )
