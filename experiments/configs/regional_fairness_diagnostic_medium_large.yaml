@@ -1,0 +1,97 @@
+experiment_name: regional_fairness_diagnostic_medium_large
+output_dir: experiments/results_fairness_diagnostic/medium_large
+random_seeds: [110, 111, 112, 113, 114, 115, 116, 117, 118, 119]
+instance_sizes: [medium_large]
+time_limit: 600
+max_iterations: 10000
+variants:
+  - joint_v1_core_point_strengthened
+variant_settings:
+  joint_v1_core_point_strengthened:
+    cut_strengthening_policy: core_point
+    max_cuts_per_iteration: 1
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+gamma_target: 2
+gamma_schedule: [2]
+gamma_continuation_enabled: false
+subproblem_mode: robust_dual_milp
+save_iteration_log: true
+max_cuts_per_iteration: 1
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+max_scenarios: 5000
+exact_scenarios: true
+cut_strengthening_policy: core_point
+core_point_update_weight: 0.50
+core_point_min_distance: 1.0e-9
+core_point_stage1_time_limit: 2.0
+core_point_stage2_time_limit: 2.0
+core_point_min_remaining_time: 10.0
+core_point_min_global_gap: 5.0e-4
+core_point_current_abs_tol: 1.0e-7
+core_point_current_rel_tol: 1.0e-8
+core_point_min_normalized_improvement: 1.0e-7
+v3_secondary_lb_window: 5
+v3_secondary_stall_threshold: 1.0e-4
+v3_secondary_cooldown_iterations: 10
+v3_secondary_min_global_gap: 1.0e-3
+v3_secondary_min_remaining_time: 30.0
+v3_secondary_max_time_per_attempt: 10.0
+v3_secondary_max_time_fraction_of_remaining: 0.05
+v3_secondary_max_extra_time_share: 0.10
+v3_secondary_pattern_memory: 10
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml
+candidate_parameters_must_be_fixed_from: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+candidate_config_sha256: 7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6
+protocol_phase: fairness_diagnostic
+diagnostic_authorization: fairness_diagnostic_protocol_only
+formal_inference_allowed: false
+fairness_diagnostic:
+  fairness_scope: regional_service_fairness
+  recourse_policies: [default, fair_best]
+  gamma: 2
+  scenario_policy: all_budget_extreme_points
+  include_nominal: true
+  include_cost_worst: true
+  max_scenarios: 5000
+  exact_scenarios: true
+  cost_absolute_tolerance: 1.0e-6
+  cost_relative_tolerance: 1.0e-6
+  metric_tolerance: 1.0e-9
+  recourse_time_limit: 30.0
+  zero_demand_policy: not_applicable_excluded
+  primary_metrics: [fair_best_WGap, fair_best_WMinFR, default_WGap, default_minus_fair_best_WGap]
+  auxiliary_metrics:
+    - regional_shortage_rate
+    - demand_weighted_mean_fill_rate
+    - regional_fill_rate_standard_deviation
+    - regional_fill_rate_gini
+    - regional_transport_cost
+    - allocated_unit_transport_cost
+    - reachable_warehouse_count
+  thresholds:
+    material_gap: 0.10
+    structural_median: 0.05
+    no_material_median: 0.03
+    degeneracy_reduction: 0.05
+    sensitivity_levels: [0.05, 0.10, 0.15]
+  reserved_future_seeds:
+    development: [120, 121, 122, 123, 124, 125, 126, 127, 128, 129]
+    validation: [130, 131, 132, 133, 134, 135, 136, 137, 138, 139]
+    final_medium_large: [140, 141, 142, 143, 144, 145, 146, 147, 148, 149]
+    final_large: [150, 151, 152, 153, 154, 155, 156, 157, 158, 159]
+  required_outputs:
+    - results.csv
+    - region_scenario_metrics.csv
+    - instance_summary.csv
+    - resolved_config.yaml
+    - run_manifest.json
+    - diagnosis.json
+    - audit_log.json

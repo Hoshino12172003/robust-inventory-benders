@@ -1716,8 +1716,30 @@ def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
     specs = experiment_run_specs(resolved)
     time_limit = float(resolved.get("time_limit", 0.0))
     audit_errors: list[str] = []
+    scenario_count_by_size: dict[str, int] = {}
     experiment_name = str(resolved.get("experiment_name", ""))
-    if experiment_name.startswith("cut_strengthened_joint_v3_final_"):
+    if experiment_name.startswith("regional_fairness_diagnostic_"):
+        try:
+            from .regional_fairness_diagnostic_audit import (
+                audit_regional_fairness_diagnostic,
+            )
+
+            audit = audit_regional_fairness_diagnostic()
+            audit_errors = [
+                str(check["check"])
+                for check in audit["checks"]
+                if check.get("required", True) and not check.get("passed", False)
+            ]
+            gamma = int(resolved.get("gamma_target", 2))
+            for size in resolved.get("instance_sizes", []):
+                dimensions = INSTANCE_SIZES[str(size)]
+                units = dimensions["num_products"] * dimensions["num_regions"]
+                scenario_count_by_size[str(size)] = sum(
+                    math.comb(units, k) for k in range(gamma + 1)
+                )
+        except Exception as exc:  # noqa: BLE001 - dry-run reports audit failures.
+            audit_errors = [f"audit_execution_failed: {exc}"]
+    elif experiment_name.startswith("cut_strengthened_joint_v3_final_"):
         try:
             from .cut_strengthened_v3_final_audit import (
                 audit_cut_strengthened_v3_final,
@@ -1785,6 +1807,7 @@ def experiment_dry_run_report(config: dict[str, Any]) -> dict[str, Any]:
         "theoretical_maximum_hours": theoretical_maximum_hours(len(specs), time_limit),
         "serial_upper_bound_not_runtime_prediction": True,
         "automatic_parallelism_enabled": False,
+        "scenario_count_by_size": scenario_count_by_size,
         "protocol_audit_errors": audit_errors,
     }
 
