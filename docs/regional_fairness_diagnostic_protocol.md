@@ -249,18 +249,93 @@ Formal outputs, if later authorized, are isolated under:
 
 Each scale must contain `results.csv`, `region_scenario_metrics.csv`,
 `instance_summary.csv`, `resolved_config.yaml`, `run_manifest.json`,
-`diagnosis.json`, and `audit_log.json`.
+`diagnostic_run_manifest.json`, `diagnosis.json`, `audit_log.json`, and
+`checkpoint/index.json`. The base `results.csv`, `summary.csv`,
+`run_manifest.json`, per-run JSON, and instances remain owned by
+`experiment_suite`; the diagnostic stage never rewrites them after locking
+their SHA256 identities.
 
 `region_scenario_metrics.csv` includes instance size, seed, scenario ID and
 kind, region, regional demand and shortage, shortage/fill rate, applicability,
 weighted mean fill rate, gap, worst-region deviation, dispersion metrics,
 transport diagnostics, recourse policy, original/evaluated cost, cost
-tolerance, Gamma usage, and the fixed-`x` SHA256.
+tolerance, Gamma usage, and the fixed-`x` SHA256. Its frozen trace identity also
+includes the diagnostic and base run keys, instance name, experiment, method,
+base commit and config hashes, resolved-config hash, deterministic scenario
+key and index, explicit nominal/cost-worst/fairness-worst flags, both recourse
+statuses and costs, the recourse variant, invalid reason, and region ID.
+
+The deviation pattern is stored as deterministic JSON. Each active entry gives
+the region ID, product ID, deviation amount, base demand, and realized demand;
+the output also stores a SHA256 of that JSON. A Gamma=2 scenario can therefore
+be reconstructed without interpreting a private solver index.
 
 `instance_summary.csv` includes seed, size, default/fair-best WGap, WMinFR and
 WWD, nominal and cost-worst gaps, separately identified cost-worst and
 fairness-worst scenarios, WGap reduction, category, scenario count, and the
 fixed-`x` SHA256.
+
+Each scale-level `diagnosis.json` is deliberately marked as a valid
+single-scale signal and keeps the overall decision
+`fairness_diagnostic_inconclusive` until a separate read-only decision audit
+combines both scales. A failed, missing, non-optimal, infeasible, or malformed
+recourse result instead produces `fairness_diagnostic_invalid`; it is never
+silently omitted or replaced with zero.
+
+## Unified execution, checkpointing, and recovery
+
+The sole formal entry point is `python -m src.regional_fairness_diagnostic`.
+It first runs the static protocol audit, then calls the existing
+`experiment_suite` runner for any missing or incomplete base V3 run. It does
+not copy the Benders solver. When all ten base runs are already complete and
+solved to tolerance, their run records and hashes are verified and the base
+solver is not called again.
+
+After base completion, scenarios use the deterministic order returned by
+`enumerate_budget_scenarios_with_metadata`. Each base instance is partitioned
+into consecutive blocks of exactly 50 scenarios, except the shorter final
+block. This value is frozen as `checkpoint_scenario_chunk_size: 50` in both
+configs. A block is written to a temporary JSON file and committed with
+`os.replace`; no per-scenario file is created. The checkpoint contains its full
+base run key, scenario indices and keys, reconstructable deviation patterns,
+both recourse results, regional metrics, validity, and failure reason.
+
+`checkpoint/index.json` is atomic but is not the only recovery truth. Resume
+scans and validates every checkpoint file. Consequently:
+
+- a solved block interrupted before checkpoint commit is recomputed;
+- a committed checkpoint interrupted before index or manifest update is
+  discovered and reused;
+- interruption after all blocks but before aggregation only reruns aggregation;
+- interruption after an atomic CSV but before `diagnosis.json` deterministically
+  rebuilds the final outputs without appending or duplicating rows.
+
+An indexed checkpoint that is missing, corrupt, has the wrong hash, wrong
+identity, wrong scenario range, or duplicate/out-of-order scenario keys causes
+an explicit failure. It is not silently recomputed. A failed recourse block may
+be retried only with `--resume`.
+
+The independent `diagnostic_run_manifest.json` uses schema version 1 and
+records the diagnostic key, phase, experiment and scale, output path, CLI
+arguments, base and diagnostic commits, raw and resolved config identities,
+protocol and candidate hashes, SHA256 values of base `results.csv`,
+`summary.csv`, and `run_manifest.json`, base run keys, seeds, method, scenario
+and block counts, completion/failure/interruption counts, timestamps, failure
+reason, and hashes of every final output. Identity drift is a hard resume
+failure.
+
+A single-writer lock prevents concurrent mutation of one output directory.
+KeyboardInterrupt atomically records `interrupted`, releases the lock, and
+returns exit code 130. A stale lock can be reclaimed only by `--resume` after
+the recorded process is no longer alive. Gurobi recourse models are explicitly
+disposed after each solve.
+
+Final CSVs are reconstructed from verified checkpoints in seed, scenario,
+recourse, and region order. Before atomic replacement, the pipeline validates
+expected instance/scenario counts and uniqueness of
+`(diagnostic_run_key, base_run_key, scenario_key, recourse_variant, region_id)`.
+Only complete, valid checkpoints and final output hashes allow the diagnostic
+manifest to enter `completed`.
 
 ## Dry-run and execution boundary
 
@@ -283,3 +358,43 @@ create either formal output directory.
 No formal diagnostic, fairness-model experiment, or managerial-sensitivity
 experiment is authorized by this PR. A later diagnostic execution and its
 read-only decision require separate tasks and separate review.
+
+After that separate execution authorization, the exact formal commands are:
+
+```powershell
+python -m src.regional_fairness_diagnostic `
+  --config experiments/configs/regional_fairness_diagnostic_medium_large.yaml `
+  --resume
+
+python -m src.regional_fairness_diagnostic `
+  --config experiments/configs/regional_fairness_diagnostic_large.yaml `
+  --resume
+```
+
+These commands coordinate both the base V3 stage and diagnostic postprocessing;
+manual assembly of intermediate files is forbidden.
+
+## Pre-merge engineering hash transition
+
+The initial protocol-only commit used these identities:
+
+- medium-large config:
+  `651322fcaa4f76f7181722d293647590d851c561807fdf348e5e8ea139f1ac0b`;
+- large config:
+  `fd98dac30bdfc79352dc01d42fb03c1e9a55a9df2be579ab8ae745a85d8534c2`;
+- protocol document:
+  `52c6a19db575591a14174eaaa4be177afaf1d079251e84fc30eca10a894c6fcb`.
+
+The engineering-complete configs are now frozen as:
+
+- medium-large config:
+  `04d2ca32c31d7b2d3c9071583c4bc3897740b463d6ad945a8a52554a6317c79c`;
+- large config:
+  `7a40ff6cfedb02f44d57c999377377b7eb25e406ebe417791ca7a0c22c2fb307`.
+
+The current document SHA256 is frozen in
+`src/regional_fairness_diagnostic_audit.py` and the PR validation record rather
+than embedded into the document itself, which cannot self-contain its own
+SHA256. This transition changes only engineering execution metadata and output
+contracts; metrics, recourse definitions, thresholds, scales, seeds, V3, and
+the uncertainty set are unchanged.

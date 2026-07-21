@@ -15,6 +15,7 @@ from .experiment_suite import INSTANCE_SIZES, _apply_selected_parameters, experi
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_PROTOCOL_SHA256 = "ec7761d96c1d2a17f96eba90bf4bfb520a9ce6359f938acd7f294a10e7f24a38"
 DIAGNOSTIC_SEEDS = list(range(110, 120))
 RESERVED_SEEDS = {
     "development": list(range(120, 130)),
@@ -38,7 +39,7 @@ EXPECTED_CONFIGS = {
         "max_iterations": 10000,
         "output_dir": "experiments/results_fairness_diagnostic/medium_large",
         "scenario_count": 1831,
-        "sha256": "651322fcaa4f76f7181722d293647590d851c561807fdf348e5e8ea139f1ac0b",
+        "sha256": "04d2ca32c31d7b2d3c9071583c4bc3897740b463d6ad945a8a52554a6317c79c",
     },
     "regional_fairness_diagnostic_large.yaml": {
         "size": "large",
@@ -46,7 +47,7 @@ EXPECTED_CONFIGS = {
         "max_iterations": 20000,
         "output_dir": "experiments/results_fairness_diagnostic/large",
         "scenario_count": 4657,
-        "sha256": "fd98dac30bdfc79352dc01d42fb03c1e9a55a9df2be579ab8ae745a85d8534c2",
+        "sha256": "7a40ff6cfedb02f44d57c999377377b7eb25e406ebe417791ca7a0c22c2fb307",
     },
 }
 FROZEN_FINAL_FILES = {
@@ -68,8 +69,10 @@ EXPECTED_OUTPUT_FILES = [
     "instance_summary.csv",
     "resolved_config.yaml",
     "run_manifest.json",
+    "diagnostic_run_manifest.json",
     "diagnosis.json",
     "audit_log.json",
+    "checkpoint/index.json",
 ]
 FORBIDDEN_MODEL_KEYS = {
     "fairness_penalty",
@@ -121,11 +124,15 @@ def _normalized(config: dict[str, Any]) -> dict[str, Any]:
 
 def audit_regional_fairness_diagnostic(
     repo_root: str | Path | None = None,
+    *,
+    require_absent_outputs: bool = True,
 ) -> dict[str, Any]:
     root = Path(repo_root) if repo_root is not None else REPO_ROOT
     config_dir = root / "experiments/configs"
     document_path = root / "docs/regional_fairness_diagnostic_protocol.md"
     evaluator_path = root / "src/regional_fairness_diagnostic.py"
+    pipeline_path = root / "src/regional_fairness_pipeline.py"
+    pipeline_test_path = root / "tests/test_regional_fairness_pipeline.py"
     checks: list[dict[str, Any]] = []
 
     for name, expected_hash in FROZEN_CONFIG_SHA256.items():
@@ -228,11 +235,15 @@ def audit_regional_fairness_diagnostic(
                 ),
                 _check(f"{prefix}_future_seed_reservations_frozen", diagnostic.get("reserved_future_seeds") == RESERVED_SEEDS),
                 _check(f"{prefix}_required_output_schema_frozen", diagnostic.get("required_outputs") == EXPECTED_OUTPUT_FILES),
+                _check(f"{prefix}_checkpoint_chunk_size_frozen", diagnostic.get("checkpoint_scenario_chunk_size") == 50),
                 _check(
                     f"{prefix}_isolated_absent_output",
                     output_dir == expected["output_dir"]
                     and "results_fairness_diagnostic" in output_dir
-                    and not (root / output_dir).exists(),
+                    and (
+                        not require_absent_outputs
+                        or not (root / output_dir).exists()
+                    ),
                     output_dir,
                 ),
                 _check(f"{prefix}_no_model_fairness_or_managerial_keys", _recursive_keys(config).isdisjoint(FORBIDDEN_MODEL_KEYS), sorted(_recursive_keys(config) & FORBIDDEN_MODEL_KEYS)),
@@ -283,13 +294,23 @@ def audit_regional_fairness_diagnostic(
         [
             _check("diagnostic_scale_configs_differ_only_as_registered", len(configs) == 2 and _normalized(configs[0]) == _normalized(configs[1])),
             _check("diagnostic_outputs_are_distinct", len(outputs) == 2),
-            _check("formal_result_directories_absent", not (root / "experiments/results_fairness_diagnostic").exists()),
+            _check(
+                "formal_result_directories_absent",
+                not require_absent_outputs
+                or not (root / "experiments/results_fairness_diagnostic").exists(),
+            ),
         ]
     )
 
     document = document_path.read_text(encoding="utf-8") if document_path.exists() else ""
     checks.extend(
         [
+            _check(
+                "protocol_document_sha256_frozen",
+                document_path.exists()
+                and file_sha256(document_path).lower() == EXPECTED_PROTOCOL_SHA256,
+                file_sha256(document_path).lower() if document_path.exists() else "missing",
+            ),
             _check(
                 "protocol_freezes_metric_definitions",
                 all(token in document for token in ("WGap", "WMinFR", "WWD", "fair-best", "not_applicable", "Gini")),
@@ -314,10 +335,100 @@ def audit_regional_fairness_diagnostic(
                 all(token in document for token in ("120--129", "130--139", "140--149", "150--159")),
             ),
             _check(
+                "protocol_documents_formal_resume_and_atomic_chunks",
+                all(
+                    token in document
+                    for token in (
+                        "python -m src.regional_fairness_diagnostic",
+                        "--resume",
+                        "checkpoint_scenario_chunk_size: 50",
+                        "diagnostic_run_manifest.json",
+                        "os.replace",
+                        "single-writer lock",
+                    )
+                ),
+            ),
+            _check(
                 "postprocessor_isolated_from_benders",
                 evaluator_path.exists()
                 and "diagnostic_updates_benders_bounds\": False" in evaluator_path.read_text(encoding="utf-8")
                 and "solve_benders" not in evaluator_path.read_text(encoding="utf-8"),
+            ),
+            _check(
+                "formal_cli_entrypoint_and_resume_present",
+                evaluator_path.exists()
+                and all(
+                    token in evaluator_path.read_text(encoding="utf-8")
+                    for token in ("def main()", 'parser.add_argument("--resume"', "run_regional_fairness_pipeline")
+                ),
+            ),
+            _check(
+                "diagnostic_manifest_identity_and_schema_present",
+                pipeline_path.exists()
+                and all(
+                    token in pipeline_path.read_text(encoding="utf-8")
+                    for token in (
+                        "DIAGNOSTIC_MANIFEST_SCHEMA_VERSION",
+                        '"diagnostic_run_key"',
+                        '"base_input_identity"',
+                        '"base_results_sha256"',
+                        '"protocol_document_sha256"',
+                        '"final_outputs"',
+                    )
+                ),
+            ),
+            _check(
+                "atomic_chunk_checkpoint_and_index_present",
+                pipeline_path.exists()
+                and all(
+                    token in pipeline_path.read_text(encoding="utf-8")
+                    for token in (
+                        "atomic_write_json(path, checkpoint)",
+                        "_write_checkpoint_index",
+                        "checkpoint_is_resume_source_of_truth",
+                        "after_checkpoint_commit_before_index",
+                    )
+                ),
+            ),
+            _check(
+                "single_writer_and_interrupt_handling_present",
+                pipeline_path.exists()
+                and all(
+                    token in pipeline_path.read_text(encoding="utf-8")
+                    for token in ("SingleWriterLock", "os.O_EXCL", "except KeyboardInterrupt", '"interrupted"')
+                ),
+            ),
+            _check(
+                "traceability_schema_present",
+                evaluator_path.exists()
+                and all(
+                    token in evaluator_path.read_text(encoding="utf-8")
+                    for token in (
+                        '"diagnostic_run_key"',
+                        '"base_run_key"',
+                        '"instance_name"',
+                        '"scenario_key"',
+                        '"deviation_pattern"',
+                        '"default_recourse_status"',
+                        '"fair_best_recourse_status"',
+                        '"invalid_reason"',
+                    )
+                ),
+            ),
+            _check(
+                "resume_fault_injection_tests_present",
+                pipeline_test_path.exists()
+                and all(
+                    token in pipeline_test_path.read_text(encoding="utf-8")
+                    for token in (
+                        "test_fault_injection_resume_matches_clean_run",
+                        "after_checkpoint_commit_before_index",
+                        "after_all_chunks_before_aggregation",
+                        "after_region_csv_before_diagnosis",
+                        "test_keyboard_interrupt_is_atomic_and_resumable",
+                        "test_single_writer_lock_refuses_concurrent_writer",
+                    )
+                ),
             ),
         ]
     )

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import argparse
 import hashlib
 import json
 import math
 import statistics
+import sys
 import time
 from typing import Any, Iterable, Mapping
 
@@ -25,8 +27,34 @@ NO_MATERIAL_MEDIAN_THRESHOLD = 0.03
 DEGENERACY_REDUCTION_THRESHOLD = 0.05
 
 REGION_SCENARIO_FIELDS = [
-    "instance_size",
+    "diagnostic_run_key",
+    "base_run_key",
+    "instance_name",
+    "experiment_name",
+    "scale",
+    "method",
     "seed",
+    "base_git_commit",
+    "base_config_sha256",
+    "resolved_config_sha256",
+    "scenario_key",
+    "scenario_index",
+    "scenario_type",
+    "is_nominal",
+    "is_cost_worst",
+    "is_fairness_worst",
+    "deviation_pattern",
+    "deviation_pattern_sha256",
+    "region_id",
+    "recourse_variant",
+    "default_recourse_status",
+    "fair_best_recourse_status",
+    "default_recourse_cost",
+    "fair_best_recourse_cost",
+    "cost_absolute_tolerance",
+    "cost_relative_tolerance",
+    "invalid_reason",
+    "instance_size",
     "scenario_id",
     "scenario_kind",
     "region",
@@ -54,6 +82,14 @@ REGION_SCENARIO_FIELDS = [
 ]
 
 INSTANCE_SUMMARY_FIELDS = [
+    "diagnostic_run_key",
+    "base_run_key",
+    "instance_name",
+    "experiment_name",
+    "method",
+    "base_git_commit",
+    "base_config_sha256",
+    "resolved_config_sha256",
     "seed",
     "size",
     "default_WGap",
@@ -71,6 +107,37 @@ INSTANCE_SUMMARY_FIELDS = [
     "scenario_count",
     "first_stage_x_sha256",
 ]
+
+
+def deviation_pattern_payload(
+    instance: InventoryInstance,
+    scenario: DemandScenario,
+) -> list[dict[str, Any]]:
+    """Return a deterministic, human-auditable representation of active deviations."""
+    return [
+        {
+            "region_id": int(region),
+            "product_id": int(product),
+            "deviation_value": float(instance.demand_deviation[region][product]),
+            "base_demand": float(instance.base_demand[region][product]),
+            "realized_demand": float(scenario.demand[region][product]),
+        }
+        for region, product in sorted(scenario.active_units)
+    ]
+
+
+def deviation_pattern_sha256(pattern: list[dict[str, Any]]) -> str:
+    payload = json.dumps(pattern, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def stable_scenario_key(
+    instance: InventoryInstance,
+    scenario: DemandScenario,
+    scenario_index: int,
+) -> str:
+    pattern_hash = deviation_pattern_sha256(deviation_pattern_payload(instance, scenario))
+    return f"scenario_{int(scenario_index):05d}_{pattern_hash[:16]}"
 
 
 @dataclass(frozen=True)
@@ -405,33 +472,36 @@ def solve_default_and_fair_best_recourse(
     model, q, u, e, transport, shortage, service = _build_recourse_model(
         instance, scenario, x_values, time_limit=time_limit, output_flag=output_flag
     )
-    cost = transport + shortage + service
-    model.setObjective(cost, GRB.MINIMIZE)
-    model.optimize()
-    status = gurobi_status_name(model.Status)
-    if model.Status != GRB.OPTIMAL:
-        raise RuntimeError(f"Default recourse ended with status {status}.")
-    q_star = float(model.ObjVal)
-    tolerance = combined_cost_tolerance(
-        q_star,
-        absolute_tolerance=cost_absolute_tolerance,
-        relative_tolerance=cost_relative_tolerance,
-    )
-    default = _allocation_from_model(
-        instance=instance,
-        scenario=scenario,
-        x_values=x_values,
-        model=model,
-        q=q,
-        u=u,
-        e=e,
-        evaluated_cost=cost,
-        policy="default",
-        original_optimal_cost=q_star,
-        cost_tolerance=tolerance,
-        runtime=time.perf_counter() - start,
-        metric_tolerance=metric_tolerance,
-    )
+    try:
+        cost = transport + shortage + service
+        model.setObjective(cost, GRB.MINIMIZE)
+        model.optimize()
+        status = gurobi_status_name(model.Status)
+        if model.Status != GRB.OPTIMAL:
+            raise RuntimeError(f"Default recourse ended with status {status}.")
+        q_star = float(model.ObjVal)
+        tolerance = combined_cost_tolerance(
+            q_star,
+            absolute_tolerance=cost_absolute_tolerance,
+            relative_tolerance=cost_relative_tolerance,
+        )
+        default = _allocation_from_model(
+            instance=instance,
+            scenario=scenario,
+            x_values=x_values,
+            model=model,
+            q=q,
+            u=u,
+            e=e,
+            evaluated_cost=cost,
+            policy="default",
+            original_optimal_cost=q_star,
+            cost_tolerance=tolerance,
+            runtime=time.perf_counter() - start,
+            metric_tolerance=metric_tolerance,
+        )
+    finally:
+        model.dispose()
     default_metrics = summarize_regional_service(
         [list(row) for row in scenario.demand],
         default.shortage_values,
@@ -442,46 +512,49 @@ def solve_default_and_fair_best_recourse(
     fair_model, fq, fu, fe, ftransport, fshortage, fservice = _build_recourse_model(
         instance, scenario, x_values, time_limit=time_limit, output_flag=output_flag
     )
-    fair_cost = ftransport + fshortage + fservice
-    fair_model.addConstr(fair_cost <= q_star + tolerance, name="original_cost_cap")
-    applicable_regions = [
-        r for r in instance.R if sum(scenario.demand[r][j] for j in instance.J) > metric_tolerance
-    ]
-    if applicable_regions:
-        max_shortage_rate = fair_model.addVar(lb=0.0, name="max_regional_shortage_rate")
-        min_shortage_rate = fair_model.addVar(lb=0.0, name="min_regional_shortage_rate")
-        for r in applicable_regions:
-            regional_demand = sum(scenario.demand[r][j] for j in instance.J)
-            rate = gp.quicksum(fu[r, j] for j in instance.J) / regional_demand
-            fair_model.addConstr(rate <= max_shortage_rate, name=f"max_shortage_rate[{r}]")
-            fair_model.addConstr(min_shortage_rate <= rate, name=f"min_shortage_rate[{r}]")
-        default_gap = float(default_metrics["fill_rate_gap"] or 0.0)
-        fair_model.addConstr(
-            max_shortage_rate - min_shortage_rate <= default_gap + metric_tolerance,
-            name="fairness_not_worse_than_default",
+    try:
+        fair_cost = ftransport + fshortage + fservice
+        fair_model.addConstr(fair_cost <= q_star + tolerance, name="original_cost_cap")
+        applicable_regions = [
+            r for r in instance.R if sum(scenario.demand[r][j] for j in instance.J) > metric_tolerance
+        ]
+        if applicable_regions:
+            max_shortage_rate = fair_model.addVar(lb=0.0, name="max_regional_shortage_rate")
+            min_shortage_rate = fair_model.addVar(lb=0.0, name="min_regional_shortage_rate")
+            for r in applicable_regions:
+                regional_demand = sum(scenario.demand[r][j] for j in instance.J)
+                rate = gp.quicksum(fu[r, j] for j in instance.J) / regional_demand
+                fair_model.addConstr(rate <= max_shortage_rate, name=f"max_shortage_rate[{r}]")
+                fair_model.addConstr(min_shortage_rate <= rate, name=f"min_shortage_rate[{r}]")
+            default_gap = float(default_metrics["fill_rate_gap"] or 0.0)
+            fair_model.addConstr(
+                max_shortage_rate - min_shortage_rate <= default_gap + metric_tolerance,
+                name="fairness_not_worse_than_default",
+            )
+            fair_model.setObjective(max_shortage_rate, GRB.MINIMIZE)
+        else:
+            fair_model.setObjective(fair_cost, GRB.MINIMIZE)
+        fair_model.optimize()
+        fair_status = gurobi_status_name(fair_model.Status)
+        if fair_model.Status != GRB.OPTIMAL:
+            raise RuntimeError(f"Fair-best recourse ended with status {fair_status}.")
+        fair = _allocation_from_model(
+            instance=instance,
+            scenario=scenario,
+            x_values=x_values,
+            model=fair_model,
+            q=fq,
+            u=fu,
+            e=fe,
+            evaluated_cost=fair_cost,
+            policy="fair_best",
+            original_optimal_cost=q_star,
+            cost_tolerance=tolerance,
+            runtime=time.perf_counter() - fair_start,
+            metric_tolerance=metric_tolerance,
         )
-        fair_model.setObjective(max_shortage_rate, GRB.MINIMIZE)
-    else:
-        fair_model.setObjective(fair_cost, GRB.MINIMIZE)
-    fair_model.optimize()
-    fair_status = gurobi_status_name(fair_model.Status)
-    if fair_model.Status != GRB.OPTIMAL:
-        raise RuntimeError(f"Fair-best recourse ended with status {fair_status}.")
-    fair = _allocation_from_model(
-        instance=instance,
-        scenario=scenario,
-        x_values=x_values,
-        model=fair_model,
-        q=fq,
-        u=fu,
-        e=fe,
-        evaluated_cost=fair_cost,
-        policy="fair_best",
-        original_optimal_cost=q_star,
-        cost_tolerance=tolerance,
-        runtime=time.perf_counter() - fair_start,
-        metric_tolerance=metric_tolerance,
-    )
+    finally:
+        fair_model.dispose()
     return default, fair
 
 
@@ -786,3 +859,41 @@ def classify_fairness_diagnostic(
         },
         "sensitivity_thresholds": [0.05, 0.10, 0.15],
     }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run or safely resume the frozen regional fairness diagnostic."
+    )
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    if args.resume and args.overwrite:
+        parser.error("--resume and --overwrite are mutually exclusive")
+    try:
+        if args.dry_run:
+            from .config import load_config
+            from .experiment_suite import experiment_dry_run_report
+
+            report = experiment_dry_run_report(load_config(args.config))
+        else:
+            from .regional_fairness_pipeline import run_regional_fairness_pipeline
+
+            report = run_regional_fairness_pipeline(
+                args.config,
+                resume=bool(args.resume),
+                overwrite=bool(args.overwrite),
+            )
+        print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
+    except KeyboardInterrupt:
+        print("Regional fairness diagnostic interrupted safely.", file=sys.stderr)
+        raise SystemExit(130)
+    except Exception as exc:  # noqa: BLE001 - CLI failures must be explicit and nonzero.
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+
+if __name__ == "__main__":
+    main()

@@ -66,6 +66,7 @@ fairness_diagnostic:
   cost_relative_tolerance: 1.0e-6
   metric_tolerance: 1.0e-9
   recourse_time_limit: 30.0
+  checkpoint_scenario_chunk_size: 50
   zero_demand_policy: not_applicable_excluded
   primary_metrics: [fair_best_WGap, fair_best_WMinFR, default_WGap, default_minus_fair_best_WGap]
   auxiliary_metrics:
@@ -93,5 +94,7 @@ fairness_diagnostic:
     - instance_summary.csv
     - resolved_config.yaml
     - run_manifest.json
+    - diagnostic_run_manifest.json
     - diagnosis.json
     - audit_log.json
+    - checkpoint/index.json

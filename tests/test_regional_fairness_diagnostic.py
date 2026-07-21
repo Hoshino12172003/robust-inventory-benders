@@ -92,6 +92,8 @@ def _audit_sandbox(tmp_path: Path) -> Path:
         *(f"experiments/configs/{name}" for name in EXPECTED_CONFIGS),
         "docs/regional_fairness_diagnostic_protocol.md",
         "src/regional_fairness_diagnostic.py",
+        "src/regional_fairness_pipeline.py",
+        "tests/test_regional_fairness_pipeline.py",
     ]:
         source = ROOT / relative
         target = root / relative
