@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .pytest_tmp_*/
+.pytest-*/
 .venv/
 data/raw/
 data/processed/
@@ -10,4 +11,5 @@ analysis/outputs/
 final_evaluation_joint_v1_analysis.zip
 experiments/results_cut_v3/
 experiments/results_fairness_diagnostic/
+experiments/results_regional_fairness_model/
 .idea/

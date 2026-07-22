@@ -1,0 +1,108 @@
+experiment_name: regional_fairness_development_large
+protocol_phase: fairness_model_development
+authorization: fairness_model_development_protocol_only
+output_dir: experiments/results_regional_fairness_model/development_large
+instance_sizes: [large]
+random_seeds: [120, 121, 122, 123, 124, 125, 126, 127, 128, 129]
+variants: [joint_v1_core_point_strengthened]
+variant_settings:
+  joint_v1_core_point_strengthened:
+    cut_strengthening_policy: core_point
+    max_cuts_per_iteration: 1
+
+parameters_must_be_fixed_from: experiments/configs/selected_algorithm_parameters.yaml
+candidate_parameters_must_be_fixed_from: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+candidate_config_sha256: 7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6
+baseline_method: joint_v1_core_point_strengthened
+fairness_method: robust_regional_service_maximin_epsilon_constraint
+
+baseline_time_limit: 1800
+fairness_time_limit: 1800
+time_limit: 1800
+max_iterations: 20000
+tol: 1.0e-4
+mip_gap: 0.02
+final_mip_gap: 0.0001
+output_flag: false
+save_iteration_log: true
+
+gamma_target: 2
+gamma_schedule: [2]
+gamma_continuation_enabled: false
+subproblem_mode: robust_dual_milp
+max_scenarios: 5000
+exact_scenarios: true
+
+precision_policy: joint_error_budget
+adaptive_master_precision_enabled: true
+adaptive_subproblem_precision_enabled: true
+master_gap_max: 0.02
+master_gap_min: 0.0001
+subproblem_gap_max: 0.05
+subproblem_gap_min: 0.0001
+fixed_master_mip_gap: 0.02
+fixed_subproblem_mip_gap: 0.05
+master_error_budget_ratio: 0.25
+subproblem_error_budget_ratio: 0.50
+monotone_precision_tightening: true
+
+cut_strengthening_policy: core_point
+core_point_update_weight: 0.50
+core_point_min_distance: 1.0e-9
+core_point_stage1_time_limit: 2.0
+core_point_stage2_time_limit: 2.0
+core_point_min_remaining_time: 10.0
+core_point_min_global_gap: 5.0e-4
+core_point_current_abs_tol: 1.0e-7
+core_point_current_rel_tol: 1.0e-8
+core_point_min_normalized_improvement: 1.0e-7
+max_cuts_per_iteration: 1
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+
+fairness_development:
+  fairness_scope: regional_service_fairness
+  formulation: robust_maximin_epsilon_constraint
+  rho_grid: [0.00, 0.01, 0.025, 0.05, 0.10]
+  objective: minimize_worst_regional_shortage_rate
+  robust_minimum_fill_rate_definition: one_minus_T
+  same_recourse_for_cost_and_fairness: true
+  lexicographic_cost_stage_enabled: false
+  lexicographic_T_absolute_tolerance: 1.0e-7
+  cost_absolute_tolerance: 1.0e-6
+  cost_relative_tolerance: 1.0e-6
+  feasibility_tolerance: 1.0e-7
+  metric_tolerance: 1.0e-9
+  post_evaluation_time_limit_per_scenario: 30.0
+  zero_demand_policy: not_applicable_excluded
+  separation_mode: budgeted_uncertainty_farkas_milp
+  separation_requires_objective_bound_for_certification: true
+  certifiable_separation_statuses: [optimal, time_limit]
+  separation_incumbent_may_generate_valid_cut: true
+  farkas_ray_normalization: sum_multipliers_equals_one
+  baseline_cost_anchor_source: solve_result.upper_bound
+  baseline_cost_anchor_requires_valid_ub: true
+  baseline_cost_anchor_precision: ieee754_float_and_hex
+  fairness_cut_core_point_strengthening_enabled: false
+  fairness_cut_core_point_skip_reason: different_y_x_T_farkas_cut_family
+  baseline_core_point_strengthening_enabled: true
+  par2_multiplier: 2
+  success_definition: final_certified_gap_at_most_tol
+  automatic_parallelism_enabled: false
+  development_continue_rule:
+    correctness_required: true
+    minimum_solved_rate_each_scale: 0.80
+    material_minimum_fill_rate_improvement: 0.05
+    minimum_instances_improved: 4
+    eligible_positive_rho: [0.01, 0.025, 0.05, 0.10]
+    candidate_selection_rule: smallest_eligible_positive_rho
+    validation_allowed_changes: [experiment_name, protocol_phase, random_seeds, output_dir]
+  reserved_future_seeds:
+    validation: [130, 131, 132, 133, 134, 135, 136, 137, 138, 139]
+    final_medium_large: [140, 141, 142, 143, 144, 145, 146, 147, 148, 149]
+    final_large: [150, 151, 152, 153, 154, 155, 156, 157, 158, 159]
