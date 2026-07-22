@@ -16,10 +16,12 @@ from src.robust_regional_fairness import (
     FixedScenarioCertificate,
     certify_fixed_scenario_fairness_feasibility,
     cost_tolerance,
+    constraint_acceptance_evidence,
     evaluate_fairness_solution,
     farkas_ray_validation,
     fairness_cost_budget,
     fairness_cut_from_ray,
+    feasibility_acceptance_threshold,
     residual_exceeds_tolerance,
     separate_robust_fairness_feasibility,
     separation_bound_certifies,
@@ -104,11 +106,58 @@ def test_budget_and_tolerance_are_frozen_epsilon_constraint_quantities() -> None
         fairness_cost_budget(math.inf, 0.0)
 
 
-def test_residual_check_allows_only_machine_representation_slack() -> None:
+def test_residual_check_uses_exactly_one_nextafter_step() -> None:
     tolerance = 1.0e-7
-    boundary = tolerance + 8.0 * math.ulp(1.0)
-    assert not residual_exceeds_tolerance(boundary, tolerance, 1.0)
-    assert residual_exceeds_tolerance(tolerance + 1.0e-10, tolerance, 1.0)
+    threshold = math.nextafter(tolerance, math.inf)
+    assert not residual_exceeds_tolerance(tolerance / 2.0, tolerance)
+    assert not residual_exceeds_tolerance(tolerance, tolerance)
+    assert not residual_exceeds_tolerance(threshold, tolerance)
+    assert residual_exceeds_tolerance(math.nextafter(threshold, math.inf), tolerance)
+
+
+@pytest.mark.parametrize("scale", [1.0e12, 1.0e18])
+def test_acceptance_threshold_is_independent_of_model_scale(scale: float) -> None:
+    tolerance = 1.0e-7
+    threshold, slack = feasibility_acceptance_threshold(tolerance)
+    evidence = constraint_acceptance_evidence(
+        lhs=1.0e-6,
+        rhs=0.0,
+        tolerance=tolerance,
+        constraint_type="scale_probe",
+        scenario_id="synthetic",
+        region_id=0,
+    )
+    assert threshold == math.nextafter(tolerance, math.inf)
+    assert slack == threshold - tolerance
+    assert slack < 1.0e-20
+    assert slack not in {0.00390625, 4096.0}
+    assert evidence["acceptance_threshold"] == threshold
+    assert not evidence["accepted"]
+    assert residual_exceeds_tolerance(1.0e-6, tolerance, scale)
+
+
+def test_acceptance_evidence_uses_fsum_and_records_actual_slack() -> None:
+    tolerance = 1.0e-7
+    lhs = math.fsum([1.0e16, 1.0, -1.0e16])
+    evidence = constraint_acceptance_evidence(
+        lhs=lhs,
+        rhs=0.0,
+        tolerance=tolerance,
+        constraint_type="regional_shortage_rate_cap",
+        scenario_id="scenario-1",
+        region_id=2,
+    )
+    assert lhs == 1.0
+    assert evidence["floating_point_slack"] == (
+        math.nextafter(tolerance, math.inf) - tolerance
+    )
+    assert evidence["lhs"] == 1.0
+    assert evidence["rhs"] == 0.0
+    assert evidence["raw_residual"] == 1.0
+    assert evidence["residual"] == 1.0
+    assert evidence["accepted"] is False
+    assert evidence["scenario_id"] == "scenario-1"
+    assert evidence["region_id"] == 2
 
 
 def test_single_region_extensive_form_has_no_regional_gap() -> None:
@@ -298,6 +347,19 @@ def test_post_evaluation_recomputes_all_shared_cap_scenarios() -> None:
     assert evaluation.realized_worst_shortage_rate <= solution.objective_t + 1e-6
     assert evaluation.cost_worst_scenario is not None
     assert evaluation.fairness_worst_scenario is not None
+    assert evaluation.acceptance_threshold == math.nextafter(1.0e-7, math.inf)
+    assert evaluation.floating_point_slack == (
+        math.nextafter(1.0e-7, math.inf) - 1.0e-7
+    )
+    assert evaluation.acceptance_evidence
+    assert all(
+        {
+            "feasibility_tolerance", "acceptance_threshold", "floating_point_slack",
+            "lhs", "rhs", "raw_residual", "accepted", "constraint_type",
+            "scenario_id", "region_id",
+        }.issubset(item)
+        for item in evaluation.acceptance_evidence
+    )
 
 
 def test_farkas_separation_finds_infeasible_candidate_and_valid_cut() -> None:

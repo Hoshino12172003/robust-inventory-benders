@@ -191,6 +191,10 @@ class FairnessSolutionEvaluation:
     inventory_by_warehouse: list[float]
     inventory_by_product: list[float]
     runtime: float
+    feasibility_tolerance: float
+    acceptance_threshold: float
+    floating_point_slack: float
+    acceptance_evidence: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -220,21 +224,70 @@ def cost_tolerance(
     return absolute + relative * max(1.0, abs(float(value)))
 
 
+def feasibility_acceptance_threshold(tolerance: float) -> tuple[float, float]:
+    """Return the frozen one-representable-step acceptance boundary.
+
+    The allowance is tied only to the binary representation of the tolerance,
+    never to a cost, demand, or model-size scale.
+    """
+    allowed = float(tolerance)
+    if not math.isfinite(allowed) or allowed < 0.0:
+        raise ValueError("tolerance must be finite and nonnegative.")
+    threshold = math.nextafter(allowed, math.inf)
+    return threshold, threshold - allowed
+
+
+def constraint_acceptance_evidence(
+    *,
+    lhs: float,
+    rhs: float,
+    tolerance: float,
+    constraint_type: str,
+    scenario_id: str | None,
+    region_id: int | None,
+) -> dict[str, Any]:
+    """Build auditable evidence without rounding or scale-dependent slack."""
+    left = float(lhs)
+    right = float(rhs)
+    threshold, slack = feasibility_acceptance_threshold(tolerance)
+    raw_residual = left - right
+    residual = max(0.0, raw_residual) if math.isfinite(raw_residual) else math.inf
+    accepted = (
+        math.isfinite(left)
+        and math.isfinite(right)
+        and math.isfinite(residual)
+        and residual <= threshold
+    )
+    return {
+        "feasibility_tolerance": float(tolerance),
+        "acceptance_threshold": threshold,
+        "floating_point_slack": slack,
+        "lhs": left,
+        "rhs": right,
+        "raw_residual": raw_residual,
+        "residual": residual,
+        "accepted": accepted,
+        "constraint_type": str(constraint_type),
+        "scenario_id": scenario_id,
+        "region_id": region_id,
+    }
+
+
 def residual_exceeds_tolerance(
     residual: float,
     tolerance: float,
-    *reference_values: float,
+    *_reference_values: float,
 ) -> bool:
-    """Compare a residual to a frozen tolerance with representation slack only."""
-    value = float(residual)
-    allowed = float(tolerance)
-    if not math.isfinite(value) or not math.isfinite(allowed) or allowed < 0.0:
-        return True
-    references = (value, allowed, *(float(item) for item in reference_values))
-    representation_slack = 32.0 * max(
-        math.ulp(item) for item in references if math.isfinite(item)
+    """Compare a precomputed residual to the frozen nextafter boundary."""
+    evidence = constraint_acceptance_evidence(
+        lhs=float(residual),
+        rhs=0.0,
+        tolerance=tolerance,
+        constraint_type="precomputed_residual",
+        scenario_id=None,
+        region_id=None,
     )
-    return value > allowed + representation_slack
+    return not bool(evidence["accepted"])
 
 
 def first_stage_cost_value(
@@ -243,11 +296,13 @@ def first_stage_cost_value(
     x_values: list[list[float]],
 ) -> float:
     return float(
-        sum(instance.fixed_cost[i] * float(y_values[i]) for i in instance.I)
-        + sum(
-            instance.inventory_cost[i][j] * float(x_values[i][j])
-            for i in instance.I
-            for j in instance.J
+        math.fsum(
+            [instance.fixed_cost[i] * float(y_values[i]) for i in instance.I]
+            + [
+                instance.inventory_cost[i][j] * float(x_values[i][j])
+                for i in instance.I
+                for j in instance.J
+            ]
         )
     )
 
@@ -317,23 +372,25 @@ def _policy_from_solution(
 ) -> FairnessScenarioPolicy:
     demand = [[float(value) for value in row] for row in scenario.demand]
     shortages = [[float(u[r, j].X) for j in instance.J] for r in instance.R]
-    transport = sum(
+    transport = math.fsum(
         instance.transport_cost[i][r][j] * float(q[i, r, j].X)
         for i in instance.I
         for r in instance.R
         for j in instance.J
     )
-    shortage_cost = sum(
+    shortage_cost = math.fsum(
         instance.shortage_penalty[r][j] * shortages[r][j]
         for r in instance.R
         for j in instance.J
     )
-    service_cost = sum(instance.service_penalty[j] * float(e[j].X) for j in instance.J)
+    service_cost = math.fsum(
+        instance.service_penalty[j] * float(e[j].X) for j in instance.J
+    )
     metrics = summarize_regional_service(demand, shortages, metric_tolerance=FAIRNESS_METRIC_TOLERANCE)
     return FairnessScenarioPolicy(
         scenario_name=scenario.name,
         active_deviations=[{"region": r, "product": j} for r, j in scenario.active_units],
-        recourse_cost=float(transport + shortage_cost + service_cost),
+        recourse_cost=float(math.fsum((transport, shortage_cost, service_cost))),
         transport_cost=float(transport),
         shortage_cost=float(shortage_cost),
         service_violation_cost=float(service_cost),
@@ -1376,6 +1433,8 @@ def evaluate_fairness_solution(
     )
     policies: list[FairnessScenarioPolicy] = []
     errors: list[str] = []
+    acceptance_evidence: list[dict[str, Any]] = []
+    acceptance_threshold, floating_point_slack = feasibility_acceptance_threshold(tolerance)
     first_cost = first_stage_cost_value(instance, y_values, x_values)
     for scenario in enumeration.scenarios:
         try:
@@ -1390,38 +1449,55 @@ def evaluate_fairness_solution(
                 time_limit=per_scenario_time_limit,
                 output_flag=output_flag,
             )
-            cost_residual = first_cost + policy.recourse_cost - budget.budget
-            if residual_exceeds_tolerance(
-                cost_residual,
-                tolerance,
-                first_cost,
-                policy.recourse_cost,
-                budget.budget,
-            ):
+            cost_evidence = constraint_acceptance_evidence(
+                lhs=math.fsum((first_cost, policy.recourse_cost)),
+                rhs=budget.budget,
+                tolerance=tolerance,
+                constraint_type="robust_cost_budget",
+                scenario_id=scenario.name,
+                region_id=None,
+            )
+            acceptance_evidence.append(cost_evidence)
+            if not cost_evidence["accepted"]:
                 raise RuntimeError("Recovered policy exceeds the shared robust cost budget.")
-            if policy.minimum_fill_rate is not None:
-                shortage_rate_residual = 1.0 - policy.minimum_fill_rate - float(t_value)
-                if residual_exceeds_tolerance(
-                    shortage_rate_residual,
-                    tolerance,
-                    policy.minimum_fill_rate,
-                    t_value,
-                ):
+            for region_id, (shortage, demand) in enumerate(
+                zip(policy.regional_shortage, policy.regional_demand)
+            ):
+                if float(demand) <= FAIRNESS_METRIC_TOLERANCE:
+                    continue
+                fairness_evidence = constraint_acceptance_evidence(
+                    lhs=float(shortage),
+                    rhs=float(t_value) * float(demand),
+                    tolerance=tolerance,
+                    constraint_type="regional_shortage_rate_cap",
+                    scenario_id=scenario.name,
+                    region_id=region_id,
+                )
+                acceptance_evidence.append(fairness_evidence)
+                if not fairness_evidence["accepted"]:
                     raise RuntimeError(
                         "Recovered policy violates the regional max-shortage-rate cap."
                     )
             policies.append(policy)
         except Exception as exc:  # noqa: BLE001 - invalid evaluation is explicit.
             errors.append(f"{scenario.name}: {type(exc).__name__}: {exc}")
-    inventory_by_warehouse = [sum(float(x_values[i][j]) for j in instance.J) for i in instance.I]
-    inventory_by_product = [sum(float(x_values[i][j]) for i in instance.I) for j in instance.J]
+    inventory_by_warehouse = [
+        math.fsum(float(x_values[i][j]) for j in instance.J) for i in instance.I
+    ]
+    inventory_by_product = [
+        math.fsum(float(x_values[i][j]) for i in instance.I) for j in instance.J
+    ]
     common = {
         "scenario_count": len(enumeration.scenarios),
         "opened_warehouses": sum(float(value) >= 0.5 for value in y_values),
-        "total_inventory": float(sum(inventory_by_warehouse)),
+        "total_inventory": float(math.fsum(inventory_by_warehouse)),
         "inventory_by_warehouse": [float(value) for value in inventory_by_warehouse],
         "inventory_by_product": [float(value) for value in inventory_by_product],
         "runtime": time.perf_counter() - start,
+        "feasibility_tolerance": float(tolerance),
+        "acceptance_threshold": acceptance_threshold,
+        "floating_point_slack": floating_point_slack,
+        "acceptance_evidence": acceptance_evidence,
     }
     if errors or len(policies) != len(enumeration.scenarios):
         return FairnessSolutionEvaluation(
@@ -1440,7 +1516,7 @@ def evaluate_fairness_solution(
             **common,
         )
     worst_recourse = max(policy.recourse_cost for policy in policies)
-    actual_cost = first_cost + worst_recourse
+    actual_cost = math.fsum((first_cost, worst_recourse))
     actual_price = (
         0.0
         if budget.baseline_cost <= FAIRNESS_METRIC_TOLERANCE
@@ -1458,16 +1534,18 @@ def evaluate_fairness_solution(
     )
     wminfr = None if not applicable_minimum else float(min(applicable_minimum))
     realized_worst_shortage_rate = None if wminfr is None else 1.0 - wminfr
-    objective_t_consistent = (
-        None
-        if realized_worst_shortage_rate is None
-        else not residual_exceeds_tolerance(
-            realized_worst_shortage_rate - float(t_value),
-            tolerance,
-            realized_worst_shortage_rate,
-            t_value,
+    objective_t_consistent = None
+    if realized_worst_shortage_rate is not None:
+        objective_evidence = constraint_acceptance_evidence(
+            lhs=realized_worst_shortage_rate,
+            rhs=float(t_value),
+            tolerance=tolerance,
+            constraint_type="objective_t_consistency",
+            scenario_id=None if fairness_worst is None else fairness_worst.scenario_name,
+            region_id=None,
         )
-    )
+        acceptance_evidence.append(objective_evidence)
+        objective_t_consistent = bool(objective_evidence["accepted"])
     return FairnessSolutionEvaluation(
         valid=True,
         actual_robust_cost=float(actual_cost),

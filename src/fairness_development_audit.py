@@ -38,6 +38,9 @@ EXPECTED_RHOS = [0.0, 0.01, 0.025, 0.05, 0.10]
 EXPECTED_CANDIDATE_HASH = FROZEN_HASHES[
     "experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml"
 ]
+EXPECTED_ATTEMPT3_PROTOCOL_HASH = (
+    "A3B13526778DE8049A03F47B01825474ABC562CB9E67F2355717435D3754FA5F"
+)
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -79,6 +82,13 @@ def audit_fairness_development(
     allow_existing_output: bool = False,
 ) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
+    _check(
+        checks,
+        "attempt3_protocol_sha256",
+        file_sha256(ROOT / "docs/regional_fairness_development_protocol.md").upper()
+        == EXPECTED_ATTEMPT3_PROTOCOL_HASH,
+        file_sha256(ROOT / "docs/regional_fairness_development_protocol.md").upper(),
+    )
     configs = {
         name: deepcopy(config_overrides[name]) if config_overrides and name in config_overrides else _load(path)
         for name, path in CONFIG_PATHS.items()
@@ -319,7 +329,9 @@ def audit_fairness_development(
         '"execution_restart_after_correctness_hotfix": True' in runner
         and '"previous_attempt_scientifically_invalid": True' in runner
         and '"previous_attempt_results_reused": False' in runner
-        and "PREVIOUS_ATTEMPT_SEEDS = [120, 121, 122, 123, 124, 125, 126]" in runner,
+        and "EXECUTION_ATTEMPT = 3" in runner
+        and "PREVIOUS_ATTEMPT_SEEDS = list(range(120, 130))" in runner
+        and '"prior_attempts": PRIOR_ATTEMPTS' in runner,
     )
     _check(
         checks,
@@ -328,6 +340,33 @@ def audit_fairness_development(
         and '"previous_attempt2_scientifically_invalid": True' in runner
         and '"previous_attempt2_results_reused": False' in runner
         and "POST_EVALUATION_INVALID_ATTEMPT_SEEDS = list(range(120, 130))" in runner,
+    )
+    _check(
+        checks,
+        "post_evaluation_uses_nextafter_only_acceptance_boundary",
+        "math.nextafter(allowed, math.inf)" in separation
+        and '"floating_point_slack": slack' in separation
+        and "32.0 * max" not in separation
+        and "math.ulp(" not in separation,
+    )
+    _check(
+        checks,
+        "post_evaluation_records_constraint_acceptance_evidence",
+        '"acceptance_threshold": threshold' in separation
+        and '"lhs": left' in separation
+        and '"rhs": right' in separation
+        and '"raw_residual": raw_residual' in separation
+        and '"constraint_type": str(constraint_type)' in separation
+        and '"scenario_id": scenario_id' in separation
+        and '"region_id": region_id' in separation,
+    )
+    _check(
+        checks,
+        "attempt3_requires_fresh_output_and_prohibits_overwrite",
+        "def _prepare_attempt3_output(" in runner
+        and "Fresh Attempt 3 requires an output directory that does not exist." in runner
+        and "Attempt 3 resume requires a complete identity manifest." in runner
+        and "--overwrite is prohibited for frozen fairness development." in runner,
     )
     _check(
         checks,
@@ -365,8 +404,14 @@ def audit_fairness_development(
         and '"certified_robust_optimal"' in runner
         and '"master_optimal_but_robust_uncertified"' in runner
         and '"time_limit_uncertified"' in runner
+        and '"iteration_limit_uncertified"' in runner
+        and '"certified_infeasible"' in runner
+        and '"infeasible_uncertified"' in runner
         and '"invalid_post_evaluation"' in runner
+        and '"numerical_uncertified"' in runner
+        and '"interrupted"' in runner
         and '"implementation_error"' in runner
+        and '"unknown_uncertified"' in runner
         and 'payload["algorithm_status"] = result.status' in runner
         and 'payload["status"] = payload["overall_status"]' in runner,
     )

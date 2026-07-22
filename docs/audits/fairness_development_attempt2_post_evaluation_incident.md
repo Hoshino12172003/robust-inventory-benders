@@ -18,6 +18,25 @@ The entire medium-large attempt is quarantined. The 22 records labelled
 failures, and the 3 `uncertified_time_limit` records remain unsolved. No attempt
 2 record may be combined with a later execution.
 
+```yaml
+execution_attempt_next: 3
+development_seeds_previously_accessed: [120, 121, 122, 123, 124, 125, 126, 127, 128, 129]
+previous_attempt_results_reused: false
+prior_attempts:
+  - attempt: 1
+    git_commit: 7bc8e81f91f4a4c7baf2c080af63a09ada1178d6
+    seeds_accessed: [120, 121, 122, 123, 124, 125, 126]
+    scientifically_valid: false
+    results_reused: false
+    invalidation_reason: separation_certificate_architecture_defect
+  - attempt: 2
+    git_commit: 98c615767032bb6c57f28476bebc0392037fbf34
+    seeds_accessed: [120, 121, 122, 123, 124, 125, 126, 127, 128, 129]
+    scientifically_valid: false
+    results_reused: false
+    invalidation_reason: post_evaluation_tolerance_boundary_defect
+```
+
 ## Input identity and immutable evidence
 
 - Evidence directory (read only):
@@ -84,7 +103,10 @@ of an instance's recovery LPs.
 The audit used only saved `x`, `y`, `T`, `B_rho`, saved instance JSON, and the
 deterministic 1,831-scenario enumeration. It did not solve a master problem,
 change a first-stage solution, generate an instance, resume the batch, or
-write the evidence directory.
+write the evidence directory. It did not change rho selection or generate any
+new candidate fairness policy. These formal-seed fixed-policy forensic LPs
+were used only to locate the implementation defect and are excluded from
+paper tables, rho selection, and scientific statistics.
 
 For all 25 invalid records, all 1,831 scenarios were rebuilt as an independent
 fixed-scenario primal LP with the exact formal recourse constraints, exact
@@ -132,6 +154,22 @@ classification and solved-rate accounting are wrong, it is a correctness
 blocker and attempt 2 is scientifically invalid as a whole.
 
 ## Correctness-only repair
+
+Protocol identity history is retained rather than overwritten:
+
+- original development protocol:
+  `BBA9973BB8A4D660202FA3D99DBDC957DB00A8A336632667A09B9F47974E22B5`;
+- first post-evaluation correction revision:
+  `04D4A833A5FE018FA3120B1ECA7DDAC6F2BEF216DE4D27EAB806280B2261F16E`;
+- Attempt 3 merge-blocker correction revision:
+  `A3B13526778DE8049A03F47B01825474ABC562CB9E67F2355717435D3754FA5F`.
+
+The first revision removed tolerance from the recovery LP right-hand sides and
+introduced end-to-end status separation. The second freezes the one-step
+`nextafter` acceptance boundary and evidence, complete prior-attempt identity,
+fresh-output guard, and exhaustive public status enumeration. Neither revision
+changes the mathematical model, rho grid, seeds, anchor, time limits, or
+development/validation/final decision rules.
 
 The repair does not change the mathematical model or any frozen tolerance.
 The recovery LP now enforces the exact formal right-hand sides, while the

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -8,16 +10,25 @@ import yaml
 
 from src.fairness_benders import (
     FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
+    EXECUTION_ATTEMPT,
     POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
+    PRIOR_ATTEMPTS,
     PREVIOUS_ATTEMPT_SEEDS,
+    _attempt_identity,
     _certified_baseline_anchor,
+    _development_run_keys,
     _record_failed_task,
+    _prepare_attempt3_output,
     _validate_development_manifest_identity,
     _validate_frontier_anchor_identity,
     _validate_resume_record_identity,
+    _write_fairness_result_tables,
+    _write_record,
     development_run_plan,
     fairness_frontier_overall_status,
+    run_fairness_development,
 )
+from src.experiment_protocol import config_sha256
 from src.fairness_development_audit import CONFIG_PATHS, audit_fairness_development
 
 
@@ -184,16 +195,11 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
     keys = ["a", "b"]
     manifest = {
-        "schema_version": FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
-        "experiment_name": config["experiment_name"],
-        "protocol_phase": config["protocol_phase"],
-        "config_sha256": "config",
-        "git_commit": "commit",
-        "candidate_config_sha256": config["candidate_config_sha256"],
+        **_attempt_identity(
+            config=config, config_hash="config", commit="commit", run_keys=keys
+        ),
         "execution_restart_after_correctness_hotfix": True,
         "previous_attempt_scientifically_invalid": True,
-        "previous_attempt_results_reused": False,
-        "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
         "execution_restart_after_post_evaluation_hotfix": True,
         "previous_attempt2_scientifically_invalid": True,
         "previous_attempt2_results_reused": False,
@@ -278,7 +284,8 @@ def test_running_task_is_atomically_replaced_by_failure_evidence(
     assert run["state"] == "failed"
     assert run["result"]["status"] == expected_status
     assert run["result"]["algorithm_status"] == expected_status
-    assert run["result"]["overall_status"] == "implementation_error"
+    expected_public = "interrupted" if expected_status == "interrupted" else "implementation_error"
+    assert run["result"]["overall_status"] == expected_public
     assert run["certification_status"] == expected_certificate
     assert status["state"] == "failed"
     assert status["certification_status"] == expected_certificate
@@ -291,7 +298,11 @@ def test_running_task_is_atomically_replaced_by_failure_evidence(
         ("optimal", True, True, False, "invalid_post_evaluation"),
         ("optimal", False, False, False, "master_optimal_but_robust_uncertified"),
         ("time_limit", False, False, False, "time_limit_uncertified"),
-        ("numeric", False, False, False, "implementation_error"),
+        ("iteration_limit", False, False, False, "iteration_limit_uncertified"),
+        ("numeric", False, False, False, "numerical_uncertified"),
+        ("infeasible", False, False, False, "infeasible_uncertified"),
+        ("interrupted", False, False, False, "interrupted"),
+        ("unexpected", False, False, False, "unknown_uncertified"),
     ],
 )
 def test_frontier_status_never_hides_uncertified_robust_result(
@@ -307,3 +318,147 @@ def test_frontier_status_never_hides_uncertified_robust_result(
         post_evaluation_attempted=attempted,
         post_evaluation_valid=valid,
     ) == expected
+
+
+def _prepare_identity(
+    output: Path,
+    config: dict,
+    *,
+    resume: bool = False,
+    overwrite: bool = False,
+    commit: str = "attempt3-commit",
+) -> list[str]:
+    keys = _development_run_keys(config)
+    _prepare_attempt3_output(
+        output,
+        resume=resume,
+        overwrite=overwrite,
+        config=config,
+        config_hash=config_sha256(config),
+        commit=commit,
+        run_keys=keys,
+    )
+    return keys
+
+
+def test_attempt3_fresh_output_identity_and_resume_are_strict(tmp_path: Path) -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    output = tmp_path / "rf3"
+    keys = _prepare_identity(output, config)
+    manifest = json.loads((output / "fairness_development_manifest.json").read_text())
+    assert len(keys) == 60
+    assert manifest["execution_attempt"] == EXECUTION_ATTEMPT == 3
+    assert manifest["development_seeds_previously_accessed"] == list(range(120, 130))
+    assert manifest["prior_attempts"] == PRIOR_ATTEMPTS
+    assert manifest["previous_attempt_results_reused"] is False
+    assert not (output / "runs").exists()
+    _prepare_identity(output, config, resume=True)
+
+
+def test_attempt3_rejects_existing_empty_or_prior_attempt_directory(tmp_path: Path) -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match="does not exist"):
+        _prepare_identity(empty, config)
+    for name in ("attempt1", "attempt2"):
+        prior = tmp_path / name
+        prior.mkdir()
+        (prior / "fairness_development_manifest.json").write_text(
+            json.dumps({"schema_version": 3, "execution_attempt": int(name[-1])})
+        )
+        with pytest.raises(ValueError, match="identity mismatch"):
+            _prepare_identity(prior, config, resume=True)
+
+
+def test_attempt3_resume_rejects_identity_drift_and_external_run(tmp_path: Path) -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    output = tmp_path / "rf3"
+    keys = _prepare_identity(output, config)
+    with pytest.raises(ValueError, match="identity mismatch"):
+        _prepare_identity(output, config, resume=True, commit="different")
+
+    manifest_path = output / "fairness_development_manifest.json"
+    original = json.loads(manifest_path.read_text())
+    for field in ("config_sha256", "protocol_sha256", "candidate_config_sha256"):
+        mutated = deepcopy(original)
+        mutated[field] = "0" * 64
+        manifest_path.write_text(json.dumps(mutated))
+        with pytest.raises(ValueError, match="identity mismatch"):
+            _prepare_identity(output, config, resume=True)
+    manifest_path.write_text(json.dumps(original))
+
+    (output / "resolved_config.yaml").write_text("foreign: true\n")
+    with pytest.raises(ValueError, match="resolved config identity"):
+        _prepare_identity(output, config, resume=True)
+    (output / "resolved_config.yaml").unlink()
+
+    injected = output / "runs" / keys[0]
+    injected.mkdir(parents=True)
+    (injected / "run.json").write_text(
+        json.dumps({"run_key": keys[0], "config_sha256": "foreign", "git_commit": "foreign"})
+    )
+    with pytest.raises(ValueError, match="Config identity"):
+        _prepare_identity(output, config, resume=True)
+
+
+def test_attempt3_rejects_missing_identity_and_overwrite(tmp_path: Path) -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    missing = tmp_path / "missing-identity"
+    missing.mkdir()
+    with pytest.raises(ValueError, match="complete identity manifest"):
+        _prepare_identity(missing, config, resume=True)
+    with pytest.raises(ValueError, match="overwrite is prohibited"):
+        _prepare_identity(tmp_path / "new", config, overwrite=True)
+    with pytest.raises(ValueError, match="overwrite is prohibited"):
+        run_fairness_development(config, overwrite=True)
+
+
+def test_certified_infeasible_is_complete_but_not_optimal_solved() -> None:
+    assert fairness_frontier_overall_status(
+        algorithm_status="infeasible",
+        algorithm_solved=False,
+        post_evaluation_attempted=False,
+        post_evaluation_valid=False,
+        infeasibility_certified=True,
+    ) == "certified_infeasible"
+
+
+def test_summary_uses_public_status_enum_consistently(tmp_path: Path) -> None:
+    records = [
+        ("certified", "certified_robust_optimal", True),
+        ("infeasible", "infeasible_uncertified", False),
+        ("iteration", "iteration_limit_uncertified", False),
+    ]
+    for key, public_status, solved in records:
+        _write_record(
+            tmp_path,
+            key,
+            {
+                **{
+                    "execution_attempt": 3,
+                    "previous_attempt_results_reused": False,
+                    "prior_attempts": PRIOR_ATTEMPTS,
+                },
+                "run_key": key,
+                "task_type": "fairness_frontier",
+                "instance_size": "tiny",
+                "seed": 1,
+                "method": "robust_regional_fairness",
+                "rho": 0.0,
+                "overall_status": public_status,
+                "algorithm_status": public_status,
+                "certification_status": public_status,
+                "solved_to_tolerance": solved,
+                "result": {"status": public_status},
+            },
+        )
+    _write_fairness_result_tables(tmp_path, [item[0] for item in records])
+    with (tmp_path / "summary.csv").open(newline="", encoding="utf-8") as stream:
+        summary = next(csv.DictReader(stream))
+    assert summary["solved_count"] == "1"
+    assert summary["optimal_count"] == "1"
+    assert summary["uncertified_count"] == "2"
+    assert summary["infeasible_count"] == "1"
+    assert summary["execution_attempt"] == "3"
+    assert summary["previous_attempt_results_reused"] == "False"
