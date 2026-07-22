@@ -281,6 +281,24 @@ def solve_fairness_benders(
                     "separation_has_incumbent": separation.has_incumbent,
                     "robust_feasibility_certified": separation.robust_feasibility_certified,
                     "separation_certification_reason": separation.certification_reason,
+                    "separation_candidate_active_deviations": separation.candidate_active_deviations,
+                    "separation_incumbent_ray_validation": (
+                        None
+                        if separation.incumbent_ray_validation is None
+                        else separation.incumbent_ray_validation.to_dict()
+                    ),
+                    "fixed_scenario_certificate": (
+                        None
+                        if separation.fixed_scenario_certificate is None
+                        else separation.fixed_scenario_certificate.to_dict()
+                    ),
+                    "separation_false_positive_scenarios_excluded": (
+                        separation.false_positive_scenarios_excluded
+                    ),
+                    "separation_excluded_candidate_evidence": (
+                        separation.excluded_candidate_evidence
+                    ),
+                    "separation_cut_certificate_source": separation.cut_certificate_source,
                     "cut_added": cut_added,
                     "cut_has_cost_component": (
                         None
@@ -363,7 +381,9 @@ def solve_fairness_benders(
             "core_point_fairness_reason": "not_validated_for_y_x_T_farkas_cut_family",
             "same_recourse_satisfies_cost_and_fairness": True,
             "cost_and_fairness_worst_separately_identified_in_post_evaluation": True,
-            "separation_mode": "budgeted_uncertainty_farkas_milp",
+            "separation_mode": "candidate_milp_plus_fixed_scenario_lp_certificate",
+            "separation_incumbent_role": "candidate_scenario_only",
+            "fixed_scenario_certificate_required_for_cut": True,
             "secondary_cut_enabled": False,
         },
     )
@@ -443,7 +463,8 @@ def _validate_resume_record_identity(
         raise ValueError(f"Git-commit identity mismatch while resuming {run_key}.")
 
 
-FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 1
+FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 2
+PREVIOUS_ATTEMPT_SEEDS = [120, 121, 122, 123, 124, 125, 126]
 
 
 def _certified_baseline_anchor(
@@ -544,6 +565,10 @@ def _write_fairness_development_manifest(
         "config_sha256": config_hash,
         "git_commit": commit,
         "candidate_config_sha256": str(config["candidate_config_sha256"]).upper(),
+        "execution_restart_after_correctness_hotfix": True,
+        "previous_attempt_scientifically_invalid": True,
+        "previous_attempt_results_reused": False,
+        "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
         "baseline_anchors": anchors,
@@ -650,6 +675,10 @@ def _validate_development_manifest_identity(
         "config_sha256": config_hash,
         "git_commit": commit,
         "candidate_config_sha256": str(config["candidate_config_sha256"]).upper(),
+        "execution_restart_after_correctness_hotfix": True,
+        "previous_attempt_scientifically_invalid": True,
+        "previous_attempt_results_reused": False,
+        "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
     }
@@ -658,6 +687,94 @@ def _validate_development_manifest_identity(
         raise ValueError(
             "Fairness development manifest identity mismatch: " + ", ".join(mismatches)
         )
+
+
+def _record_failed_task(
+    output_dir: Path,
+    *,
+    run_key: str,
+    task_type: str,
+    instance_size: str,
+    seed: int,
+    method: str,
+    commit: str,
+    config_hash: str,
+    error: BaseException,
+    rho: float | None = None,
+    baseline_run_key: str | None = None,
+    anchor: dict[str, Any] | None = None,
+) -> None:
+    """Atomically replace a running marker with auditable failure evidence."""
+    interrupted = isinstance(error, KeyboardInterrupt)
+    certification_status = (
+        "uncertified_interrupted" if interrupted else "uncertified_exception"
+    )
+    status = "interrupted" if interrupted else "failed"
+    record = {
+        "run_key": run_key,
+        "task_type": task_type,
+        "instance_size": instance_size,
+        "seed": int(seed),
+        "method": method,
+        "state": "failed",
+        "success": False,
+        "solved_to_tolerance": False,
+        "certification_status": certification_status,
+        "git_commit": commit,
+        "config_sha256": config_hash,
+        "rho": rho,
+        "baseline_run_key": baseline_run_key,
+        "baseline_anchor_sha256": None if anchor is None else anchor.get("anchor_sha256"),
+        "certified_cost_anchor": anchor,
+        "created_at": utc_now_iso(),
+        "failure_reason": str(error),
+        "result": {
+            "status": status,
+            "error_type": type(error).__name__,
+            "error": str(error),
+        },
+    }
+    _write_record(output_dir, run_key, record)
+    write_run_state(
+        output_dir,
+        run_key,
+        state="failed",
+        details={
+            "success": False,
+            "solved_to_tolerance": False,
+            "certification_status": certification_status,
+            "failure_reason": str(error),
+            "error_type": type(error).__name__,
+        },
+    )
+
+
+def _refresh_manifests_after_failure(
+    output_dir: Path,
+    *,
+    config: dict[str, Any],
+    config_hash: str,
+    commit: str,
+    run_keys: list[str],
+    anchors: dict[str, dict[str, Any]],
+    skipped_run_count: int,
+) -> None:
+    _write_fairness_development_manifest(
+        output_dir,
+        config=config,
+        config_hash=config_hash,
+        commit=commit,
+        run_keys=run_keys,
+        anchors=anchors,
+    )
+    _write_fairness_result_tables(output_dir, run_keys)
+    update_run_manifest(
+        output_dir=output_dir,
+        run_keys=run_keys,
+        config_hash=config_hash,
+        commit=commit,
+        skipped_run_count=skipped_run_count,
+    )
 
 
 def _run_fairness_development_locked(
@@ -730,7 +847,30 @@ def _run_fairness_development_locked(
         elif action.startswith("run"):
             write_run_state(output_dir, baseline_key, state="running")
             method, method_config = _baseline_method_config(config, size, seed)
-            result = solve_benders(method_config, instance, method)
+            try:
+                result = solve_benders(method_config, instance, method)
+            except BaseException as error:
+                _record_failed_task(
+                    output_dir,
+                    run_key=baseline_key,
+                    task_type="baseline",
+                    instance_size=size,
+                    seed=seed,
+                    method="joint_v1_core_point_strengthened",
+                    commit=commit,
+                    config_hash=cfg_hash,
+                    error=error,
+                )
+                _refresh_manifests_after_failure(
+                    output_dir,
+                    config=config,
+                    config_hash=cfg_hash,
+                    commit=commit,
+                    run_keys=run_keys,
+                    anchors=anchors,
+                    skipped_run_count=skipped,
+                )
+                raise
             solved = result.status == "optimal" and result.gap is not None and result.gap <= float(config["tol"])
             baseline_payload = result.summary_dict()
             baseline_payload["iteration_log"] = result.iteration_log
@@ -804,18 +944,44 @@ def _run_fairness_development_locked(
                 continue
             write_run_state(output_dir, key, state="running")
             algorithm = load_development_config(str(config["candidate_parameters_must_be_fixed_from"]))["algorithm"]
-            result = solve_fairness_benders(
-                instance,
-                baseline_cost=c_anchor,
-                rho=rho,
-                gamma=int(config["gamma_target"]),
-                algorithm_config=algorithm,
-                max_iterations=int(config["max_iterations"]),
-                time_limit=float(config["fairness_time_limit"]),
-                tol=float(config["tol"]),
-                feasibility_tolerance=float(config["fairness_development"]["feasibility_tolerance"]),
-                output_flag=bool(config.get("output_flag", False)),
-            )
+            try:
+                result = solve_fairness_benders(
+                    instance,
+                    baseline_cost=c_anchor,
+                    rho=rho,
+                    gamma=int(config["gamma_target"]),
+                    algorithm_config=algorithm,
+                    max_iterations=int(config["max_iterations"]),
+                    time_limit=float(config["fairness_time_limit"]),
+                    tol=float(config["tol"]),
+                    feasibility_tolerance=float(config["fairness_development"]["feasibility_tolerance"]),
+                    output_flag=bool(config.get("output_flag", False)),
+                )
+            except BaseException as error:
+                _record_failed_task(
+                    output_dir,
+                    run_key=key,
+                    task_type="fairness_frontier",
+                    instance_size=size,
+                    seed=seed,
+                    method="robust_regional_fairness",
+                    commit=commit,
+                    config_hash=cfg_hash,
+                    error=error,
+                    rho=rho,
+                    baseline_run_key=baseline_key,
+                    anchor=anchor,
+                )
+                _refresh_manifests_after_failure(
+                    output_dir,
+                    config=config,
+                    config_hash=cfg_hash,
+                    commit=commit,
+                    run_keys=run_keys,
+                    anchors=anchors,
+                    skipped_run_count=skipped,
+                )
+                raise
             algorithm_solved = (
                 result.status == "optimal"
                 and result.gap is not None
@@ -829,25 +995,51 @@ def _run_fairness_development_locked(
                 and result.x_values is not None
                 and result.objective_t is not None
             ):
-                evaluation = evaluate_fairness_solution(
-                    instance,
-                    y_values=result.y_values,
-                    x_values=result.x_values,
-                    t_value=result.objective_t,
-                    baseline_cost=c_anchor,
-                    rho=rho,
-                    gamma=int(config["gamma_target"]),
-                    max_scenarios=int(config["max_scenarios"]),
-                    per_scenario_time_limit=float(
-                        config["fairness_development"].get(
-                            "post_evaluation_time_limit_per_scenario", 30.0
-                        )
-                    ),
-                    tolerance=float(
-                        config["fairness_development"]["feasibility_tolerance"]
-                    ),
-                    output_flag=bool(config.get("output_flag", False)),
-                )
+                try:
+                    evaluation = evaluate_fairness_solution(
+                        instance,
+                        y_values=result.y_values,
+                        x_values=result.x_values,
+                        t_value=result.objective_t,
+                        baseline_cost=c_anchor,
+                        rho=rho,
+                        gamma=int(config["gamma_target"]),
+                        max_scenarios=int(config["max_scenarios"]),
+                        per_scenario_time_limit=float(
+                            config["fairness_development"].get(
+                                "post_evaluation_time_limit_per_scenario", 30.0
+                            )
+                        ),
+                        tolerance=float(
+                            config["fairness_development"]["feasibility_tolerance"]
+                        ),
+                        output_flag=bool(config.get("output_flag", False)),
+                    )
+                except BaseException as error:
+                    _record_failed_task(
+                        output_dir,
+                        run_key=key,
+                        task_type="fairness_frontier",
+                        instance_size=size,
+                        seed=seed,
+                        method="robust_regional_fairness",
+                        commit=commit,
+                        config_hash=cfg_hash,
+                        error=error,
+                        rho=rho,
+                        baseline_run_key=baseline_key,
+                        anchor=anchor,
+                    )
+                    _refresh_manifests_after_failure(
+                        output_dir,
+                        config=config,
+                        config_hash=cfg_hash,
+                        commit=commit,
+                        run_keys=run_keys,
+                        anchors=anchors,
+                        skipped_run_count=skipped,
+                    )
+                    raise
                 payload["post_evaluation"] = evaluation.to_dict()
                 payload["post_evaluation_runtime_excluded_from_algorithm_runtime"] = True
                 evaluation_valid = (
