@@ -949,8 +949,20 @@ def separate_robust_fairness_feasibility(
             and objective_value is not None
             and objective_value > float(feasibility_tolerance)
         ):
+            returned_status = status
+            returned_reason = certification_reason
+            if (
+                false_positive_count > 0
+                and not certified
+                and status_code in {GRB.INFEASIBLE, GRB.UNBOUNDED}
+            ):
+                returned_status = f"uncertified_restricted_{status}"
+                returned_reason = (
+                    "restricted_separation_after_fixed_feasible_exclusions_"
+                    f"ended_{status}"
+                )
             result = FairnessSeparationResult(
-                status=status,
+                status=returned_status,
                 has_incumbent=has_incumbent,
                 objective=objective_value,
                 objective_bound=objective_bound,
@@ -958,7 +970,7 @@ def separate_robust_fairness_feasibility(
                 runtime=time.perf_counter() - start,
                 requested_mip_gap=float(mip_gap),
                 robust_feasibility_certified=certified,
-                certification_reason=certification_reason,
+                certification_reason=returned_reason,
                 false_positive_scenarios_excluded=false_positive_count,
             )
             model.dispose()

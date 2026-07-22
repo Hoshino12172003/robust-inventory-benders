@@ -185,6 +185,7 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
         "config_sha256": "config",
         "git_commit": "commit",
         "candidate_config_sha256": config["candidate_config_sha256"],
+        "execution_restart_after_correctness_hotfix": True,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": keys,
     }
@@ -201,5 +202,13 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
             config=config,
             config_hash="config",
             commit="other",
+            run_keys=keys,
+        )
+    with pytest.raises(ValueError, match="execution_restart_after_correctness_hotfix"):
+        _validate_development_manifest_identity(
+            {**manifest, "execution_restart_after_correctness_hotfix": False},
+            config=config,
+            config_hash="config",
+            commit="commit",
             run_keys=keys,
         )

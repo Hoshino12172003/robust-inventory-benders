@@ -561,6 +561,7 @@ def _write_fairness_development_manifest(
         "config_sha256": config_hash,
         "git_commit": commit,
         "candidate_config_sha256": str(config["candidate_config_sha256"]).upper(),
+        "execution_restart_after_correctness_hotfix": True,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
         "baseline_anchors": anchors,
@@ -667,6 +668,7 @@ def _validate_development_manifest_identity(
         "config_sha256": config_hash,
         "git_commit": commit,
         "candidate_config_sha256": str(config["candidate_config_sha256"]).upper(),
+        "execution_restart_after_correctness_hotfix": True,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
     }

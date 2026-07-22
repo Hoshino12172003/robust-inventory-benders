@@ -431,6 +431,7 @@ def test_separation_false_positive_is_excluded_without_generating_a_cut(monkeypa
     )
     assert separation.cut is None
     assert not separation.robust_feasibility_certified
+    assert separation.status == "uncertified_restricted_infeasible"
     assert separation.false_positive_scenarios_excluded == 1
 
 

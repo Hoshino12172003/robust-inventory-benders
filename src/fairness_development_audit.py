@@ -312,6 +312,11 @@ def audit_fairness_development(
         and 'ray=incumbent_ray' not in separation
         and "Separation incumbent did not define a valid normalized Farkas ray" not in separation,
     )
+    _check(
+        checks,
+        "fresh_execution_manifest_records_correctness_restart",
+        '"execution_restart_after_correctness_hotfix": True' in runner,
+    )
     return {
         "audit_name": "robust_regional_fairness_development_protocol",
         "passed": all(check["passed"] for check in checks if check.get("required", True)),
