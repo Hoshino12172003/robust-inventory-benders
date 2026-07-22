@@ -82,7 +82,12 @@ fairness_development:
   zero_demand_policy: not_applicable_excluded
   separation_mode: budgeted_uncertainty_farkas_milp
   separation_requires_objective_bound_for_certification: true
+  certifiable_separation_statuses: [optimal, time_limit]
   separation_incumbent_may_generate_valid_cut: true
+  farkas_ray_normalization: sum_multipliers_equals_one
+  baseline_cost_anchor_source: solve_result.upper_bound
+  baseline_cost_anchor_requires_valid_ub: true
+  baseline_cost_anchor_precision: ieee754_float_and_hex
   fairness_cut_core_point_strengthening_enabled: false
   fairness_cut_core_point_skip_reason: different_y_x_T_farkas_cut_family
   baseline_core_point_strengthening_enabled: true
@@ -95,6 +100,8 @@ fairness_development:
     material_minimum_fill_rate_improvement: 0.05
     minimum_instances_improved: 4
     eligible_positive_rho: [0.01, 0.025, 0.05, 0.10]
+    candidate_selection_rule: smallest_eligible_positive_rho
+    validation_allowed_changes: [experiment_name, protocol_phase, random_seeds, output_dir]
   reserved_future_seeds:
     validation: [130, 131, 132, 133, 134, 135, 136, 137, 138, 139]
     final_medium_large: [140, 141, 142, 143, 144, 145, 146, 147, 148, 149]

@@ -17,9 +17,13 @@ in a later, data-supported protocol.
 ## Frozen design
 
 The frozen baseline and cost source are
-`joint_v1_core_point_strengthened`.  Each instance runs that baseline once to
-obtain certified \(C^*\).  No V3 parameter is reselected.  The model and Farkas
-cut derivation are in `docs/robust_regional_fairness_model.md`.
+`joint_v1_core_point_strengthened`. Each instance runs that baseline once.
+The full-precision certified conservative `SolveResult.upper_bound`, with
+`valid_UB=true` and a final certified gap no greater than `tol`, is frozen as
+\(C_{\rm anchor}\). The lower bound, midpoint, master objective, rounded
+summary value, and a single-scenario cost are prohibited. No V3 parameter is
+reselected. The model and Farkas cut derivation are in
+`docs/robust_regional_fairness_model.md`.
 
 The cost grid is frozen before development:
 
@@ -86,18 +90,30 @@ introduced.
 
 The runner uses stable keys for the per-seed baseline and every `(seed,rho)`
 frontier point.  Run records, resolved configuration, and manifest updates are
-atomically replaced.  `--resume` skips complete successful records and refuses
-to reinterpret a failed baseline as \(C^*\).  `--overwrite` is explicit and is
+atomically replaced. `--resume` skips complete successful records and refuses
+to reinterpret a failed baseline as \(C_{\rm anchor}\). `--overwrite` is explicit and is
 mutually exclusive with `--resume`.
 
-The manifest freezes the Git commit and canonical configuration SHA256.  Each
-fairness run records its baseline run key, \(C^*\), \(\rho\), \(B_\rho\), bounds,
+The generic manifest and the atomic `fairness_development_manifest.json`
+freeze the Git commit, canonical configuration SHA256, candidate SHA256, all
+run keys, and every per-seed anchor. Each anchor records its source, decimal
+and IEEE-754 hexadecimal value, baseline run key, `valid_UB`, baseline final
+gap, Git commit, baseline config SHA256, and its own canonical SHA256. Each
+fairness run records the same anchor SHA256, \(\rho\), \(B_\rho\), bounds,
 requested gaps, cut count, cost/fairness scenario patterns encountered,
 runtime, PAR-2, and final status.  Formal result analysis must additionally
 recover scenario policies under the shared caps to report WGap, WWD, mean fill
 rate, and opening/inventory changes.  That deterministic all-scenario reporting
 pass has a 30-second per-scenario cap, is stored as post-evaluation, and is not
 included in the fairness Benders algorithm runtime or PAR-2.
+
+A single-writer lock protects each scale output directory. Every run record
+and both manifests are atomically replaced. `--resume` validates config, Git,
+candidate, baseline run, anchor, and rho identity before reuse. It skips only
+certified successful records; `time_limit`, `iteration_limit`, failed, and
+uncertified attempts remain explicit and are rerun by `--resume`. An
+interruption cannot create a duplicate frontier key. Concurrent writers are
+rejected rather than allowed to mix output.
 
 ## Pre-registered checks and metrics
 
@@ -107,8 +123,16 @@ Model validity requires:
 - every applicable regional shortage rate is at most \(T\) plus tolerance;
 - actual price of fairness is no greater than \(\rho\) plus tolerance;
 - optimal \(T\) is non-increasing as \(\rho\) increases, up to tolerance;
-- \(\rho=0\) uses the same cost-optimal feasible-set logic as diagnostic
-  fair-best recourse (it need not retain the diagnostic's fixed first stage);
+- diagnostic fair-best fixes the diagnostic first-stage decision and removes
+  recourse degeneracy only;
+- the integrated \(\rho=0\) model may select a different first-stage decision
+  among policies inside the same certified cost boundary, so a cost-neutral
+  fair reconfiguration may outperform diagnostic fair-best;
+- if the first-stage decision is additionally fixed, \(\rho=0\) must agree
+  with the corresponding fixed-x extensive form within frozen tolerances;
+- with free first-stage decisions, numerical equality to diagnostic fair-best
+  is neither required nor claimed, and any gain is interpreted as first-stage
+  reconfiguration rather than recourse-degeneracy removal;
 - lower bounds do not decrease, certified upper bounds do not increase, and
   requested MP/SP gaps do not increase;
 - separation incumbents create cuts only, while bounds certify feasibility.
@@ -129,11 +153,30 @@ passes, a later validation-protocol PR is authorized only when:
    scale improve robust minimum fill rate by at least 0.05 relative to
    \(\rho=0\).
 
+The primary endpoint is the paired per-instance increase in robust minimum
+fill rate relative to that instance's \(\rho=0\) point. The report must retain
+the count with improvement at least 0.05 and the median improvement for every
+scale and every frozen rho. Among positive rho values satisfying the rule, the
+single development candidate is the **smallest eligible positive rho**. This
+cost-parsimony rule is deterministic and cannot be replaced after observing
+the frontier. No alternative algorithm is selected in this development stage.
+
 If all runs are valid but the material-improvement rule fails, the outcome is
 `stop_no_material_improvement`; this is a valid negative result.  If completion
 is below 80% without a mathematical correctness failure, the outcome is
 `development_inconclusive`.  Thresholds cannot be changed after seeing
 development data.
+
+Timeouts and uncertified runs are unsolved, remain in the report, and receive
+PAR-2 equal to twice their frozen time limit. They are never silently omitted.
+
+### Allowed validation changes
+
+Only experiment name, `protocol_phase`, seeds (the reserved 130--139 set), and
+an isolated output directory may change in a later validation-protocol PR.
+The model, uncertainty set, instance generator, rho grid, V3 parameters,
+fairness tolerances, time limits, success definition, PAR-2 definition,
+separation/certification logic, and selection threshold cannot change.
 
 ## Commands
 

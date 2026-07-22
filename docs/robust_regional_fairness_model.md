@@ -8,10 +8,15 @@ vulnerability attributes and therefore cannot support claims about socially
 disadvantaged groups.  The existing `transport_cost[i][r][j]` is a unit cost;
 it is not a physical distance.
 
-The frozen baseline is `joint_v1_core_point_strengthened`.  Its robust model,
+The frozen baseline is `joint_v1_core_point_strengthened`. Its robust model,
 uncertainty set, precision parameters, and core-point implementation are not
-changed.  For each instance the baseline first supplies a certified robust
-cost, denoted by \(C^*\).
+changed. For each instance the baseline supplies the full-precision certified
+conservative robust upper bound `SolveResult.upper_bound`. This is the cost
+anchor \(C_{\rm anchor}\). The lower bound, midpoint, master objective,
+rounded summary value, and any single-scenario cost are forbidden anchor
+sources. The run key, Git commit, canonical baseline configuration SHA256,
+frozen-candidate SHA256, `valid_UB`, decimal value, and IEEE-754 `float.hex()`
+value are locked in the development manifest.
 
 ## Max-min service formulation
 
@@ -38,7 +43,7 @@ T=\max_{z\in\mathcal U_\Gamma}\max_{r:D_r(z)>0} U_r(z)/D_r(z).
 For a frozen price-of-fairness allowance \(\rho\), set
 
 \[
-B_\rho=(1+\rho)C^*.
+B_\rho=(1+\rho)C_{\rm anchor}.
 \]
 
 The primary model minimizes \(T\), subject to the unchanged first-stage
@@ -93,7 +98,16 @@ rows.  A normalized Farkas ray satisfies
 -c_j+k c^e_j\ge0,
 \]
 
-and all multipliers are nonnegative.  Every such ray yields the master cut
+and all multipliers are nonnegative, with the equality normalization
+
+\[
+\sum_{rj}a_{rj}+\sum_{ij}b_{ij}+\sum_jc_j+k+\sum_r\ell_r=1.
+\]
+
+The equality excludes the zero ray and does not remove any nonzero ray because
+the cone is positively homogeneous. It gives every multiplier a proof-based
+finite bound in \([0,1]\); no empirical Big-M is used. Every such ray yields
+the master cut
 
 \[
 \begin{aligned}
@@ -111,10 +125,13 @@ binary deviation and a ray multiplier use exact McCormick constraints because
 the normalized multipliers lie in \([0,1]\).  Thus the separation problem is
 a MILP and does not put all extreme-point recourse models in the master.
 
-A separation incumbent with positive violation produces a valid cut.  Only a
+A separation incumbent with positive violation produces a valid cut. Only a
 separation objective bound at or below the frozen feasibility tolerance can
-certify robust feasibility.  The restricted/incumbent value never certifies
-feasibility by itself.
+certify robust feasibility, and that bound is accepted only after `optimal` or
+normal `time_limit` termination. `infeasible`, `unbounded`, `numeric`,
+`interrupted`, `suboptimal`, and unknown statuses never certify feasibility.
+The incumbent value and the mere absence of a found violation never certify
+feasibility by themselves.
 
 ## Bounds and core-point boundary
 
@@ -123,7 +140,7 @@ The master objective bound is a valid lower bound on \(T^*\).  A candidate
 separation bound.  Termination requires the frozen global relative gap and a
 zero-gap final certification solve.
 
-The baseline calculation of \(C^*\) continues to use the frozen V3
+The baseline calculation of \(C_{\rm anchor}\) continues to use the frozen V3
 Magnanti-Wong-type core-point strengthened recourse cuts.  New fairness cuts
 depend on \((y,x,T)\) and arise from a Farkas cone, not the frozen affine
 recourse-cut family.  The old core-point auxiliary LP is therefore not applied

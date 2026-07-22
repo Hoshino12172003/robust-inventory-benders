@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from gurobipy import GRB
 
 from src.instance import InventoryInstance
 from src.regional_fairness_diagnostic import (
@@ -16,6 +17,7 @@ from src.robust_regional_fairness import (
     fairness_cost_budget,
     fairness_cut_from_ray,
     separate_robust_fairness_feasibility,
+    separation_bound_certifies,
     solve_fairness_extensive_form,
     solve_scenario_policy_with_shared_caps,
     validate_farkas_ray,
@@ -63,6 +65,27 @@ def scenario(instance: InventoryInstance, active: tuple[tuple[int, int], ...] = 
     for r, j in active:
         demand[r][j] += instance.demand_deviation[r][j]
     return DemandScenario("manual", active, tuple(tuple(row) for row in demand))
+
+
+def cost_neutral_reconfiguration_instance() -> InventoryInstance:
+    return InventoryInstance(
+        name="cost_neutral_reconfiguration",
+        num_warehouses=2,
+        num_products=1,
+        num_regions=2,
+        fixed_cost=[0.0, 0.0],
+        inventory_cost=[[0.0], [0.0]],
+        capacity=[10.0, 10.0],
+        volume=[1.0],
+        budget=0.0,
+        transport_cost=[[[0.0], [10.0]], [[10.0], [0.0]]],
+        shortage_penalty=[[1.0], [1.0]],
+        service_penalty=[100.0],
+        service_level=[0.0],
+        base_demand=[[5.0], [5.0]],
+        demand_deviation=[[0.0], [0.0]],
+        inventory_ub=[[10.0], [10.0]],
+    )
 
 
 def test_budget_and_tolerance_are_frozen_epsilon_constraint_quantities() -> None:
@@ -172,6 +195,31 @@ def test_shared_policy_uses_one_recourse_for_cost_and_fairness() -> None:
     assert shared.minimum_fill_rate >= 1.0 - t_value - 1e-7
 
 
+def test_rho_zero_allows_cost_neutral_first_stage_reconfiguration() -> None:
+    instance = cost_neutral_reconfiguration_instance()
+    demand_scenario = scenario(instance)
+    fixed_x = [[10.0], [0.0]]
+    default, fixed_fair = solve_default_and_fair_best_recourse(
+        instance, demand_scenario, fixed_x, time_limit=30.0
+    )
+    fixed_metrics = summarize_regional_service(
+        [list(row) for row in demand_scenario.demand], fixed_fair.shortage_values
+    )
+    fixed_t = 1.0 - float(fixed_metrics["minimum_fill_rate"])
+    integrated = solve_fairness_extensive_form(
+        instance,
+        baseline_cost=default.original_optimal_cost,
+        rho=0.0,
+        gamma=0,
+        max_scenarios=10,
+        lexicographic_cost_stage=False,
+    )
+    assert integrated.status == "optimal"
+    assert integrated.actual_robust_cost <= default.original_optimal_cost + 1e-7
+    assert integrated.objective_t < fixed_t - 0.5
+    assert integrated.x_values != fixed_x
+
+
 def test_gamma_zero_and_two_extreme_points_are_exact() -> None:
     instance = tiny_instance(regions=2)
     assert len(enumerate_budget_scenarios(instance, 0, max_scenarios=10)) == 1
@@ -212,6 +260,8 @@ def test_post_evaluation_recomputes_all_shared_cap_scenarios() -> None:
     assert evaluation.scenario_count == 4
     assert evaluation.actual_price_of_fairness <= 0.10 + 1e-6
     assert evaluation.wminfr >= 1.0 - solution.objective_t - 1e-6
+    assert evaluation.objective_t_consistent is True
+    assert evaluation.realized_worst_shortage_rate <= solution.objective_t + 1e-6
     assert evaluation.cost_worst_scenario is not None
     assert evaluation.fairness_worst_scenario is not None
 
@@ -230,6 +280,14 @@ def test_farkas_separation_finds_infeasible_candidate_and_valid_cut() -> None:
     assert separation.status == "optimal"
     assert separation.cut is not None
     assert validate_farkas_ray(instance, separation.cut.ray)
+    ray_sum = (
+        sum(value for row in separation.cut.ray.demand for value in row)
+        + sum(value for row in separation.cut.ray.supply for value in row)
+        + sum(separation.cut.ray.service)
+        + separation.cut.ray.cost
+        + sum(separation.cut.ray.regional_fairness)
+    )
+    assert ray_sum == pytest.approx(1.0, abs=1e-7)
     assert separation.objective is not None and separation.objective > 1e-7
     assert separation.cut.value([0.0], [[0.0]], 0.0) == pytest.approx(-separation.objective, abs=1e-6)
 
@@ -250,6 +308,18 @@ def test_invalid_dual_ray_is_rejected() -> None:
         regional_fairness=[0.0, 0.0],
     )
     assert not validate_farkas_ray(instance, invalid)
+
+
+@pytest.mark.parametrize("status", [GRB.INTERRUPTED, GRB.NUMERIC, GRB.SUBOPTIMAL])
+def test_non_whitelisted_separation_status_never_certifies(status: int) -> None:
+    certified, reason = separation_bound_certifies(status, -1.0, 1e-7)
+    assert not certified
+    assert "not_certifiable" in reason
+
+
+def test_time_limit_requires_a_proving_objective_bound() -> None:
+    assert separation_bound_certifies(GRB.TIME_LIMIT, 1e-8, 1e-7)[0]
+    assert not separation_bound_certifies(GRB.TIME_LIMIT, 1e-4, 1e-7)[0]
 
 
 def test_fairness_cut_sign_regression_would_be_detected() -> None:

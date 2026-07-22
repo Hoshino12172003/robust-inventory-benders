@@ -15,6 +15,7 @@ import yaml
 
 from .benders import solve_benders
 from .experiment_protocol import (
+    atomic_write_csv,
     atomic_write_json,
     atomic_write_yaml,
     config_sha256,
@@ -22,6 +23,7 @@ from .experiment_protocol import (
     git_commit,
     load_run_record,
     penalized_runtime_par2,
+    read_json,
     stable_run_key,
     update_run_manifest,
     utc_now_iso,
@@ -39,6 +41,7 @@ from .precision_policy import (
     precision_policy_config,
     select_joint_error_budget_precision,
 )
+from .regional_fairness_pipeline import SingleWriterLock
 from .robust_regional_fairness import (
     FAIRNESS_FEASIBILITY_TOLERANCE,
     FairnessFeasibilityCut,
@@ -277,6 +280,7 @@ def solve_fairness_benders(
                     "separation_objective_bound": separation.objective_bound,
                     "separation_has_incumbent": separation.has_incumbent,
                     "robust_feasibility_certified": separation.robust_feasibility_certified,
+                    "separation_certification_reason": separation.certification_reason,
                     "cut_added": cut_added,
                     "cut_has_cost_component": (
                         None
@@ -439,20 +443,228 @@ def _validate_resume_record_identity(
         raise ValueError(f"Git-commit identity mismatch while resuming {run_key}.")
 
 
-def run_fairness_development(
+FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 1
+
+
+def _certified_baseline_anchor(
+    baseline_record: dict[str, Any],
+    *,
+    baseline_run_key: str,
+    config_hash: str,
+    commit: str,
+    candidate_config_sha256: str,
+    tolerance: float,
+) -> dict[str, Any]:
+    """Freeze the exact certified V3 conservative UB used by every rho."""
+    result = baseline_record.get("result", {})
+    upper_bound = result.get("upper_bound")
+    gap = result.get("gap")
+    solved = (
+        baseline_record.get("solved_to_tolerance") is True
+        and result.get("status") == "optimal"
+        and result.get("valid_UB") is True
+        and gap is not None
+        and float(gap) <= float(tolerance)
+        and upper_bound is not None
+        and math.isfinite(float(upper_bound))
+    )
+    if not solved:
+        raise RuntimeError(
+            f"Frozen V3 baseline lacks a certified feasible robust upper bound for {baseline_run_key}."
+        )
+    value = float(upper_bound)
+    anchor = {
+        "source": "solve_result.upper_bound",
+        "value": value,
+        "value_hex": value.hex(),
+        "baseline_run_key": baseline_run_key,
+        "base_git_commit": commit,
+        "base_config_sha256": config_hash,
+        "candidate_config_sha256": str(candidate_config_sha256).upper(),
+        "valid_UB": True,
+        "baseline_status": "optimal",
+        "baseline_final_gap": float(gap),
+    }
+    anchor["anchor_sha256"] = config_sha256(anchor)
+    return anchor
+
+
+def _validate_frontier_anchor_identity(
+    record: dict[str, Any] | None,
+    *,
+    anchor: dict[str, Any],
+    baseline_run_key: str,
+    rho: float,
+) -> None:
+    if record is None:
+        return
+    if record.get("baseline_run_key") != baseline_run_key:
+        raise ValueError("Baseline run-key identity mismatch while resuming fairness frontier.")
+    if record.get("baseline_anchor_sha256") != anchor["anchor_sha256"]:
+        raise ValueError("Certified C_anchor identity mismatch while resuming fairness frontier.")
+    if float(record.get("rho")) != float(rho):
+        raise ValueError("Rho identity mismatch while resuming fairness frontier.")
+
+
+def _write_fairness_development_manifest(
+    output_dir: Path,
+    *,
+    config: dict[str, Any],
+    config_hash: str,
+    commit: str,
+    run_keys: list[str],
+    anchors: dict[str, dict[str, Any]],
+) -> None:
+    previous = read_json(output_dir / "fairness_development_manifest.json") or {}
+    tasks: list[dict[str, Any]] = []
+    for run_key in run_keys:
+        record = load_run_record(output_dir, run_key)
+        tasks.append(
+            {
+                "run_key": run_key,
+                "state": None if record is None else record.get("state"),
+                "success": False if record is None else bool(record.get("success")),
+                "solved_to_tolerance": (
+                    False if record is None else bool(record.get("solved_to_tolerance"))
+                ),
+                "baseline_run_key": None if record is None else record.get("baseline_run_key"),
+                "baseline_anchor_sha256": (
+                    None if record is None else record.get("baseline_anchor_sha256")
+                ),
+                "rho": None if record is None else record.get("rho"),
+                "certification_status": (
+                    None if record is None else record.get("certification_status")
+                ),
+            }
+        )
+    payload = {
+        "schema_version": FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
+        "experiment_name": config["experiment_name"],
+        "protocol_phase": config["protocol_phase"],
+        "config_sha256": config_hash,
+        "git_commit": commit,
+        "candidate_config_sha256": str(config["candidate_config_sha256"]).upper(),
+        "baseline_anchor_source": "solve_result.upper_bound",
+        "run_keys": run_keys,
+        "baseline_anchors": anchors,
+        "tasks": tasks,
+        "completed_count": sum(task["state"] == "complete" for task in tasks),
+        "solved_count": sum(task["solved_to_tolerance"] for task in tasks),
+        "pending_count": sum(task["state"] != "complete" for task in tasks),
+        "created_at": previous.get("created_at", utc_now_iso()),
+        "updated_at": utc_now_iso(),
+    }
+    atomic_write_json(output_dir / "fairness_development_manifest.json", payload)
+
+
+def _write_fairness_result_tables(output_dir: Path, run_keys: list[str]) -> None:
+    """Rebuild deterministic result/summary tables from atomic run records."""
+    rows: list[dict[str, Any]] = []
+    for run_key in run_keys:
+        record = load_run_record(output_dir, run_key)
+        if record is None:
+            continue
+        result = record.get("result", {})
+        rows.append(
+            {
+                "run_key": run_key,
+                "task_type": record.get("task_type"),
+                "instance_size": record.get("instance_size"),
+                "seed": record.get("seed"),
+                "method": record.get("method"),
+                "rho": record.get("rho"),
+                "baseline_run_key": record.get("baseline_run_key"),
+                "baseline_anchor_sha256": record.get("baseline_anchor_sha256"),
+                "baseline_cost": record.get("baseline_cost"),
+                "cost_budget": result.get("cost_budget"),
+                "status": result.get("status"),
+                "certification_status": record.get("certification_status"),
+                "solved_to_tolerance": record.get("solved_to_tolerance"),
+                "objective_t": result.get("objective_t"),
+                "lower_bound": result.get("lower_bound"),
+                "upper_bound": result.get("upper_bound"),
+                "gap": result.get("gap"),
+                "runtime": result.get("runtime"),
+                "penalized_runtime_par2": result.get("penalized_runtime_par2"),
+                "iterations": result.get("iterations"),
+                "cuts": result.get("cuts"),
+            }
+        )
+    rows.sort(key=lambda row: (int(row["seed"]), row["task_type"] != "baseline", -1.0 if row["rho"] is None else float(row["rho"])))
+    fields = list(rows[0]) if rows else [
+        "run_key", "task_type", "instance_size", "seed", "method", "rho",
+        "status", "certification_status", "solved_to_tolerance",
+    ]
+    atomic_write_csv(output_dir / "results.csv", rows, fields)
+    groups: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault((row["task_type"], row["rho"]), []).append(row)
+    summary = []
+    for (task_type, rho), group in sorted(
+        groups.items(), key=lambda item: (item[0][0] != "baseline", -1.0 if item[0][1] is None else float(item[0][1]))
+    ):
+        summary.append(
+            {
+                "task_type": task_type,
+                "rho": rho,
+                "attempt_count": len(group),
+                "solved_count": sum(bool(row["solved_to_tolerance"]) for row in group),
+                "optimal_count": sum(row["status"] == "optimal" for row in group),
+                "time_limit_count": sum(row["status"] == "time_limit" for row in group),
+                "uncertified_count": sum(
+                    str(row["certification_status"] or "").startswith("uncertified_")
+                    for row in group
+                ),
+                "invalid_post_evaluation_count": sum(
+                    row["certification_status"] == "invalid_post_evaluation"
+                    for row in group
+                ),
+                "infeasible_count": sum(row["status"] == "infeasible" for row in group),
+            }
+        )
+    atomic_write_csv(
+        output_dir / "summary.csv",
+        summary,
+        [
+            "task_type", "rho", "attempt_count", "solved_count",
+            "optimal_count", "time_limit_count", "uncertified_count",
+            "invalid_post_evaluation_count", "infeasible_count",
+        ],
+    )
+
+
+def _validate_development_manifest_identity(
+    manifest: dict[str, Any] | None,
+    *,
+    config: dict[str, Any],
+    config_hash: str,
+    commit: str,
+    run_keys: list[str],
+) -> None:
+    if manifest is None:
+        return
+    expected = {
+        "schema_version": FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
+        "experiment_name": config["experiment_name"],
+        "protocol_phase": config["protocol_phase"],
+        "config_sha256": config_hash,
+        "git_commit": commit,
+        "candidate_config_sha256": str(config["candidate_config_sha256"]).upper(),
+        "baseline_anchor_source": "solve_result.upper_bound",
+        "run_keys": run_keys,
+    }
+    mismatches = [key for key, value in expected.items() if manifest.get(key) != value]
+    if mismatches:
+        raise ValueError(
+            "Fairness development manifest identity mismatch: " + ", ".join(mismatches)
+        )
+
+
+def _run_fairness_development_locked(
     config: dict[str, Any], *, resume: bool = False, overwrite: bool = False
 ) -> Path:
-    if resume and overwrite:
-        raise ValueError("--resume and --overwrite are mutually exclusive.")
-    from .fairness_development_audit import audit_fairness_development
-
-    audit = audit_fairness_development(config_overrides={str(config["experiment_name"]): config})
-    failed = [check["check"] for check in audit["checks"] if check.get("required", True) and not check["passed"]]
-    if failed:
-        raise ValueError(f"Fairness development protocol audit failed: {', '.join(failed)}")
     output_dir = Path(str(config["output_dir"]))
     output_dir.mkdir(parents=True, exist_ok=True)
-    atomic_write_yaml(output_dir / "resolved_config.yaml", config)
     commit = git_commit(Path(__file__).resolve().parents[1])
     cfg_hash = config_sha256(config)
     seeds = [int(value) for value in config["random_seeds"]]
@@ -471,6 +683,33 @@ def run_fairness_development(
                 sensitivity_value=rho, instance_size=size, seed=seed,
                 variant_name="robust_regional_fairness",
             ))
+    existing_manifest = read_json(output_dir / "fairness_development_manifest.json")
+    if (
+        not overwrite
+        and (output_dir / "fairness_development_manifest.json").exists()
+        and existing_manifest is None
+    ):
+        raise ValueError("Existing fairness development manifest is unreadable or corrupt.")
+    if not overwrite:
+        _validate_development_manifest_identity(
+            existing_manifest,
+            config=config,
+            config_hash=cfg_hash,
+            commit=commit,
+            run_keys=run_keys,
+        )
+    atomic_write_yaml(output_dir / "resolved_config.yaml", config)
+    anchors: dict[str, dict[str, Any]] = {}
+    if existing_manifest is not None:
+        anchors = dict(existing_manifest.get("baseline_anchors", {}))
+    _write_fairness_development_manifest(
+        output_dir,
+        config=config,
+        config_hash=cfg_hash,
+        commit=commit,
+        run_keys=run_keys,
+        anchors=anchors,
+    )
     skipped = 0
     for seed in seeds:
         instance = generate_instance(_base_config(config, size, seed), seed=seed)
@@ -493,15 +732,21 @@ def run_fairness_development(
             method, method_config = _baseline_method_config(config, size, seed)
             result = solve_benders(method_config, instance, method)
             solved = result.status == "optimal" and result.gap is not None and result.gap <= float(config["tol"])
+            baseline_payload = result.summary_dict()
+            baseline_payload["iteration_log"] = result.iteration_log
             baseline_record = {
                 "run_key": baseline_key,
+                "task_type": "baseline",
+                "instance_size": size,
+                "seed": seed,
+                "method": "joint_v1_core_point_strengthened",
                 "state": "complete",
                 "success": solved,
                 "solved_to_tolerance": solved,
                 "git_commit": commit,
                 "config_sha256": cfg_hash,
                 "created_at": utc_now_iso(),
-                "result": result.summary_dict(),
+                "result": baseline_payload,
             }
             _write_record(output_dir, baseline_key, baseline_record)
             write_run_state(
@@ -512,7 +757,28 @@ def run_fairness_development(
             )
         if not baseline_record or not baseline_record.get("solved_to_tolerance"):
             raise RuntimeError(f"Frozen V3 baseline did not solve to tolerance for seed {seed}.")
-        c_star = float(baseline_record["result"]["objective"])
+        anchor = _certified_baseline_anchor(
+            baseline_record,
+            baseline_run_key=baseline_key,
+            config_hash=cfg_hash,
+            commit=commit,
+            candidate_config_sha256=str(config["candidate_config_sha256"]),
+            tolerance=float(config["tol"]),
+        )
+        anchors[str(seed)] = anchor
+        if baseline_record.get("certified_cost_anchor") != anchor:
+            baseline_record["certified_cost_anchor"] = anchor
+            _write_record(output_dir, baseline_key, baseline_record)
+        _write_fairness_development_manifest(
+            output_dir,
+            config=config,
+            config_hash=cfg_hash,
+            commit=commit,
+            run_keys=run_keys,
+            anchors=anchors,
+        )
+        _write_fairness_result_tables(output_dir, run_keys)
+        c_anchor = float(anchor["value"])
         for rho in rhos:
             key = stable_run_key(
                 experiment_name=str(config["experiment_name"]), sensitivity_axis="rho",
@@ -524,6 +790,12 @@ def run_fairness_development(
                 _validate_resume_record_identity(
                     existing, config_hash=cfg_hash, commit=commit, run_key=key
                 )
+                _validate_frontier_anchor_identity(
+                    existing,
+                    anchor=anchor,
+                    baseline_run_key=baseline_key,
+                    rho=rho,
+                )
             action = decide_run_action(existing, resume=resume, overwrite=overwrite)
             if action == "skip_success":
                 skipped += 1
@@ -534,7 +806,7 @@ def run_fairness_development(
             algorithm = load_development_config(str(config["candidate_parameters_must_be_fixed_from"]))["algorithm"]
             result = solve_fairness_benders(
                 instance,
-                baseline_cost=c_star,
+                baseline_cost=c_anchor,
                 rho=rho,
                 gamma=int(config["gamma_target"]),
                 algorithm_config=algorithm,
@@ -544,10 +816,15 @@ def run_fairness_development(
                 feasibility_tolerance=float(config["fairness_development"]["feasibility_tolerance"]),
                 output_flag=bool(config.get("output_flag", False)),
             )
-            solved = result.status == "optimal" and result.gap is not None and result.gap <= float(config["tol"])
+            algorithm_solved = (
+                result.status == "optimal"
+                and result.gap is not None
+                and result.gap <= float(config["tol"])
+            )
             payload = result.to_dict()
+            evaluation_valid = False
             if (
-                solved
+                algorithm_solved
                 and result.y_values is not None
                 and result.x_values is not None
                 and result.objective_t is not None
@@ -557,7 +834,7 @@ def run_fairness_development(
                     y_values=result.y_values,
                     x_values=result.x_values,
                     t_value=result.objective_t,
-                    baseline_cost=c_star,
+                    baseline_cost=c_anchor,
                     rho=rho,
                     gamma=int(config["gamma_target"]),
                     max_scenarios=int(config["max_scenarios"]),
@@ -573,6 +850,19 @@ def run_fairness_development(
                 )
                 payload["post_evaluation"] = evaluation.to_dict()
                 payload["post_evaluation_runtime_excluded_from_algorithm_runtime"] = True
+                evaluation_valid = (
+                    evaluation.valid and evaluation.objective_t_consistent is not False
+                )
+            solved = algorithm_solved and evaluation_valid
+            certification_status = (
+                "certified_optimal"
+                if solved
+                else (
+                    "invalid_post_evaluation"
+                    if algorithm_solved
+                    else f"uncertified_{result.status}"
+                )
+            )
             payload["penalized_runtime_par2"] = penalized_runtime_par2(
                 solved_to_tolerance=solved,
                 runtime=result.runtime,
@@ -580,13 +870,20 @@ def run_fairness_development(
             )
             _write_record(output_dir, key, {
                 "run_key": key,
+                "task_type": "fairness_frontier",
+                "instance_size": size,
+                "seed": seed,
+                "method": "robust_regional_fairness",
                 "state": "complete",
-                "success": result.status in {"optimal", "time_limit", "iteration_limit"},
+                "success": solved,
                 "solved_to_tolerance": solved,
+                "certification_status": certification_status,
                 "git_commit": commit,
                 "config_sha256": cfg_hash,
                 "baseline_run_key": baseline_key,
-                "baseline_cost": c_star,
+                "baseline_anchor_sha256": anchor["anchor_sha256"],
+                "certified_cost_anchor": anchor,
+                "baseline_cost": c_anchor,
                 "rho": rho,
                 "created_at": utc_now_iso(),
                 "result": payload,
@@ -596,10 +893,20 @@ def run_fairness_development(
                 key,
                 state="complete",
                 details={
-                    "success": result.status in {"optimal", "time_limit", "iteration_limit"},
+                    "success": solved,
                     "solved_to_tolerance": solved,
+                    "certification_status": certification_status,
                 },
             )
+            _write_fairness_development_manifest(
+                output_dir,
+                config=config,
+                config_hash=cfg_hash,
+                commit=commit,
+                run_keys=run_keys,
+                anchors=anchors,
+            )
+            _write_fairness_result_tables(output_dir, run_keys)
         update_run_manifest(
             output_dir=output_dir,
             run_keys=run_keys,
@@ -608,6 +915,31 @@ def run_fairness_development(
             skipped_run_count=skipped,
         )
     return output_dir / "run_manifest.json"
+
+
+def run_fairness_development(
+    config: dict[str, Any], *, resume: bool = False, overwrite: bool = False
+) -> Path:
+    if resume and overwrite:
+        raise ValueError("--resume and --overwrite are mutually exclusive.")
+    from .fairness_development_audit import audit_fairness_development
+
+    audit = audit_fairness_development(
+        config_overrides={str(config["experiment_name"]): config},
+        allow_existing_output=True,
+    )
+    failed = [
+        check["check"]
+        for check in audit["checks"]
+        if check.get("required", True) and not check["passed"]
+    ]
+    if failed:
+        raise ValueError(f"Fairness development protocol audit failed: {', '.join(failed)}")
+    output_dir = Path(str(config["output_dir"]))
+    with SingleWriterLock(output_dir / ".fairness_development.lock", resume=resume):
+        return _run_fairness_development_locked(
+            config, resume=resume, overwrite=overwrite
+        )
 
 
 def main() -> None:

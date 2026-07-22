@@ -80,6 +80,7 @@ class FairnessSeparationResult:
     runtime: float
     requested_mip_gap: float
     robust_feasibility_certified: bool
+    certification_reason: str
     cut: FairnessFeasibilityCut | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -136,6 +137,8 @@ class FairnessSolutionEvaluation:
     actual_price_of_fairness: float | None
     wgap: float | None
     wminfr: float | None
+    realized_worst_shortage_rate: float | None
+    objective_t_consistent: bool | None
     wwd: float | None
     minimum_weighted_mean_fill_rate: float | None
     cost_worst_scenario: str | None
@@ -497,7 +500,10 @@ def validate_farkas_ray(
     tol = float(tolerance)
     if any(not math.isfinite(float(value)) or float(value) < -tol for value in values):
         return False
-    if sum(float(value) for value in values) > 1.0 + tol:
+    # Equality removes the zero ray without discarding any nonzero ray because
+    # the Farkas cone is positively homogeneous. It also supplies the exact
+    # [0, 1] bounds used by the binary-product linearization.
+    if abs(sum(float(value) for value in values) - 1.0) > tol:
         return False
     for i in instance.I:
         for r in instance.R:
@@ -531,6 +537,32 @@ def _add_binary_product(model: gp.Model, binary: Any, continuous: Any, name: str
     model.addConstr(product <= continuous, name=f"{name}_continuous_ub")
     model.addConstr(product >= continuous - (1.0 - binary), name=f"{name}_lower")
     return product
+
+
+def separation_bound_certifies(
+    status_code: int,
+    objective_bound: float | None,
+    feasibility_tolerance: float,
+) -> tuple[bool, str]:
+    """Apply the frozen status-and-bound whitelist for robust certification."""
+    status_name = gurobi_status_name(status_code)
+    certifiable_status = status_code in {GRB.OPTIMAL, GRB.TIME_LIMIT}
+    certified = (
+        certifiable_status
+        and objective_bound is not None
+        and math.isfinite(float(objective_bound))
+        and float(objective_bound) <= float(feasibility_tolerance)
+    )
+    reason = (
+        "objective_bound_proves_no_violation"
+        if certified
+        else (
+            f"status_{status_name}_not_certifiable"
+            if not certifiable_status
+            else "objective_bound_above_feasibility_tolerance"
+        )
+    )
+    return certified, reason
 
 
 def separate_robust_fairness_feasibility(
@@ -580,7 +612,7 @@ def separate_robust_fairness_feasibility(
         + gp.quicksum(c[j] for j in instance.J)
         + k
         + gp.quicksum(ell[r] for r in instance.R)
-        <= 1.0,
+        == 1.0,
         name="ray_normalization",
     )
     for i in instance.I:
@@ -633,9 +665,21 @@ def separate_robust_fairness_feasibility(
     status = gurobi_status_name(model.Status)
     has_incumbent = model.SolCount > 0
     objective_value = float(model.ObjVal) if has_incumbent else None
-    objective_bound = float(model.ObjBound) if model.Status not in {GRB.INFEASIBLE, GRB.UNBOUNDED} else None
+    objective_bound = (
+        float(model.ObjBound)
+        if model.Status not in {GRB.INFEASIBLE, GRB.UNBOUNDED}
+        and math.isfinite(float(model.ObjBound))
+        else None
+    )
     mip_gap_value = float(model.MIPGap) if has_incumbent and model.IsMIP else None
-    certified = objective_bound is not None and objective_bound <= float(feasibility_tolerance)
+    # Only a normal optimal or time-limit exit supplies a bound that this
+    # protocol accepts as a certificate. Numeric, interrupted, suboptimal,
+    # infeasible, and unbounded exits never certify robust feasibility.
+    certified, certification_reason = separation_bound_certifies(
+        model.Status,
+        objective_bound,
+        float(feasibility_tolerance),
+    )
     cut: FairnessFeasibilityCut | None = None
     if has_incumbent and objective_value is not None and objective_value > float(feasibility_tolerance):
         active = [
@@ -668,6 +712,7 @@ def separate_robust_fairness_feasibility(
         runtime=time.perf_counter() - start,
         requested_mip_gap=float(mip_gap),
         robust_feasibility_certified=certified,
+        certification_reason=certification_reason,
         cut=cut,
     )
     model.dispose()
@@ -783,6 +828,8 @@ def evaluate_fairness_solution(
             actual_price_of_fairness=None,
             wgap=None,
             wminfr=None,
+            realized_worst_shortage_rate=None,
+            objective_t_consistent=None,
             wwd=None,
             minimum_weighted_mean_fill_rate=None,
             cost_worst_scenario=None,
@@ -807,12 +854,21 @@ def evaluate_fairness_solution(
         key=lambda policy: float(policy.minimum_fill_rate),
         default=None,
     )
+    wminfr = None if not applicable_minimum else float(min(applicable_minimum))
+    realized_worst_shortage_rate = None if wminfr is None else 1.0 - wminfr
+    objective_t_consistent = (
+        None
+        if realized_worst_shortage_rate is None
+        else realized_worst_shortage_rate <= float(t_value) + float(tolerance)
+    )
     return FairnessSolutionEvaluation(
         valid=True,
         actual_robust_cost=float(actual_cost),
         actual_price_of_fairness=float(actual_price),
         wgap=None if not gaps else float(max(gaps)),
-        wminfr=None if not applicable_minimum else float(min(applicable_minimum)),
+        wminfr=wminfr,
+        realized_worst_shortage_rate=realized_worst_shortage_rate,
+        objective_t_consistent=objective_t_consistent,
         wwd=None if not deviations else float(max(deviations)),
         minimum_weighted_mean_fill_rate=None if not means else float(min(means)),
         cost_worst_scenario=cost_worst,

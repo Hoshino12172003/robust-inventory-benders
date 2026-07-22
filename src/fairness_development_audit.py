@@ -74,7 +74,9 @@ def _without_allowed_scale_differences(config: dict[str, Any]) -> dict[str, Any]
 
 
 def audit_fairness_development(
-    *, config_overrides: Mapping[str, dict[str, Any]] | None = None
+    *,
+    config_overrides: Mapping[str, dict[str, Any]] | None = None,
+    allow_existing_output: bool = False,
 ) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     configs = {
@@ -169,6 +171,19 @@ def audit_fairness_development(
         )
         _check(
             checks,
+            f"{prefix}_certified_anchor",
+            fairness.get("baseline_cost_anchor_source") == "solve_result.upper_bound"
+            and fairness.get("baseline_cost_anchor_requires_valid_ub") is True
+            and fairness.get("baseline_cost_anchor_precision") == "ieee754_float_and_hex",
+        )
+        _check(
+            checks,
+            f"{prefix}_ray_and_status_certification",
+            fairness.get("farkas_ray_normalization") == "sum_multipliers_equals_one"
+            and fairness.get("certifiable_separation_statuses") == ["optimal", "time_limit"],
+        )
+        _check(
+            checks,
             f"{prefix}_core_boundary",
             fairness.get("baseline_core_point_strengthening_enabled") is True
             and fairness.get("fairness_cut_core_point_strengthening_enabled") is False,
@@ -189,6 +204,19 @@ def audit_fairness_development(
             ),
         )
         reserved = fairness.get("reserved_future_seeds", {})
+        continue_rule = fairness.get("development_continue_rule", {})
+        _check(
+            checks,
+            f"{prefix}_development_decision_rule",
+            continue_rule.get("correctness_required") is True
+            and continue_rule.get("minimum_solved_rate_each_scale") == 0.80
+            and continue_rule.get("material_minimum_fill_rate_improvement") == 0.05
+            and continue_rule.get("minimum_instances_improved") == 4
+            and continue_rule.get("eligible_positive_rho") == [0.01, 0.025, 0.05, 0.10]
+            and continue_rule.get("candidate_selection_rule") == "smallest_eligible_positive_rho"
+            and continue_rule.get("validation_allowed_changes")
+            == ["experiment_name", "protocol_phase", "random_seeds", "output_dir"],
+        )
         _check(
             checks,
             f"{prefix}_future_seeds_reserved",
@@ -208,7 +236,12 @@ def audit_fairness_development(
         expected_scenarios = 1831 if expected_size == "medium_large" else 4657
         _check(checks, f"{prefix}_scenario_count", plan["scenario_count_by_size"].get(expected_size) == expected_scenarios)
         output = ROOT / str(config.get("output_dir", ""))
-        _check(checks, f"{prefix}_formal_output_absent", not output.exists(), str(output))
+        _check(
+            checks,
+            f"{prefix}_formal_output_absent",
+            allow_existing_output or not output.exists(),
+            str(output),
+        )
         _check(
             checks,
             f"{prefix}_output_isolated",
@@ -244,6 +277,26 @@ def audit_fairness_development(
     )
     _check(checks, "no_social_vulnerability_claim", "cannot support claims" in model_doc and "cannot make claims" in protocol_doc)
     _check(checks, "negative_result_rule_frozen", "stop_no_material_improvement" in protocol_doc)
+    _check(
+        checks,
+        "candidate_selection_rule_frozen",
+        "smallest eligible positive rho" in protocol_doc
+        and "Allowed validation changes" in protocol_doc,
+    )
+    runner = (ROOT / "src/fairness_benders.py").read_text(encoding="utf-8")
+    _check(
+        checks,
+        "certified_anchor_implemented",
+        '"source": "solve_result.upper_bound"' in runner
+        and 'result.get("valid_UB") is True' in runner,
+    )
+    _check(
+        checks,
+        "single_writer_and_atomic_manifest",
+        "SingleWriterLock" in runner
+        and "fairness_development_manifest.json" in runner
+        and "atomic_write_json" in runner,
+    )
     return {
         "audit_name": "robust_regional_fairness_development_protocol",
         "passed": all(check["passed"] for check in checks if check.get("required", True)),

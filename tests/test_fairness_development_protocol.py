@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.fairness_benders import _validate_resume_record_identity, development_run_plan
+from src.fairness_benders import (
+    _certified_baseline_anchor,
+    _validate_development_manifest_identity,
+    _validate_frontier_anchor_identity,
+    _validate_resume_record_identity,
+    development_run_plan,
+)
 from src.fairness_development_audit import CONFIG_PATHS, audit_fairness_development
 
 
@@ -105,3 +111,95 @@ def test_resume_rejects_config_or_commit_identity_drift() -> None:
         _validate_resume_record_identity(record, config_hash="other", commit="commit", run_key="key")
     with pytest.raises(ValueError, match="Git-commit identity"):
         _validate_resume_record_identity(record, config_hash="config", commit="other", run_key="key")
+
+
+def test_baseline_anchor_uses_certified_upper_bound_not_objective() -> None:
+    record = {
+        "solved_to_tolerance": True,
+        "result": {
+            "status": "optimal",
+            "objective": 90.0,
+            "lower_bound": 95.0,
+            "upper_bound": 100.0,
+            "gap": 1e-5,
+            "valid_UB": True,
+        },
+    }
+    anchor = _certified_baseline_anchor(
+        record,
+        baseline_run_key="baseline",
+        config_hash="config",
+        commit="commit",
+        candidate_config_sha256="A" * 64,
+        tolerance=1e-4,
+    )
+    assert anchor["source"] == "solve_result.upper_bound"
+    assert anchor["value"] == 100.0
+    assert anchor["value_hex"] == float(100.0).hex()
+    assert anchor["value"] != record["result"]["objective"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda result: result.update(valid_UB=False),
+        lambda result: result.update(upper_bound=None),
+        lambda result: result.update(status="time_limit"),
+        lambda result: result.update(gap=0.1),
+    ],
+)
+def test_uncertified_baseline_cannot_become_cost_anchor(mutation) -> None:
+    result = {"status": "optimal", "upper_bound": 100.0, "gap": 1e-5, "valid_UB": True}
+    mutation(result)
+    with pytest.raises(RuntimeError, match="certified feasible robust upper bound"):
+        _certified_baseline_anchor(
+            {"solved_to_tolerance": True, "result": result},
+            baseline_run_key="baseline",
+            config_hash="config",
+            commit="commit",
+            candidate_config_sha256="A" * 64,
+            tolerance=1e-4,
+        )
+
+
+def test_frontier_resume_locks_anchor_and_rho_identity() -> None:
+    anchor = {"anchor_sha256": "anchor"}
+    record = {"baseline_run_key": "base", "baseline_anchor_sha256": "anchor", "rho": 0.05}
+    _validate_frontier_anchor_identity(record, anchor=anchor, baseline_run_key="base", rho=0.05)
+    with pytest.raises(ValueError, match="C_anchor identity"):
+        _validate_frontier_anchor_identity(
+            {**record, "baseline_anchor_sha256": "other"},
+            anchor=anchor,
+            baseline_run_key="base",
+            rho=0.05,
+        )
+
+
+def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    keys = ["a", "b"]
+    manifest = {
+        "schema_version": 1,
+        "experiment_name": config["experiment_name"],
+        "protocol_phase": config["protocol_phase"],
+        "config_sha256": "config",
+        "git_commit": "commit",
+        "candidate_config_sha256": config["candidate_config_sha256"],
+        "baseline_anchor_source": "solve_result.upper_bound",
+        "run_keys": keys,
+    }
+    _validate_development_manifest_identity(
+        manifest,
+        config=config,
+        config_hash="config",
+        commit="commit",
+        run_keys=keys,
+    )
+    with pytest.raises(ValueError, match="git_commit"):
+        _validate_development_manifest_identity(
+            manifest,
+            config=config,
+            config_hash="config",
+            commit="other",
+            run_keys=keys,
+        )
