@@ -281,6 +281,21 @@ def solve_fairness_benders(
                     "separation_has_incumbent": separation.has_incumbent,
                     "robust_feasibility_certified": separation.robust_feasibility_certified,
                     "separation_certification_reason": separation.certification_reason,
+                    "separation_candidate_active_deviations": separation.candidate_active_deviations,
+                    "separation_incumbent_ray_validation": (
+                        None
+                        if separation.incumbent_ray_validation is None
+                        else separation.incumbent_ray_validation.to_dict()
+                    ),
+                    "fixed_scenario_certificate": (
+                        None
+                        if separation.fixed_scenario_certificate is None
+                        else separation.fixed_scenario_certificate.to_dict()
+                    ),
+                    "separation_false_positive_scenarios_excluded": (
+                        separation.false_positive_scenarios_excluded
+                    ),
+                    "separation_cut_certificate_source": separation.cut_certificate_source,
                     "cut_added": cut_added,
                     "cut_has_cost_component": (
                         None
@@ -363,7 +378,9 @@ def solve_fairness_benders(
             "core_point_fairness_reason": "not_validated_for_y_x_T_farkas_cut_family",
             "same_recourse_satisfies_cost_and_fairness": True,
             "cost_and_fairness_worst_separately_identified_in_post_evaluation": True,
-            "separation_mode": "budgeted_uncertainty_farkas_milp",
+            "separation_mode": "candidate_milp_plus_fixed_scenario_lp_certificate",
+            "separation_incumbent_role": "candidate_scenario_only",
+            "fixed_scenario_certificate_required_for_cut": True,
             "secondary_cut_enabled": False,
         },
     )

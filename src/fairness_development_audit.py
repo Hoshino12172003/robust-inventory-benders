@@ -284,6 +284,7 @@ def audit_fairness_development(
         and "Allowed validation changes" in protocol_doc,
     )
     runner = (ROOT / "src/fairness_benders.py").read_text(encoding="utf-8")
+    separation = (ROOT / "src/robust_regional_fairness.py").read_text(encoding="utf-8")
     _check(
         checks,
         "certified_anchor_implemented",
@@ -296,6 +297,20 @@ def audit_fairness_development(
         "SingleWriterLock" in runner
         and "fairness_development_manifest.json" in runner
         and "atomic_write_json" in runner,
+    )
+    _check(
+        checks,
+        "separation_candidate_requires_fixed_scenario_certificate",
+        "certify_fixed_scenario_fairness_feasibility" in separation
+        and "fixed_scenario_normalized_farkas_lp" in separation
+        and "candidate_scenario_only" in runner,
+    )
+    _check(
+        checks,
+        "invalid_milp_ray_never_directly_generates_cut",
+        "ray=fixed.ray" in separation
+        and 'ray=incumbent_ray' not in separation
+        and "Separation incumbent did not define a valid normalized Farkas ray" not in separation,
     )
     return {
         "audit_name": "robust_regional_fairness_development_protocol",

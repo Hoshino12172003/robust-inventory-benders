@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 import math
 import time
 from typing import Any, Iterable
@@ -34,6 +34,37 @@ class FairnessFarkasRay:
     service: list[float]
     cost: float
     regional_fairness: list[float]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FarkasRayValidation:
+    valid: bool
+    shape_valid: bool
+    finite: bool
+    normalization_residual: float | None
+    minimum_multiplier: float | None
+    maximum_dual_cone_violation: float | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FixedScenarioCertificate:
+    primal_status: str
+    primal_feasible: bool
+    infeasibility_certified: bool
+    primal_runtime: float
+    ray_status: str | None = None
+    ray_runtime: float = 0.0
+    ray_objective: float | None = None
+    cut_violation: float | None = None
+    ray: FairnessFarkasRay | None = None
+    ray_validation: FarkasRayValidation | None = None
+    certification_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -82,6 +113,11 @@ class FairnessSeparationResult:
     robust_feasibility_certified: bool
     certification_reason: str
     cut: FairnessFeasibilityCut | None = None
+    candidate_active_deviations: list[dict[str, int]] = field(default_factory=list)
+    incumbent_ray_validation: FarkasRayValidation | None = None
+    fixed_scenario_certificate: FixedScenarioCertificate | None = None
+    false_positive_scenarios_excluded: int = 0
+    cut_certificate_source: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -475,12 +511,13 @@ def fairness_cut_from_ray(
     )
 
 
-def validate_farkas_ray(
+def farkas_ray_validation(
     instance: InventoryInstance,
     ray: FairnessFarkasRay,
     *,
     tolerance: float = FAIRNESS_FEASIBILITY_TOLERANCE,
-) -> bool:
+) -> FarkasRayValidation:
+    tol = float(tolerance)
     if (
         len(ray.demand) != instance.num_regions
         or any(len(row) != instance.num_products for row in ray.demand)
@@ -489,7 +526,7 @@ def validate_farkas_ray(
         or len(ray.service) != instance.num_products
         or len(ray.regional_fairness) != instance.num_regions
     ):
-        return False
+        return FarkasRayValidation(False, False, False, None, None, None)
     values = (
         [value for row in ray.demand for value in row]
         + [value for row in ray.supply for value in row]
@@ -497,37 +534,276 @@ def validate_farkas_ray(
         + [ray.cost]
         + list(ray.regional_fairness)
     )
-    tol = float(tolerance)
-    if any(not math.isfinite(float(value)) or float(value) < -tol for value in values):
-        return False
-    # Equality removes the zero ray without discarding any nonzero ray because
-    # the Farkas cone is positively homogeneous. It also supplies the exact
-    # [0, 1] bounds used by the binary-product linearization.
-    if abs(sum(float(value) for value in values) - 1.0) > tol:
-        return False
+    finite = all(math.isfinite(float(value)) for value in values)
+    if not finite:
+        return FarkasRayValidation(False, True, False, None, None, None)
+    minimum_multiplier = min(float(value) for value in values)
+    normalization_residual = abs(sum(float(value) for value in values) - 1.0)
+    cone_violations: list[float] = []
     for i in instance.I:
         for r in instance.R:
             for j in instance.J:
-                if (
+                lhs = (
                     -ray.demand[r][j]
                     + ray.supply[i][j]
                     + instance.transport_cost[i][r][j] * ray.cost
-                    < -tol
-                ):
-                    return False
+                )
+                cone_violations.append(max(0.0, -float(lhs)))
     for r in instance.R:
         for j in instance.J:
-            if (
+            lhs = (
                 -ray.demand[r][j]
                 + ray.service[j]
                 + instance.shortage_penalty[r][j] * ray.cost
                 + ray.regional_fairness[r]
-                < -tol
-            ):
-                return False
-    return all(
-        -ray.service[j] + instance.service_penalty[j] * ray.cost >= -tol
+            )
+            cone_violations.append(max(0.0, -float(lhs)))
+    for j in instance.J:
+        lhs = -ray.service[j] + instance.service_penalty[j] * ray.cost
+        cone_violations.append(max(0.0, -float(lhs)))
+    maximum_dual_cone_violation = max(cone_violations, default=0.0)
+    # Equality removes the zero ray without discarding any nonzero ray because
+    # the Farkas cone is positively homogeneous. It also supplies the exact
+    # [0, 1] bounds used by the binary-product linearization.
+    valid = (
+        minimum_multiplier >= -tol
+        and normalization_residual <= tol
+        and maximum_dual_cone_violation <= tol
+    )
+    return FarkasRayValidation(
+        valid=valid,
+        shape_valid=True,
+        finite=True,
+        normalization_residual=float(normalization_residual),
+        minimum_multiplier=float(minimum_multiplier),
+        maximum_dual_cone_violation=float(maximum_dual_cone_violation),
+    )
+
+
+def validate_farkas_ray(
+    instance: InventoryInstance,
+    ray: FairnessFarkasRay,
+    *,
+    tolerance: float = FAIRNESS_FEASIBILITY_TOLERANCE,
+) -> bool:
+    return farkas_ray_validation(instance, ray, tolerance=tolerance).valid
+
+
+def _add_normalized_farkas_cone(model: gp.Model, instance: InventoryInstance) -> tuple[Any, Any, Any, Any, Any]:
+    demand = model.addVars(instance.R, instance.J, lb=0.0, ub=1.0, name="pi_demand")
+    supply = model.addVars(instance.I, instance.J, lb=0.0, ub=1.0, name="pi_supply")
+    service = model.addVars(instance.J, lb=0.0, ub=1.0, name="pi_service")
+    cost = model.addVar(lb=0.0, ub=1.0, name="pi_cost")
+    regional = model.addVars(instance.R, lb=0.0, ub=1.0, name="pi_fairness")
+    model.addConstr(
+        gp.quicksum(demand[r, j] for r in instance.R for j in instance.J)
+        + gp.quicksum(supply[i, j] for i in instance.I for j in instance.J)
+        + gp.quicksum(service[j] for j in instance.J)
+        + cost
+        + gp.quicksum(regional[r] for r in instance.R)
+        == 1.0,
+        name="ray_normalization",
+    )
+    for i in instance.I:
+        for r in instance.R:
+            for j in instance.J:
+                model.addConstr(
+                    -demand[r, j]
+                    + supply[i, j]
+                    + instance.transport_cost[i][r][j] * cost
+                    >= 0.0,
+                    name=f"dual_q[{i},{r},{j}]",
+                )
+    for r in instance.R:
+        for j in instance.J:
+            model.addConstr(
+                -demand[r, j]
+                + service[j]
+                + instance.shortage_penalty[r][j] * cost
+                + regional[r]
+                >= 0.0,
+                name=f"dual_u[{r},{j}]",
+            )
+    for j in instance.J:
+        model.addConstr(
+            -service[j] + instance.service_penalty[j] * cost >= 0.0,
+            name=f"dual_e[{j}]",
+        )
+    return demand, supply, service, cost, regional
+
+
+def certify_fixed_scenario_fairness_feasibility(
+    instance: InventoryInstance,
+    *,
+    y_values: list[float],
+    x_values: list[list[float]],
+    t_value: float,
+    cost_budget_value: float,
+    demand_values: list[list[float]],
+    time_limit: float,
+    feasibility_tolerance: float = FAIRNESS_FEASIBILITY_TOLERANCE,
+    output_flag: bool = False,
+) -> FixedScenarioCertificate:
+    """Independently certify a candidate scenario using continuous LPs only.
+
+    The first LP is the original fixed-scenario recourse feasibility system.
+    Only when that LP is proven infeasible is a second, normalized continuous
+    Farkas LP solved.  No binary uncertainty or McCormick variable appears in
+    either model, so a separation-MILP incumbent is never trusted as a ray.
+    """
+    start = time.perf_counter()
+    primal = gp.Model("fixed_scenario_fairness_primal")
+    primal.Params.OutputFlag = 1 if output_flag else 0
+    primal.Params.TimeLimit = max(1.0e-3, float(time_limit))
+    primal.Params.DualReductions = 0
+    q = primal.addVars(instance.I, instance.R, instance.J, lb=0.0, name="q")
+    u = primal.addVars(instance.R, instance.J, lb=0.0, name="u")
+    e = primal.addVars(instance.J, lb=0.0, name="e")
+    for r in instance.R:
+        for j in instance.J:
+            primal.addConstr(
+                gp.quicksum(q[i, r, j] for i in instance.I) + u[r, j]
+                >= float(demand_values[r][j]),
+                name=f"demand[{r},{j}]",
+            )
+    for i in instance.I:
+        for j in instance.J:
+            primal.addConstr(
+                gp.quicksum(q[i, r, j] for r in instance.R) <= float(x_values[i][j]),
+                name=f"supply[{i},{j}]",
+            )
+    for j in instance.J:
+        primal.addConstr(
+            gp.quicksum(u[r, j] for r in instance.R) - e[j]
+            <= (1.0 - instance.service_level[j])
+            * sum(float(demand_values[r][j]) for r in instance.R),
+            name=f"service[{j}]",
+        )
+    first_stage = first_stage_cost_value(instance, y_values, x_values)
+    recourse_cost = (
+        gp.quicksum(
+            instance.transport_cost[i][r][j] * q[i, r, j]
+            for i in instance.I for r in instance.R for j in instance.J
+        )
+        + gp.quicksum(
+            instance.shortage_penalty[r][j] * u[r, j]
+            for r in instance.R for j in instance.J
+        )
+        + gp.quicksum(instance.service_penalty[j] * e[j] for j in instance.J)
+    )
+    primal.addConstr(
+        recourse_cost <= float(cost_budget_value) - first_stage,
+        name="cost_budget",
+    )
+    for r in instance.R:
+        regional_demand = sum(float(demand_values[r][j]) for j in instance.J)
+        if regional_demand > FAIRNESS_METRIC_TOLERANCE:
+            primal.addConstr(
+                gp.quicksum(u[r, j] for j in instance.J)
+                <= float(t_value) * regional_demand,
+                name=f"regional_fairness[{r}]",
+            )
+    primal.setObjective(0.0, GRB.MINIMIZE)
+    primal.optimize()
+    primal_status_code = int(primal.Status)
+    primal_status = gurobi_status_name(primal_status_code)
+    primal_runtime = time.perf_counter() - start
+    primal.dispose()
+    if primal_status_code == GRB.OPTIMAL:
+        return FixedScenarioCertificate(
+            primal_status=primal_status,
+            primal_feasible=True,
+            infeasibility_certified=False,
+            primal_runtime=primal_runtime,
+            certification_reason="fixed_scenario_primal_feasible",
+        )
+    if primal_status_code != GRB.INFEASIBLE:
+        return FixedScenarioCertificate(
+            primal_status=primal_status,
+            primal_feasible=False,
+            infeasibility_certified=False,
+            primal_runtime=primal_runtime,
+            certification_reason=f"fixed_scenario_primal_{primal_status}_not_certifiable",
+        )
+
+    remaining = float(time_limit) - primal_runtime
+    if remaining <= 0.0:
+        return FixedScenarioCertificate(
+            primal_status=primal_status,
+            primal_feasible=False,
+            infeasibility_certified=False,
+            primal_runtime=primal_runtime,
+            certification_reason="fixed_scenario_ray_time_exhausted",
+        )
+    ray_start = time.perf_counter()
+    ray_model = gp.Model("fixed_scenario_fairness_farkas")
+    ray_model.Params.OutputFlag = 1 if output_flag else 0
+    ray_model.Params.TimeLimit = max(1.0e-3, remaining)
+    a, b, c, k, ell = _add_normalized_farkas_cone(ray_model, instance)
+    service_rhs = [
+        (1.0 - instance.service_level[j])
+        * sum(float(demand_values[r][j]) for r in instance.R)
         for j in instance.J
+    ]
+    regional_demand = [
+        sum(float(demand_values[r][j]) for j in instance.J) for r in instance.R
+    ]
+    violation = gp.quicksum(
+        float(demand_values[r][j]) * a[r, j]
+        for r in instance.R for j in instance.J
+    )
+    violation -= gp.quicksum(
+        float(x_values[i][j]) * b[i, j]
+        for i in instance.I for j in instance.J
+    )
+    violation -= gp.quicksum(service_rhs[j] * c[j] for j in instance.J)
+    violation -= (float(cost_budget_value) - first_stage) * k
+    violation -= float(t_value) * gp.quicksum(
+        regional_demand[r] * ell[r] for r in instance.R
+    )
+    ray_model.setObjective(violation, GRB.MAXIMIZE)
+    ray_model.optimize()
+    ray_status_code = int(ray_model.Status)
+    ray_status = gurobi_status_name(ray_status_code)
+    ray_runtime = time.perf_counter() - ray_start
+    ray_objective = float(ray_model.ObjVal) if ray_model.SolCount > 0 else None
+    ray: FairnessFarkasRay | None = None
+    validation: FarkasRayValidation | None = None
+    if ray_status_code == GRB.OPTIMAL and ray_model.SolCount > 0:
+        ray = FairnessFarkasRay(
+            demand=[[float(a[r, j].X) for j in instance.J] for r in instance.R],
+            supply=[[float(b[i, j].X) for j in instance.J] for i in instance.I],
+            service=[float(c[j].X) for j in instance.J],
+            cost=float(k.X),
+            regional_fairness=[float(ell[r].X) for r in instance.R],
+        )
+        validation = farkas_ray_validation(
+            instance, ray, tolerance=float(feasibility_tolerance)
+        )
+    certified = bool(
+        ray_status_code == GRB.OPTIMAL
+        and ray_objective is not None
+        and ray_objective > float(feasibility_tolerance)
+        and validation is not None
+        and validation.valid
+    )
+    ray_model.dispose()
+    return FixedScenarioCertificate(
+        primal_status=primal_status,
+        primal_feasible=False,
+        infeasibility_certified=certified,
+        primal_runtime=primal_runtime,
+        ray_status=ray_status,
+        ray_runtime=ray_runtime,
+        ray_objective=ray_objective,
+        cut_violation=ray_objective if certified else None,
+        ray=ray if certified else None,
+        ray_validation=validation,
+        certification_reason=(
+            "fixed_scenario_infeasibility_certified"
+            if certified
+            else "fixed_scenario_farkas_certificate_unavailable"
+        ),
     )
 
 
@@ -600,40 +876,8 @@ def separate_robust_fairness_feasibility(
     model.Params.TimeLimit = max(1.0e-3, float(time_limit))
     model.Params.MIPGap = max(0.0, float(mip_gap))
     z = model.addVars(instance.R, instance.J, vtype=GRB.BINARY, name="z")
-    a = model.addVars(instance.R, instance.J, lb=0.0, ub=1.0, name="pi_demand")
-    b = model.addVars(instance.I, instance.J, lb=0.0, ub=1.0, name="pi_supply")
-    c = model.addVars(instance.J, lb=0.0, ub=1.0, name="pi_service")
-    k = model.addVar(lb=0.0, ub=1.0, name="pi_cost")
-    ell = model.addVars(instance.R, lb=0.0, ub=1.0, name="pi_fairness")
+    a, b, c, k, ell = _add_normalized_farkas_cone(model, instance)
     model.addConstr(gp.quicksum(z[r, j] for r in instance.R for j in instance.J) <= int(gamma), name="gamma")
-    model.addConstr(
-        gp.quicksum(a[r, j] for r in instance.R for j in instance.J)
-        + gp.quicksum(b[i, j] for i in instance.I for j in instance.J)
-        + gp.quicksum(c[j] for j in instance.J)
-        + k
-        + gp.quicksum(ell[r] for r in instance.R)
-        == 1.0,
-        name="ray_normalization",
-    )
-    for i in instance.I:
-        for r in instance.R:
-            for j in instance.J:
-                model.addConstr(
-                    -a[r, j] + b[i, j] + instance.transport_cost[i][r][j] * k >= 0.0,
-                    name=f"dual_q[{i},{r},{j}]",
-                )
-    for r in instance.R:
-        for j in instance.J:
-            model.addConstr(
-                -a[r, j]
-                + c[j]
-                + instance.shortage_penalty[r][j] * k
-                + ell[r]
-                >= 0.0,
-                name=f"dual_u[{r},{j}]",
-            )
-    for j in instance.J:
-        model.addConstr(-c[j] + instance.service_penalty[j] * k >= 0.0, name=f"dual_e[{j}]")
 
     za = {(r, j): _add_binary_product(model, z[r, j], a[r, j], f"za[{r},{j}]") for r in instance.R for j in instance.J}
     zc = {(r, j): _add_binary_product(model, z[r, j], c[j], f"zc[{r},{j}]") for r in instance.R for j in instance.J}
@@ -661,62 +905,181 @@ def separate_robust_fairness_feasibility(
         for r in instance.R
     )
     model.setObjective(objective, GRB.MAXIMIZE)
-    model.optimize()
-    status = gurobi_status_name(model.Status)
-    has_incumbent = model.SolCount > 0
-    objective_value = float(model.ObjVal) if has_incumbent else None
-    objective_bound = (
-        float(model.ObjBound)
-        if model.Status not in {GRB.INFEASIBLE, GRB.UNBOUNDED}
-        and math.isfinite(float(model.ObjBound))
-        else None
-    )
-    mip_gap_value = float(model.MIPGap) if has_incumbent and model.IsMIP else None
-    # Only a normal optimal or time-limit exit supplies a bound that this
-    # protocol accepts as a certificate. Numeric, interrupted, suboptimal,
-    # infeasible, and unbounded exits never certify robust feasibility.
-    certified, certification_reason = separation_bound_certifies(
-        model.Status,
-        objective_bound,
-        float(feasibility_tolerance),
-    )
-    cut: FairnessFeasibilityCut | None = None
-    if has_incumbent and objective_value is not None and objective_value > float(feasibility_tolerance):
+    false_positive_count = 0
+    while True:
+        remaining = float(time_limit) - (time.perf_counter() - start)
+        if remaining <= 0.0:
+            result = FairnessSeparationResult(
+                status="time_limit",
+                has_incumbent=False,
+                objective=None,
+                objective_bound=None,
+                mip_gap=None,
+                runtime=time.perf_counter() - start,
+                requested_mip_gap=float(mip_gap),
+                robust_feasibility_certified=False,
+                certification_reason="time_exhausted_before_certified_separation",
+                false_positive_scenarios_excluded=false_positive_count,
+            )
+            model.dispose()
+            return result
+        model.Params.TimeLimit = max(1.0e-3, remaining)
+        model.optimize()
+        status_code = int(model.Status)
+        status = gurobi_status_name(status_code)
+        has_incumbent = model.SolCount > 0
+        objective_value = float(model.ObjVal) if has_incumbent else None
+        objective_bound = (
+            float(model.ObjBound)
+            if status_code not in {GRB.INFEASIBLE, GRB.UNBOUNDED}
+            and math.isfinite(float(model.ObjBound))
+            else None
+        )
+        mip_gap_value = float(model.MIPGap) if has_incumbent and model.IsMIP else None
+        # Only a normal optimal or time-limit exit supplies a bound that this
+        # protocol accepts as a certificate. Numeric, interrupted, suboptimal,
+        # infeasible, and unbounded exits never certify robust feasibility.
+        certified, certification_reason = separation_bound_certifies(
+            status_code,
+            objective_bound,
+            float(feasibility_tolerance),
+        )
+        if not (
+            has_incumbent
+            and objective_value is not None
+            and objective_value > float(feasibility_tolerance)
+        ):
+            result = FairnessSeparationResult(
+                status=status,
+                has_incumbent=has_incumbent,
+                objective=objective_value,
+                objective_bound=objective_bound,
+                mip_gap=mip_gap_value,
+                runtime=time.perf_counter() - start,
+                requested_mip_gap=float(mip_gap),
+                robust_feasibility_certified=certified,
+                certification_reason=certification_reason,
+                false_positive_scenarios_excluded=false_positive_count,
+            )
+            model.dispose()
+            return result
+
         active = [
             (r, j) for r in instance.R for j in instance.J if float(z[r, j].X) >= 0.5
         ]
+        active_payload = [{"region": r, "product": j} for r, j in active]
         demand_values = scenario_demand(instance, active)
-        ray = FairnessFarkasRay(
+        incumbent_ray = FairnessFarkasRay(
             demand=[[float(a[r, j].X) for j in instance.J] for r in instance.R],
             supply=[[float(b[i, j].X) for j in instance.J] for i in instance.I],
             service=[float(c[j].X) for j in instance.J],
             cost=float(k.X),
             regional_fairness=[float(ell[r].X) for r in instance.R],
         )
-        if not validate_farkas_ray(instance, ray, tolerance=10.0 * float(feasibility_tolerance)):
-            model.dispose()
-            raise RuntimeError("Separation incumbent did not define a valid normalized Farkas ray.")
-        cut = fairness_cut_from_ray(
+        incumbent_validation = farkas_ray_validation(
             instance,
+            incumbent_ray,
+            tolerance=float(feasibility_tolerance),
+        )
+        remaining = float(time_limit) - (time.perf_counter() - start)
+        if remaining <= 0.0:
+            result = FairnessSeparationResult(
+                status="time_limit",
+                has_incumbent=True,
+                objective=objective_value,
+                objective_bound=objective_bound,
+                mip_gap=mip_gap_value,
+                runtime=time.perf_counter() - start,
+                requested_mip_gap=float(mip_gap),
+                robust_feasibility_certified=False,
+                certification_reason="candidate_scenario_not_fixed_lp_certified",
+                candidate_active_deviations=active_payload,
+                incumbent_ray_validation=incumbent_validation,
+                false_positive_scenarios_excluded=false_positive_count,
+            )
+            model.dispose()
+            return result
+        fixed = certify_fixed_scenario_fairness_feasibility(
+            instance,
+            y_values=y_values,
+            x_values=x_values,
+            t_value=float(t_value),
             cost_budget_value=float(cost_budget_value),
             demand_values=demand_values,
-            ray=ray,
-            active_deviations=[{"region": r, "product": j} for r, j in active],
+            time_limit=remaining,
+            feasibility_tolerance=float(feasibility_tolerance),
+            output_flag=output_flag,
         )
-    result = FairnessSeparationResult(
-        status=status,
-        has_incumbent=has_incumbent,
-        objective=objective_value,
-        objective_bound=objective_bound,
-        mip_gap=mip_gap_value,
-        runtime=time.perf_counter() - start,
-        requested_mip_gap=float(mip_gap),
-        robust_feasibility_certified=certified,
-        certification_reason=certification_reason,
-        cut=cut,
-    )
-    model.dispose()
-    return result
+        if fixed.primal_feasible:
+            # This candidate is a MILP/McCormick numerical false positive.
+            # Excluding a scenario independently proven feasible is safe; the
+            # restricted MILP bound can still certify all remaining scenarios.
+            active_set = set(active)
+            model.addConstr(
+                gp.quicksum(z[r, j] for r, j in active)
+                - gp.quicksum(
+                    z[r, j]
+                    for r in instance.R for j in instance.J
+                    if (r, j) not in active_set
+                )
+                <= len(active) - 1,
+                name=f"exclude_fixed_feasible_candidate[{false_positive_count}]",
+            )
+            false_positive_count += 1
+            continue
+        if fixed.infeasibility_certified and fixed.ray is not None:
+            cut = fairness_cut_from_ray(
+                instance,
+                cost_budget_value=float(cost_budget_value),
+                demand_values=demand_values,
+                ray=fixed.ray,
+                active_deviations=active_payload,
+            )
+            cut_violation = -cut.value(y_values, x_values, float(t_value))
+            fixed = replace(fixed, cut_violation=float(cut_violation))
+            if cut_violation <= float(feasibility_tolerance):
+                fixed = replace(
+                    fixed,
+                    infeasibility_certified=False,
+                    certification_reason="fixed_scenario_cut_not_violated",
+                )
+            else:
+                result = FairnessSeparationResult(
+                    status=status,
+                    has_incumbent=True,
+                    objective=objective_value,
+                    objective_bound=objective_bound,
+                    mip_gap=mip_gap_value,
+                    runtime=time.perf_counter() - start,
+                    requested_mip_gap=float(mip_gap),
+                    robust_feasibility_certified=False,
+                    certification_reason="violated_scenario_fixed_lp_certified",
+                    cut=cut,
+                    candidate_active_deviations=active_payload,
+                    incumbent_ray_validation=incumbent_validation,
+                    fixed_scenario_certificate=fixed,
+                    false_positive_scenarios_excluded=false_positive_count,
+                    cut_certificate_source="fixed_scenario_normalized_farkas_lp",
+                )
+                model.dispose()
+                return result
+        result = FairnessSeparationResult(
+            status=f"uncertified_{fixed.primal_status}",
+            has_incumbent=True,
+            objective=objective_value,
+            objective_bound=objective_bound,
+            mip_gap=mip_gap_value,
+            runtime=time.perf_counter() - start,
+            requested_mip_gap=float(mip_gap),
+            robust_feasibility_certified=False,
+            certification_reason=fixed.certification_reason,
+            candidate_active_deviations=active_payload,
+            incumbent_ray_validation=incumbent_validation,
+            fixed_scenario_certificate=fixed,
+            false_positive_scenarios_excluded=false_positive_count,
+        )
+        model.dispose()
+        return result
 
 
 def solve_scenario_policy_with_shared_caps(

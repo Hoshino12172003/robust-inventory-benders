@@ -5,6 +5,7 @@ import math
 import pytest
 from gurobipy import GRB
 
+import src.robust_regional_fairness as fairness_module
 from src.instance import InventoryInstance
 from src.regional_fairness_diagnostic import (
     solve_default_and_fair_best_recourse,
@@ -12,8 +13,11 @@ from src.regional_fairness_diagnostic import (
 )
 from src.robust_regional_fairness import (
     FairnessFarkasRay,
+    FixedScenarioCertificate,
+    certify_fixed_scenario_fairness_feasibility,
     cost_tolerance,
     evaluate_fairness_solution,
+    farkas_ray_validation,
     fairness_cost_budget,
     fairness_cut_from_ray,
     separate_robust_fairness_feasibility,
@@ -279,6 +283,9 @@ def test_farkas_separation_finds_infeasible_candidate_and_valid_cut() -> None:
     )
     assert separation.status == "optimal"
     assert separation.cut is not None
+    assert separation.cut_certificate_source == "fixed_scenario_normalized_farkas_lp"
+    assert separation.fixed_scenario_certificate is not None
+    assert separation.fixed_scenario_certificate.infeasibility_certified
     assert validate_farkas_ray(instance, separation.cut.ray)
     ray_sum = (
         sum(value for row in separation.cut.ray.demand for value in row)
@@ -310,7 +317,162 @@ def test_invalid_dual_ray_is_rejected() -> None:
     assert not validate_farkas_ray(instance, invalid)
 
 
-@pytest.mark.parametrize("status", [GRB.INTERRUPTED, GRB.NUMERIC, GRB.SUBOPTIMAL])
+@pytest.mark.parametrize("normalization_sum", [0.0, 0.5])
+def test_zero_or_under_normalized_ray_is_rejected(normalization_sum: float) -> None:
+    instance = tiny_instance()
+    ray = FairnessFarkasRay(
+        demand=[[0.0], [0.0]],
+        supply=[[normalization_sum]],
+        service=[0.0],
+        cost=0.0,
+        regional_fairness=[0.0, 0.0],
+    )
+    diagnostics = farkas_ray_validation(instance, ray)
+    assert not diagnostics.valid
+    assert diagnostics.normalization_residual == pytest.approx(1.0 - normalization_sum)
+
+
+def test_negative_multiplier_and_dual_cone_residual_are_reported() -> None:
+    instance = tiny_instance()
+    negative = FairnessFarkasRay(
+        demand=[[-1.0e-4], [0.0]],
+        supply=[[1.0001]],
+        service=[0.0],
+        cost=0.0,
+        regional_fairness=[0.0, 0.0],
+    )
+    negative_diagnostics = farkas_ray_validation(instance, negative)
+    assert not negative_diagnostics.valid
+    assert negative_diagnostics.minimum_multiplier == pytest.approx(-1.0e-4)
+
+    cone_violation = FairnessFarkasRay(
+        demand=[[1.0], [0.0]],
+        supply=[[0.0]],
+        service=[0.0],
+        cost=0.0,
+        regional_fairness=[0.0, 0.0],
+    )
+    cone_diagnostics = farkas_ray_validation(instance, cone_violation)
+    assert not cone_diagnostics.valid
+    assert cone_diagnostics.maximum_dual_cone_violation == pytest.approx(1.0)
+
+
+def test_fixed_scenario_primal_rejects_milp_false_positive_without_a_cut() -> None:
+    instance = tiny_instance()
+    certificate = certify_fixed_scenario_fairness_feasibility(
+        instance,
+        y_values=[1.0],
+        x_values=[[10.0]],
+        t_value=1.0,
+        cost_budget_value=100.0,
+        demand_values=[row[:] for row in instance.base_demand],
+        time_limit=30.0,
+    )
+    assert certificate.primal_status == "optimal"
+    assert certificate.primal_feasible
+    assert not certificate.infeasibility_certified
+    assert certificate.ray is None
+
+
+def test_fixed_scenario_infeasibility_has_independent_valid_farkas_cut() -> None:
+    instance = tiny_instance()
+    demand = [row[:] for row in instance.base_demand]
+    certificate = certify_fixed_scenario_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.0]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        demand_values=demand,
+        time_limit=30.0,
+    )
+    assert certificate.primal_status == "infeasible"
+    assert not certificate.primal_feasible
+    assert certificate.infeasibility_certified
+    assert certificate.ray_status == "optimal"
+    assert certificate.ray is not None
+    assert certificate.ray_validation is not None
+    assert certificate.ray_validation.valid
+    cut = fairness_cut_from_ray(
+        instance,
+        cost_budget_value=30.0,
+        demand_values=demand,
+        ray=certificate.ray,
+        active_deviations=[],
+    )
+    assert cut.value([0.0], [[0.0]], 0.0) < -1e-7
+
+
+def test_separation_false_positive_is_excluded_without_generating_a_cut(monkeypatch: pytest.MonkeyPatch) -> None:
+    instance = tiny_instance()
+
+    def fixed_feasible(*args: object, **kwargs: object) -> FixedScenarioCertificate:
+        return FixedScenarioCertificate(
+            primal_status="optimal",
+            primal_feasible=True,
+            infeasibility_certified=False,
+            primal_runtime=0.0,
+            certification_reason="fixed_scenario_primal_feasible",
+        )
+
+    monkeypatch.setattr(
+        fairness_module,
+        "certify_fixed_scenario_fairness_feasibility",
+        fixed_feasible,
+    )
+    separation = separate_robust_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.0]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        gamma=0,
+        mip_gap=0.0,
+    )
+    assert separation.cut is None
+    assert not separation.robust_feasibility_certified
+    assert separation.false_positive_scenarios_excluded == 1
+
+
+def test_candidate_without_fixed_scenario_certificate_returns_uncertified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = tiny_instance()
+
+    def fixed_uncertified(*args: object, **kwargs: object) -> FixedScenarioCertificate:
+        return FixedScenarioCertificate(
+            primal_status="infeasible",
+            primal_feasible=False,
+            infeasibility_certified=False,
+            primal_runtime=0.0,
+            ray_status="numeric",
+            certification_reason="fixed_scenario_farkas_certificate_unavailable",
+        )
+
+    monkeypatch.setattr(
+        fairness_module,
+        "certify_fixed_scenario_fairness_feasibility",
+        fixed_uncertified,
+    )
+    separation = separate_robust_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.0]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        gamma=0,
+        mip_gap=0.0,
+    )
+    assert separation.status == "uncertified_infeasible"
+    assert separation.cut is None
+    assert not separation.robust_feasibility_certified
+    assert separation.certification_reason == "fixed_scenario_farkas_certificate_unavailable"
+
+
+@pytest.mark.parametrize(
+    "status",
+    [GRB.INTERRUPTED, GRB.NUMERIC, GRB.SUBOPTIMAL, GRB.INFEASIBLE, GRB.UNBOUNDED],
+)
 def test_non_whitelisted_separation_status_never_certifies(status: int) -> None:
     certified, reason = separation_bound_certifies(status, -1.0, 1e-7)
     assert not certified
