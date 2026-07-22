@@ -107,6 +107,22 @@ rate, and opening/inventory changes.  That deterministic all-scenario reporting
 pass has a 30-second per-scenario cap, is stored as post-evaluation, and is not
 included in the fairness Benders algorithm runtime or PAR-2.
 
+The post-evaluation recovery LP enforces the exact mathematical right-hand
+sides `recourse_cost <= B_rho - first_stage_cost` and
+`regional_shortage <= T * regional_demand`. The frozen feasibility tolerance
+is assigned to the solver and used to verify residuals; it is not added to
+those right-hand sides. This separation avoids classifying a policy on the
+accepted numerical boundary as invalid because of floating-point
+representation.
+
+Frontier records preserve the algorithm's own status in `algorithm_status`
+and use `overall_status` (also exposed as the public `status`) for end-to-end
+interpretation. The latter distinguishes `certified_robust_optimal`,
+`master_optimal_but_robust_uncertified`, `time_limit_uncertified`,
+`invalid_post_evaluation`, and `implementation_error`. An algorithm-level
+`optimal` value therefore cannot conceal failed or missing robust
+post-evaluation.
+
 A single-writer lock protects each scale output directory. Every run record
 and both manifests are atomically replaced. `--resume` validates config, Git,
 candidate, baseline run, anchor, and rho identity before reuse. It skips only

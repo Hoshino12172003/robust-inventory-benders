@@ -8,6 +8,7 @@ import yaml
 
 from src.fairness_benders import (
     FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
+    POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
     PREVIOUS_ATTEMPT_SEEDS,
     _certified_baseline_anchor,
     _record_failed_task,
@@ -15,6 +16,7 @@ from src.fairness_benders import (
     _validate_frontier_anchor_identity,
     _validate_resume_record_identity,
     development_run_plan,
+    fairness_frontier_overall_status,
 )
 from src.fairness_development_audit import CONFIG_PATHS, audit_fairness_development
 
@@ -192,6 +194,10 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
         "previous_attempt_scientifically_invalid": True,
         "previous_attempt_results_reused": False,
         "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
+        "execution_restart_after_post_evaluation_hotfix": True,
+        "previous_attempt2_scientifically_invalid": True,
+        "previous_attempt2_results_reused": False,
+        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": keys,
     }
@@ -221,6 +227,14 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
     with pytest.raises(ValueError, match="execution_restart_after_correctness_hotfix"):
         _validate_development_manifest_identity(
             {**manifest, "execution_restart_after_correctness_hotfix": False},
+            config=config,
+            config_hash="config",
+            commit="commit",
+            run_keys=keys,
+        )
+    with pytest.raises(ValueError, match="previous_attempt2_results_reused"):
+        _validate_development_manifest_identity(
+            {**manifest, "previous_attempt2_results_reused": True},
             config=config,
             config_hash="config",
             commit="commit",
@@ -263,6 +277,33 @@ def test_running_task_is_atomically_replaced_by_failure_evidence(
     )
     assert run["state"] == "failed"
     assert run["result"]["status"] == expected_status
+    assert run["result"]["algorithm_status"] == expected_status
+    assert run["result"]["overall_status"] == "implementation_error"
     assert run["certification_status"] == expected_certificate
     assert status["state"] == "failed"
     assert status["certification_status"] == expected_certificate
+
+
+@pytest.mark.parametrize(
+    ("algorithm_status", "algorithm_solved", "attempted", "valid", "expected"),
+    [
+        ("optimal", True, True, True, "certified_robust_optimal"),
+        ("optimal", True, True, False, "invalid_post_evaluation"),
+        ("optimal", False, False, False, "master_optimal_but_robust_uncertified"),
+        ("time_limit", False, False, False, "time_limit_uncertified"),
+        ("numeric", False, False, False, "implementation_error"),
+    ],
+)
+def test_frontier_status_never_hides_uncertified_robust_result(
+    algorithm_status: str,
+    algorithm_solved: bool,
+    attempted: bool,
+    valid: bool,
+    expected: str,
+) -> None:
+    assert fairness_frontier_overall_status(
+        algorithm_status=algorithm_status,
+        algorithm_solved=algorithm_solved,
+        post_evaluation_attempted=attempted,
+        post_evaluation_valid=valid,
+    ) == expected

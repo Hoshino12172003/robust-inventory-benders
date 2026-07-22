@@ -81,6 +81,25 @@ class FairnessBendersResult:
         return asdict(self)
 
 
+def fairness_frontier_overall_status(
+    *,
+    algorithm_status: str,
+    algorithm_solved: bool,
+    post_evaluation_attempted: bool,
+    post_evaluation_valid: bool,
+) -> str:
+    """Return an unambiguous end-to-end status for one frontier task."""
+    if algorithm_solved and post_evaluation_valid:
+        return "certified_robust_optimal"
+    if algorithm_solved and post_evaluation_attempted:
+        return "invalid_post_evaluation"
+    if algorithm_status == "time_limit":
+        return "time_limit_uncertified"
+    if algorithm_status == "optimal":
+        return "master_optimal_but_robust_uncertified"
+    return "implementation_error"
+
+
 def relative_gap(upper_bound: float | None, lower_bound: float | None) -> float | None:
     if upper_bound is None or lower_bound is None:
         return None
@@ -463,8 +482,9 @@ def _validate_resume_record_identity(
         raise ValueError(f"Git-commit identity mismatch while resuming {run_key}.")
 
 
-FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 2
+FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 3
 PREVIOUS_ATTEMPT_SEEDS = [120, 121, 122, 123, 124, 125, 126]
+POST_EVALUATION_INVALID_ATTEMPT_SEEDS = list(range(120, 130))
 
 
 def _certified_baseline_anchor(
@@ -556,6 +576,12 @@ def _write_fairness_development_manifest(
                 "certification_status": (
                     None if record is None else record.get("certification_status")
                 ),
+                "algorithm_status": (
+                    None if record is None else record.get("algorithm_status")
+                ),
+                "overall_status": (
+                    None if record is None else record.get("overall_status")
+                ),
             }
         )
     payload = {
@@ -569,6 +595,10 @@ def _write_fairness_development_manifest(
         "previous_attempt_scientifically_invalid": True,
         "previous_attempt_results_reused": False,
         "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
+        "execution_restart_after_post_evaluation_hotfix": True,
+        "previous_attempt2_scientifically_invalid": True,
+        "previous_attempt2_results_reused": False,
+        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
         "baseline_anchors": anchors,
@@ -602,7 +632,9 @@ def _write_fairness_result_tables(output_dir: Path, run_keys: list[str]) -> None
                 "baseline_anchor_sha256": record.get("baseline_anchor_sha256"),
                 "baseline_cost": record.get("baseline_cost"),
                 "cost_budget": result.get("cost_budget"),
-                "status": result.get("status"),
+                "status": result.get("overall_status", result.get("status")),
+                "algorithm_status": result.get("algorithm_status", result.get("status")),
+                "overall_status": result.get("overall_status", result.get("status")),
                 "certification_status": record.get("certification_status"),
                 "solved_to_tolerance": record.get("solved_to_tolerance"),
                 "objective_t": result.get("objective_t"),
@@ -618,7 +650,8 @@ def _write_fairness_result_tables(output_dir: Path, run_keys: list[str]) -> None
     rows.sort(key=lambda row: (int(row["seed"]), row["task_type"] != "baseline", -1.0 if row["rho"] is None else float(row["rho"])))
     fields = list(rows[0]) if rows else [
         "run_key", "task_type", "instance_size", "seed", "method", "rho",
-        "status", "certification_status", "solved_to_tolerance",
+        "status", "algorithm_status", "overall_status",
+        "certification_status", "solved_to_tolerance",
     ]
     atomic_write_csv(output_dir / "results.csv", rows, fields)
     groups: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
@@ -634,8 +667,22 @@ def _write_fairness_result_tables(output_dir: Path, run_keys: list[str]) -> None
                 "rho": rho,
                 "attempt_count": len(group),
                 "solved_count": sum(bool(row["solved_to_tolerance"]) for row in group),
-                "optimal_count": sum(row["status"] == "optimal" for row in group),
-                "time_limit_count": sum(row["status"] == "time_limit" for row in group),
+                "optimal_count": sum(
+                    row["overall_status"] == "certified_robust_optimal"
+                    or (
+                        row["task_type"] == "baseline"
+                        and row["algorithm_status"] == "optimal"
+                    )
+                    for row in group
+                ),
+                "time_limit_count": sum(
+                    row["overall_status"] == "time_limit_uncertified"
+                    or (
+                        row["task_type"] == "baseline"
+                        and row["algorithm_status"] == "time_limit"
+                    )
+                    for row in group
+                ),
                 "uncertified_count": sum(
                     str(row["certification_status"] or "").startswith("uncertified_")
                     for row in group
@@ -679,6 +726,10 @@ def _validate_development_manifest_identity(
         "previous_attempt_scientifically_invalid": True,
         "previous_attempt_results_reused": False,
         "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
+        "execution_restart_after_post_evaluation_hotfix": True,
+        "previous_attempt2_scientifically_invalid": True,
+        "previous_attempt2_results_reused": False,
+        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
     }
@@ -720,6 +771,8 @@ def _record_failed_task(
         "success": False,
         "solved_to_tolerance": False,
         "certification_status": certification_status,
+        "algorithm_status": status,
+        "overall_status": "implementation_error",
         "git_commit": commit,
         "config_sha256": config_hash,
         "rho": rho,
@@ -730,6 +783,8 @@ def _record_failed_task(
         "failure_reason": str(error),
         "result": {
             "status": status,
+            "algorithm_status": status,
+            "overall_status": "implementation_error",
             "error_type": type(error).__name__,
             "error": str(error),
         },
@@ -743,6 +798,8 @@ def _record_failed_task(
             "success": False,
             "solved_to_tolerance": False,
             "certification_status": certification_status,
+            "algorithm_status": status,
+            "overall_status": "implementation_error",
             "failure_reason": str(error),
             "error_type": type(error).__name__,
         },
@@ -989,12 +1046,14 @@ def _run_fairness_development_locked(
             )
             payload = result.to_dict()
             evaluation_valid = False
+            evaluation_attempted = False
             if (
                 algorithm_solved
                 and result.y_values is not None
                 and result.x_values is not None
                 and result.objective_t is not None
             ):
+                evaluation_attempted = True
                 try:
                     evaluation = evaluate_fairness_solution(
                         instance,
@@ -1055,6 +1114,17 @@ def _run_fairness_development_locked(
                     else f"uncertified_{result.status}"
                 )
             )
+            payload["algorithm_status"] = result.status
+            payload["overall_status"] = fairness_frontier_overall_status(
+                algorithm_status=result.status,
+                algorithm_solved=algorithm_solved,
+                post_evaluation_attempted=evaluation_attempted,
+                post_evaluation_valid=evaluation_valid,
+            )
+            # ``status`` is the public end-to-end status.  Preserve the
+            # algorithm's own status separately so that master/algorithm
+            # optimality can never hide failed robust post-evaluation.
+            payload["status"] = payload["overall_status"]
             payload["penalized_runtime_par2"] = penalized_runtime_par2(
                 solved_to_tolerance=solved,
                 runtime=result.runtime,
@@ -1070,6 +1140,8 @@ def _run_fairness_development_locked(
                 "success": solved,
                 "solved_to_tolerance": solved,
                 "certification_status": certification_status,
+                "algorithm_status": result.status,
+                "overall_status": payload["overall_status"],
                 "git_commit": commit,
                 "config_sha256": cfg_hash,
                 "baseline_run_key": baseline_key,
@@ -1088,6 +1160,8 @@ def _run_fairness_development_locked(
                     "success": solved,
                     "solved_to_tolerance": solved,
                     "certification_status": certification_status,
+                    "algorithm_status": result.status,
+                    "overall_status": payload["overall_status"],
                 },
             )
             _write_fairness_development_manifest(

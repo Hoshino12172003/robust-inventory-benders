@@ -20,6 +20,7 @@ from src.robust_regional_fairness import (
     farkas_ray_validation,
     fairness_cost_budget,
     fairness_cut_from_ray,
+    residual_exceeds_tolerance,
     separate_robust_fairness_feasibility,
     separation_bound_certifies,
     separation_partition_certifies,
@@ -101,6 +102,13 @@ def test_budget_and_tolerance_are_frozen_epsilon_constraint_quantities() -> None
         fairness_cost_budget(100.0, -0.01)
     with pytest.raises(ValueError):
         fairness_cost_budget(math.inf, 0.0)
+
+
+def test_residual_check_allows_only_machine_representation_slack() -> None:
+    tolerance = 1.0e-7
+    boundary = tolerance + 8.0 * math.ulp(1.0)
+    assert not residual_exceeds_tolerance(boundary, tolerance, 1.0)
+    assert residual_exceeds_tolerance(tolerance + 1.0e-10, tolerance, 1.0)
 
 
 def test_single_region_extensive_form_has_no_regional_gap() -> None:
@@ -198,6 +206,27 @@ def test_shared_policy_uses_one_recourse_for_cost_and_fairness() -> None:
     )
     assert shared.recourse_cost <= default.original_optimal_cost + default.cost_tolerance + 1e-6
     assert shared.minimum_fill_rate >= 1.0 - t_value - 1e-7
+
+
+def test_shared_policy_tolerance_does_not_relax_mathematical_caps() -> None:
+    """Regression for attempt-2's boundary false-invalid classification."""
+    instance = tiny_instance()
+    demand_scenario = scenario(instance)
+    policy = solve_scenario_policy_with_shared_caps(
+        instance,
+        demand_scenario,
+        y_values=[1.0],
+        x_values=[[5.0]],
+        t_value=0.5,
+        cost_budget_value=100.0,
+        feasibility_tolerance=1.0e-7,
+    )
+    shortage_rates = [
+        shortage / demand
+        for shortage, demand in zip(policy.regional_shortage, policy.regional_demand)
+        if demand > 1.0e-9
+    ]
+    assert max(shortage_rates) <= 0.5 + 1.0e-9
 
 
 def test_rho_zero_allows_cost_neutral_first_stage_reconfiguration() -> None:

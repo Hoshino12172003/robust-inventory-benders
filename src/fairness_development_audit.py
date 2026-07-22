@@ -323,6 +323,14 @@ def audit_fairness_development(
     )
     _check(
         checks,
+        "fresh_execution_manifest_records_post_evaluation_restart",
+        '"execution_restart_after_post_evaluation_hotfix": True' in runner
+        and '"previous_attempt2_scientifically_invalid": True' in runner
+        and '"previous_attempt2_results_reused": False' in runner
+        and "POST_EVALUATION_INVALID_ATTEMPT_SEEDS = list(range(120, 130))" in runner,
+    )
+    _check(
+        checks,
         "fixed_scenario_primal_uses_frozen_feasibility_tolerance",
         "primal.Params.FeasibilityTol = tolerance" in separation
         and "maximum_primal_constraint_violation" in separation,
@@ -340,6 +348,40 @@ def audit_fairness_development(
         "def _record_failed_task(" in runner
         and 'state="failed"' in runner
         and "except BaseException as error" in runner,
+    )
+    _check(
+        checks,
+        "post_evaluation_caps_are_not_relaxed_by_tolerance",
+        "recourse_cost <= remaining," in separation
+        and "<= float(t_value) * demand" in separation
+        and "remaining + float(feasibility_tolerance)" not in separation
+        and "float(t_value) + float(feasibility_tolerance)" not in separation
+        and "model.Params.FeasibilityTol = tolerance" in separation,
+    )
+    _check(
+        checks,
+        "frontier_status_distinguishes_algorithm_and_end_to_end_certification",
+        "def fairness_frontier_overall_status(" in runner
+        and '"certified_robust_optimal"' in runner
+        and '"master_optimal_but_robust_uncertified"' in runner
+        and '"time_limit_uncertified"' in runner
+        and '"invalid_post_evaluation"' in runner
+        and '"implementation_error"' in runner
+        and 'payload["algorithm_status"] = result.status' in runner
+        and 'payload["status"] = payload["overall_status"]' in runner,
+    )
+    incident = ROOT / "docs/audits/fairness_development_attempt2_post_evaluation_incident.md"
+    run_hashes = ROOT / "docs/audits/fairness_development_attempt2_run_sha256.csv"
+    incident_text = incident.read_text(encoding="utf-8") if incident.exists() else ""
+    hash_lines = run_hashes.read_text(encoding="utf-8").splitlines() if run_hashes.exists() else []
+    _check(
+        checks,
+        "attempt2_post_evaluation_incident_is_quarantined",
+        "decision: implementation_blocker" in incident_text
+        and "scientific_selection_allowed: false" in incident_text
+        and "next_stage: correctness_hotfix_only" in incident_text
+        and "45,775" in incident_text
+        and len(hash_lines) == 61,
     )
     return {
         "audit_name": "robust_regional_fairness_development_protocol",

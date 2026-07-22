@@ -220,6 +220,23 @@ def cost_tolerance(
     return absolute + relative * max(1.0, abs(float(value)))
 
 
+def residual_exceeds_tolerance(
+    residual: float,
+    tolerance: float,
+    *reference_values: float,
+) -> bool:
+    """Compare a residual to a frozen tolerance with representation slack only."""
+    value = float(residual)
+    allowed = float(tolerance)
+    if not math.isfinite(value) or not math.isfinite(allowed) or allowed < 0.0:
+        return True
+    references = (value, allowed, *(float(item) for item in reference_values))
+    representation_slack = 32.0 * max(
+        math.ulp(item) for item in references if math.isfinite(item)
+    )
+    return value > allowed + representation_slack
+
+
 def first_stage_cost_value(
     instance: InventoryInstance,
     y_values: list[float],
@@ -1291,11 +1308,23 @@ def solve_scenario_policy_with_shared_caps(
     time_limit: float = 30.0,
     output_flag: bool = False,
 ) -> FairnessScenarioPolicy:
-    """Recover one policy satisfying the cost and fairness caps simultaneously."""
+    """Recover one policy satisfying the exact cost and fairness caps.
+
+    ``feasibility_tolerance`` is a solver/verification tolerance.  It must not
+    be added to the mathematical right-hand sides: doing so lets the recovery
+    LP deliberately select a policy on ``T + tolerance`` and then makes the
+    subsequent floating-point verification compare that policy against the
+    same tolerance boundary.
+    """
+    tolerance = float(feasibility_tolerance)
+    if not math.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("feasibility_tolerance must be finite and nonnegative.")
     model = gp.Model(f"fairness_policy_{scenario.name}")
     model.Params.OutputFlag = 1 if output_flag else 0
     model.Params.Method = 1
     model.Params.TimeLimit = max(1.0e-3, float(time_limit))
+    if tolerance > 0.0:
+        model.Params.FeasibilityTol = tolerance
     fixed_x = {(i, j): float(x_values[i][j]) for i in instance.I for j in instance.J}
     q, u, e, transport, shortage, service = _recourse_expressions(
         model, instance, scenario, fixed_x, prefix="fixed"
@@ -1303,7 +1332,7 @@ def solve_scenario_policy_with_shared_caps(
     recourse_cost = transport + shortage + service
     remaining = float(cost_budget_value) - first_stage_cost_value(instance, y_values, x_values)
     model.addConstr(
-        recourse_cost <= remaining + float(feasibility_tolerance),
+        recourse_cost <= remaining,
         name="shared_cost_cap",
     )
     for r in instance.R:
@@ -1311,7 +1340,7 @@ def solve_scenario_policy_with_shared_caps(
         if demand > FAIRNESS_METRIC_TOLERANCE:
             model.addConstr(
                 gp.quicksum(u[r, j] for j in instance.J)
-                <= (float(t_value) + float(feasibility_tolerance)) * demand,
+                <= float(t_value) * demand,
                 name=f"shared_fairness_cap[{r}]",
             )
     model.setObjective(recourse_cost, GRB.MINIMIZE)
@@ -1361,13 +1390,26 @@ def evaluate_fairness_solution(
                 time_limit=per_scenario_time_limit,
                 output_flag=output_flag,
             )
-            if first_cost + policy.recourse_cost > budget.budget + float(tolerance):
-                raise RuntimeError("Recovered policy exceeds the shared robust cost budget.")
-            if (
-                policy.minimum_fill_rate is not None
-                and policy.minimum_fill_rate < 1.0 - t_value - float(tolerance)
+            cost_residual = first_cost + policy.recourse_cost - budget.budget
+            if residual_exceeds_tolerance(
+                cost_residual,
+                tolerance,
+                first_cost,
+                policy.recourse_cost,
+                budget.budget,
             ):
-                raise RuntimeError("Recovered policy violates the regional max-shortage-rate cap.")
+                raise RuntimeError("Recovered policy exceeds the shared robust cost budget.")
+            if policy.minimum_fill_rate is not None:
+                shortage_rate_residual = 1.0 - policy.minimum_fill_rate - float(t_value)
+                if residual_exceeds_tolerance(
+                    shortage_rate_residual,
+                    tolerance,
+                    policy.minimum_fill_rate,
+                    t_value,
+                ):
+                    raise RuntimeError(
+                        "Recovered policy violates the regional max-shortage-rate cap."
+                    )
             policies.append(policy)
         except Exception as exc:  # noqa: BLE001 - invalid evaluation is explicit.
             errors.append(f"{scenario.name}: {type(exc).__name__}: {exc}")
@@ -1419,7 +1461,12 @@ def evaluate_fairness_solution(
     objective_t_consistent = (
         None
         if realized_worst_shortage_rate is None
-        else realized_worst_shortage_rate <= float(t_value) + float(tolerance)
+        else not residual_exceeds_tolerance(
+            realized_worst_shortage_rate - float(t_value),
+            tolerance,
+            realized_worst_shortage_rate,
+            t_value,
+        )
     )
     return FairnessSolutionEvaluation(
         valid=True,
