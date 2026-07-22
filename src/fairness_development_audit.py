@@ -309,13 +309,37 @@ def audit_fairness_development(
         checks,
         "invalid_milp_ray_never_directly_generates_cut",
         "ray=fixed.ray" in separation
-        and 'ray=incumbent_ray' not in separation
+        and "cut=incumbent_cut" not in separation
+        and 'cut_certificate_source="fixed_scenario_normalized_farkas_lp"' in separation
         and "Separation incumbent did not define a valid normalized Farkas ray" not in separation,
     )
     _check(
         checks,
         "fresh_execution_manifest_records_correctness_restart",
-        '"execution_restart_after_correctness_hotfix": True' in runner,
+        '"execution_restart_after_correctness_hotfix": True' in runner
+        and '"previous_attempt_scientifically_invalid": True' in runner
+        and '"previous_attempt_results_reused": False' in runner
+        and "PREVIOUS_ATTEMPT_SEEDS = [120, 121, 122, 123, 124, 125, 126]" in runner,
+    )
+    _check(
+        checks,
+        "fixed_scenario_primal_uses_frozen_feasibility_tolerance",
+        "primal.Params.FeasibilityTol = tolerance" in separation
+        and "maximum_primal_constraint_violation" in separation,
+    )
+    _check(
+        checks,
+        "false_positive_exclusions_are_local_and_auditable",
+        "excluded_candidate_evidence: list[dict[str, Any]] = []" in separation
+        and "exclude_fixed_feasible_candidate" in separation
+        and "fixed_primal_feasible_but_separation_incumbent_ray_valid" in separation,
+    )
+    _check(
+        checks,
+        "runner_atomically_records_certificate_exceptions",
+        "def _record_failed_task(" in runner
+        and 'state="failed"' in runner
+        and "except BaseException as error" in runner,
     )
     return {
         "audit_name": "robust_regional_fairness_development_protocol",

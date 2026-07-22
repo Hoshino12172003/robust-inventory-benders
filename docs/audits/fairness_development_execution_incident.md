@@ -34,6 +34,14 @@ and 24 remaining because the process terminated before its next aggregate
 refresh. This discrepancy is itself evidence of the abrupt exception; it is
 not permission to reinterpret or repair the old directory.
 
+Attempt 1 accessed development seeds 120--126. Those seeds must no longer be
+described as unused or as receiving a first execution in the restart. All 38
+complete records (18 successful and 20 unsuccessful), the residual running
+record, and every derived partial table are scientifically invalid. They must
+not enter development selection, figures, paper statistics, or any pooled
+analysis, and no old baseline, cost anchor, or frontier record may be reused.
+The reserved validation and final seeds 130--159 were not accessed.
+
 No `error.txt`, audit log, solver log, or exception payload containing the
 separation incumbent was written. Consequently the following requested values
 cannot be reconstructed from the immutable evidence and are recorded as
@@ -93,3 +101,9 @@ fresh short worktree such as `E:\rf2` and nonexistent output directories. The
 same seeds 120--129 and the same frozen configs must be used. The new manifest
 must record `execution_restart_after_correctness_hotfix`. The old and new
 outputs must never be merged, and `--resume` must not be pointed at `E:\rf`.
+The fresh manifest also records the following machine-auditable governance
+fields:
+
+- `previous_attempt_scientifically_invalid: true`;
+- `previous_attempt_results_reused: false`;
+- `development_seeds_previously_accessed: [120, 121, 122, 123, 124, 125, 126]`.

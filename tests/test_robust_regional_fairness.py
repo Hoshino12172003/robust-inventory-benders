@@ -22,6 +22,7 @@ from src.robust_regional_fairness import (
     fairness_cut_from_ray,
     separate_robust_fairness_feasibility,
     separation_bound_certifies,
+    separation_partition_certifies,
     solve_fairness_extensive_form,
     solve_scenario_policy_with_shared_caps,
     validate_farkas_ray,
@@ -372,6 +373,8 @@ def test_fixed_scenario_primal_rejects_milp_false_positive_without_a_cut() -> No
     assert certificate.primal_feasible
     assert not certificate.infeasibility_certified
     assert certificate.ray is None
+    assert certificate.maximum_primal_constraint_violation is not None
+    assert certificate.maximum_primal_constraint_violation <= 1.0e-7
 
 
 def test_fixed_scenario_infeasibility_has_independent_valid_farkas_cut() -> None:
@@ -405,6 +408,14 @@ def test_fixed_scenario_infeasibility_has_independent_valid_farkas_cut() -> None
 
 def test_separation_false_positive_is_excluded_without_generating_a_cut(monkeypatch: pytest.MonkeyPatch) -> None:
     instance = tiny_instance()
+    invalid_validation = fairness_module.FarkasRayValidation(
+        valid=False,
+        shape_valid=True,
+        finite=True,
+        normalization_residual=0.0,
+        minimum_multiplier=0.0,
+        maximum_dual_cone_violation=1.0e-4,
+    )
 
     def fixed_feasible(*args: object, **kwargs: object) -> FixedScenarioCertificate:
         return FixedScenarioCertificate(
@@ -420,6 +431,11 @@ def test_separation_false_positive_is_excluded_without_generating_a_cut(monkeypa
         "certify_fixed_scenario_fairness_feasibility",
         fixed_feasible,
     )
+    monkeypatch.setattr(
+        fairness_module,
+        "farkas_ray_validation",
+        lambda *args, **kwargs: invalid_validation,
+    )
     separation = separate_robust_fairness_feasibility(
         instance,
         y_values=[0.0],
@@ -433,6 +449,126 @@ def test_separation_false_positive_is_excluded_without_generating_a_cut(monkeypa
     assert not separation.robust_feasibility_certified
     assert separation.status == "uncertified_restricted_infeasible"
     assert separation.false_positive_scenarios_excluded == 1
+    assert len(separation.excluded_candidate_evidence) == 1
+    assert separation.excluded_candidate_evidence[0]["active_deviations"] == []
+
+
+def test_false_positive_exclusion_is_local_to_one_master_incumbent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = tiny_instance()
+    real_certificate = fairness_module.certify_fixed_scenario_fairness_feasibility
+    real_validation = fairness_module.farkas_ray_validation
+    validation_calls = 0
+
+    def first_incumbent_invalid(*args: object, **kwargs: object):
+        nonlocal validation_calls
+        validation_calls += 1
+        if validation_calls == 1:
+            return fairness_module.FarkasRayValidation(
+                valid=False,
+                shape_valid=True,
+                finite=True,
+                normalization_residual=0.0,
+                minimum_multiplier=0.0,
+                maximum_dual_cone_violation=1.0e-4,
+            )
+        return real_validation(*args, **kwargs)
+
+    def incumbent_specific_certificate(*args: object, **kwargs: object) -> FixedScenarioCertificate:
+        x_values = kwargs["x_values"]
+        if x_values == [[0.0]]:
+            return FixedScenarioCertificate(
+                primal_status="optimal",
+                primal_feasible=True,
+                infeasibility_certified=False,
+                primal_runtime=0.0,
+                certification_reason="fixed_scenario_primal_feasible",
+            )
+        return real_certificate(*args, **kwargs)
+
+    monkeypatch.setattr(
+        fairness_module,
+        "certify_fixed_scenario_fairness_feasibility",
+        incumbent_specific_certificate,
+    )
+    monkeypatch.setattr(
+        fairness_module,
+        "farkas_ray_validation",
+        first_incumbent_invalid,
+    )
+    first = separate_robust_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.0]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        gamma=0,
+        mip_gap=0.0,
+    )
+    assert first.false_positive_scenarios_excluded == 1
+    assert first.cut is None
+
+    second = separate_robust_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.1]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        gamma=0,
+        mip_gap=0.0,
+    )
+    assert second.candidate_active_deviations == []
+    assert second.false_positive_scenarios_excluded == 0
+    assert second.cut is not None
+    assert second.cut_certificate_source == "fixed_scenario_normalized_farkas_lp"
+
+
+def test_fixed_primal_and_valid_violating_ray_contradiction_is_uncertified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = tiny_instance()
+
+    monkeypatch.setattr(
+        fairness_module,
+        "certify_fixed_scenario_fairness_feasibility",
+        lambda *args, **kwargs: FixedScenarioCertificate(
+            primal_status="optimal",
+            primal_feasible=True,
+            infeasibility_certified=False,
+            primal_runtime=0.0,
+            certification_reason="fixed_scenario_primal_feasible",
+        ),
+    )
+    result = separate_robust_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.0]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        gamma=0,
+        mip_gap=0.0,
+    )
+    assert result.status == "uncertified_primal_dual_contradiction"
+    assert not result.robust_feasibility_certified
+    assert result.false_positive_scenarios_excluded == 0
+    assert result.excluded_candidate_evidence[0]["incumbent_ray_cut_violation"] > 0.0
+
+
+def test_zero_demand_region_is_absent_from_fixed_scenario_farkas_alternative() -> None:
+    instance = tiny_instance(zero_second_demand=True)
+    certificate = certify_fixed_scenario_fairness_feasibility(
+        instance,
+        y_values=[0.0],
+        x_values=[[0.0]],
+        t_value=0.0,
+        cost_budget_value=30.0,
+        demand_values=[row[:] for row in instance.base_demand],
+        time_limit=30.0,
+    )
+    assert certificate.infeasibility_certified
+    assert certificate.ray is not None
+    assert certificate.ray.regional_fairness[1] == pytest.approx(0.0)
 
 
 def test_candidate_without_fixed_scenario_certificate_returns_uncertified(
@@ -483,6 +619,24 @@ def test_non_whitelisted_separation_status_never_certifies(status: int) -> None:
 def test_time_limit_requires_a_proving_objective_bound() -> None:
     assert separation_bound_certifies(GRB.TIME_LIMIT, 1e-8, 1e-7)[0]
     assert not separation_bound_certifies(GRB.TIME_LIMIT, 1e-4, 1e-7)[0]
+
+
+def test_partition_certificate_covers_excluded_and_remaining_scenarios() -> None:
+    evidence = [{"fixed_scenario_certificate": {"primal_feasible": True}}]
+    certified, reason = separation_partition_certifies(
+        GRB.TIME_LIMIT, 1.0e-8, 1.0e-7, evidence
+    )
+    assert certified
+    assert reason == "fixed_feasible_exclusions_plus_remaining_objective_bound"
+    assert not separation_partition_certifies(
+        GRB.TIME_LIMIT,
+        1.0e-8,
+        1.0e-7,
+        [{"fixed_scenario_certificate": {"primal_feasible": False}}],
+    )[0]
+    assert not separation_partition_certifies(
+        GRB.TIME_LIMIT, 1.0e-4, 1.0e-7, evidence
+    )[0]
 
 
 def test_fairness_cut_sign_regression_would_be_detected() -> None:

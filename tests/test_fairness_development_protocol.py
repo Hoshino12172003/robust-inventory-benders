@@ -7,7 +7,10 @@ import pytest
 import yaml
 
 from src.fairness_benders import (
+    FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
+    PREVIOUS_ATTEMPT_SEEDS,
     _certified_baseline_anchor,
+    _record_failed_task,
     _validate_development_manifest_identity,
     _validate_frontier_anchor_identity,
     _validate_resume_record_identity,
@@ -179,13 +182,16 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
     keys = ["a", "b"]
     manifest = {
-        "schema_version": 1,
+        "schema_version": FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION,
         "experiment_name": config["experiment_name"],
         "protocol_phase": config["protocol_phase"],
         "config_sha256": "config",
         "git_commit": "commit",
         "candidate_config_sha256": config["candidate_config_sha256"],
         "execution_restart_after_correctness_hotfix": True,
+        "previous_attempt_scientifically_invalid": True,
+        "previous_attempt_results_reused": False,
+        "development_seeds_previously_accessed": PREVIOUS_ATTEMPT_SEEDS,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": keys,
     }
@@ -204,6 +210,14 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
             commit="other",
             run_keys=keys,
         )
+    with pytest.raises(ValueError, match="previous_attempt_results_reused"):
+        _validate_development_manifest_identity(
+            {**manifest, "previous_attempt_results_reused": True},
+            config=config,
+            config_hash="config",
+            commit="commit",
+            run_keys=keys,
+        )
     with pytest.raises(ValueError, match="execution_restart_after_correctness_hotfix"):
         _validate_development_manifest_identity(
             {**manifest, "execution_restart_after_correctness_hotfix": False},
@@ -212,3 +226,43 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
             commit="commit",
             run_keys=keys,
         )
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_certificate"),
+    [
+        (RuntimeError("certificate failure"), "failed", "uncertified_exception"),
+        (KeyboardInterrupt(), "interrupted", "uncertified_interrupted"),
+    ],
+)
+def test_running_task_is_atomically_replaced_by_failure_evidence(
+    tmp_path: Path,
+    error: BaseException,
+    expected_status: str,
+    expected_certificate: str,
+) -> None:
+    _record_failed_task(
+        tmp_path,
+        run_key="synthetic-run",
+        task_type="fairness_frontier",
+        instance_size="tiny",
+        seed=1,
+        method="robust_regional_fairness",
+        commit="commit",
+        config_hash="config",
+        error=error,
+        rho=0.05,
+        baseline_run_key="baseline",
+        anchor={"anchor_sha256": "anchor"},
+    )
+    run = yaml.safe_load(
+        (tmp_path / "runs" / "synthetic-run" / "run.json").read_text(encoding="utf-8")
+    )
+    status = yaml.safe_load(
+        (tmp_path / "runs" / "synthetic-run" / "status.json").read_text(encoding="utf-8")
+    )
+    assert run["state"] == "failed"
+    assert run["result"]["status"] == expected_status
+    assert run["certification_status"] == expected_certificate
+    assert status["state"] == "failed"
+    assert status["certification_status"] == expected_certificate
