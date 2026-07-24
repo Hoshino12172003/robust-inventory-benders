@@ -38,8 +38,8 @@ EXPECTED_RHOS = [0.0, 0.01, 0.025, 0.05, 0.10]
 EXPECTED_CANDIDATE_HASH = FROZEN_HASHES[
     "experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml"
 ]
-EXPECTED_ATTEMPT3_PROTOCOL_HASH = (
-    "A3B13526778DE8049A03F47B01825474ABC562CB9E67F2355717435D3754FA5F"
+EXPECTED_ATTEMPT4_PROTOCOL_HASH = (
+    "BC2158541263D544CE2A17106BD70A5525B00CB1A5A2F6BF2D0404254D1144ED"
 )
 
 
@@ -84,9 +84,9 @@ def audit_fairness_development(
     checks: list[dict[str, Any]] = []
     _check(
         checks,
-        "attempt3_protocol_sha256",
+        "attempt4_protocol_sha256",
         file_sha256(ROOT / "docs/regional_fairness_development_protocol.md").upper()
-        == EXPECTED_ATTEMPT3_PROTOCOL_HASH,
+        == EXPECTED_ATTEMPT4_PROTOCOL_HASH,
         file_sha256(ROOT / "docs/regional_fairness_development_protocol.md").upper(),
     )
     configs = {
@@ -138,6 +138,7 @@ def audit_fairness_development(
         _check(checks, f"{prefix}_experiment_identity", config.get("experiment_name") == name)
         _check(checks, f"{prefix}_phase", config.get("protocol_phase") == "fairness_model_development")
         _check(checks, f"{prefix}_authorization", config.get("authorization") == "fairness_model_development_protocol_only")
+        _check(checks, f"{prefix}_execution_attempt", config.get("execution_attempt") == 4)
         _check(checks, f"{prefix}_seeds_exact_120_129", config.get("random_seeds") == EXPECTED_SEEDS)
         _check(checks, f"{prefix}_size", config.get("instance_sizes") == [expected_size])
         _check(
@@ -213,6 +214,17 @@ def audit_fairness_development(
                 )
             ),
         )
+        _check(
+            checks,
+            f"{prefix}_post_evaluation_checkpoint",
+            fairness.get("post_evaluation_checkpoint_chunk_size") == 25,
+        )
+        _check(
+            checks,
+            f"{prefix}_time_limit_wiring_frozen",
+            config.get("baseline_time_limit") == config.get("time_limit")
+            and config.get("fairness_time_limit") == config.get("time_limit"),
+        )
         reserved = fairness.get("reserved_future_seeds", {})
         continue_rule = fairness.get("development_continue_rule", {})
         _check(
@@ -255,7 +267,8 @@ def audit_fairness_development(
         _check(
             checks,
             f"{prefix}_output_isolated",
-            "results_regional_fairness_model/development_" in str(config.get("output_dir", "")).replace("\\", "/"),
+            "results_regional_fairness_model/attempt4_development_"
+            in str(config.get("output_dir", "")).replace("\\", "/"),
         )
 
     medium = configs["regional_fairness_development_medium_large"]
@@ -325,21 +338,19 @@ def audit_fairness_development(
     )
     _check(
         checks,
-        "fresh_execution_manifest_records_correctness_restart",
-        '"execution_restart_after_correctness_hotfix": True' in runner
-        and '"previous_attempt_scientifically_invalid": True' in runner
+        "fresh_execution_manifest_records_attempt4_restart",
+        '"execution_restart_after_runtime_pipeline_hotfix": True' in runner
         and '"previous_attempt_results_reused": False' in runner
-        and "EXECUTION_ATTEMPT = 3" in runner
+        and "EXECUTION_ATTEMPT = 4" in runner
         and "PREVIOUS_ATTEMPT_SEEDS = list(range(120, 130))" in runner
         and '"prior_attempts": PRIOR_ATTEMPTS' in runner,
     )
     _check(
         checks,
-        "fresh_execution_manifest_records_post_evaluation_restart",
-        '"execution_restart_after_post_evaluation_hotfix": True' in runner
-        and '"previous_attempt2_scientifically_invalid": True' in runner
-        and '"previous_attempt2_results_reused": False' in runner
-        and "POST_EVALUATION_INVALID_ATTEMPT_SEEDS = list(range(120, 130))" in runner,
+        "attempt3_runtime_incident_frozen",
+        "runtime_pipeline_and_timing_protocol_blocker" in runner
+        and "2becc7a2b2d42f783e72602567f4aa6fa72e0683" in runner
+        and (ROOT / "docs/audits/fairness_development_attempt3_runtime_incident.md").exists(),
     )
     _check(
         checks,
@@ -362,11 +373,51 @@ def audit_fairness_development(
     )
     _check(
         checks,
-        "attempt3_requires_fresh_output_and_prohibits_overwrite",
-        "def _prepare_attempt3_output(" in runner
-        and "Fresh Attempt 3 requires an output directory that does not exist." in runner
-        and "Attempt 3 resume requires a complete identity manifest." in runner
+        "attempt4_requires_fresh_output_and_prohibits_overwrite",
+        "def _prepare_attempt4_output(" in runner
+        and "Fresh Attempt 4 requires an output directory that does not exist." in runner
+        and "Attempt 4 resume requires a complete identity manifest." in runner
         and "--overwrite is prohibited for frozen fairness development." in runner,
+    )
+    post_pipeline = (ROOT / "src/fairness_post_evaluation.py").read_text(encoding="utf-8")
+    _check(
+        checks,
+        "post_evaluation_checkpoint_and_identity_fail_closed",
+        "scenario_sequence_sha256" in post_pipeline
+        and "deviation_pattern_sha256" in post_pipeline
+        and "atomic_write_json(_checkpoint_path" in post_pipeline
+        and "Checkpoint hash mismatch" in post_pipeline
+        and "scenarios are missing or duplicated" in post_pipeline,
+    )
+    _check(
+        checks,
+        "post_evaluation_resume_and_timing_are_exposed",
+        "algorithm_checkpoint.json" in runner
+        and '"algorithm_runtime"' in runner
+        and '"post_evaluation_runtime"' in runner
+        and '"total_wall_runtime"' in runner
+        and '"checkpoint_io_runtime"' in runner
+        and "post_evaluation_runtime_excluded_from_algorithm_runtime" in runner,
+    )
+    checkpoint_tests = (
+        ROOT / "tests/test_fairness_post_evaluation_pipeline.py"
+    ).read_text(encoding="utf-8")
+    _check(
+        checks,
+        "post_evaluation_interrupt_resume_tests_exist",
+        "before_first_chunk" in checkpoint_tests
+        and "after_scenario" in checkpoint_tests
+        and "after_chunk_commit_before_index" in checkpoint_tests
+        and "after_last_chunk_before_aggregation" in checkpoint_tests
+        and "before_final_output" in checkpoint_tests
+        and "after_final_output" in checkpoint_tests
+        and "identity_drift_and_corruption_fail_closed" in checkpoint_tests,
+    )
+    _check(
+        checks,
+        "baseline_time_limit_is_runtime_wired",
+        'baseline_resolved["time_limit"]' in runner
+        and 'resolved.get("baseline_time_limit"' in runner,
     )
     _check(
         checks,
@@ -412,7 +463,7 @@ def audit_fairness_development(
         and '"interrupted"' in runner
         and '"implementation_error"' in runner
         and '"unknown_uncertified"' in runner
-        and 'payload["algorithm_status"] = result.status' in runner
+        and 'payload["algorithm_status"] = algorithm_status' in runner
         and 'payload["status"] = payload["overall_status"]' in runner,
     )
     incident = ROOT / "docs/audits/fairness_development_attempt2_post_evaluation_incident.md"

@@ -90,11 +90,11 @@ introduced.
 
 The runner uses stable keys for the per-seed baseline and every `(seed,rho)`
 frontier point. Run records, resolved configuration, and manifest updates are
-atomically replaced. Attempt 3 must start in a physically nonexistent output
+atomically replaced. Attempt 4 must start in a physically nonexistent output
 directory; even an empty existing directory is rejected. The identity manifest
 is atomically created before any instance, baseline, anchor, or run artifact.
-Only `--resume` may enter an existing directory, and only when its schema-3
-Attempt 3 identity exactly matches Git, config, protocol, candidate, run keys,
+Only `--resume` may enter an existing directory, and only when its schema-4
+Attempt 4 identity exactly matches Git, config, protocol, candidate, run keys,
 and the frozen prior-attempt history. Formal development rejects `--overwrite`.
 
 The generic manifest and the atomic `fairness_development_manifest.json`
@@ -109,6 +109,36 @@ recover scenario policies under the shared caps to report WGap, WWD, mean fill
 rate, and opening/inventory changes.  That deterministic all-scenario reporting
 pass has a 30-second per-scenario cap, is stored as post-evaluation, and is not
 included in the fairness Benders algorithm runtime or PAR-2.
+
+Scenarios retain the deterministic exact-enumeration order and are frozen in
+atomic chunks of 25. Each chunk stores stable scenario keys,
+deviation-pattern hashes, recovered policies, acceptance evidence, solver time,
+and wall time. The checkpoint index is atomically rebuilt from validated chunk
+files; committed chunks, including a chunk committed immediately before an
+interruption, are the resume source of truth. Missing, corrupt, duplicated,
+foreign-attempt, or identity-drifted checkpoints fail closed.
+
+The frontier algorithm result is atomically checkpointed before
+post-evaluation. On an exact Attempt 4 resume, the algorithm checkpoint and
+completed scenario chunks are reused; neither the algorithm nor committed
+scenarios is solved again. An uncommitted partial chunk is recomputed in full.
+Aggregation is deterministic and may be repeated from the complete checkpoint
+set. If `run.json` is atomically committed before `status.json` or the aggregate
+CSV files, an exact resume reconstructs the completed status and rewrites the
+aggregate tables from unique run keys; repeating that reconstruction is
+byte-stable and does not append duplicate rows.
+
+Status and the development manifest record `baseline`, `algorithm`,
+`post_evaluation`, `aggregation`, and `completed` phases, seed, rho, run key,
+total/completed/pending/failed scenario counts, current chunk, heartbeat,
+resume count, and interruption or failure reason.
+
+Each frontier result separately records algorithm runtime, post-evaluation
+solver runtime, post-evaluation wall runtime, aggregation runtime, checkpoint
+I/O runtime, and total active wall runtime. `total_wall_runtime` excludes
+operator downtime between interrupted processes. `post_evaluation_runtime` is
+the post-evaluation wall-runtime alias. PAR-2 remains based only on fairness
+Benders algorithm runtime and the 1,800-second fairness time limit.
 
 The post-evaluation recovery LP enforces the exact mathematical right-hand
 sides `recourse_cost <= B_rho - first_stage_cost` and
@@ -137,14 +167,33 @@ interpretation. The mutually exclusive public enumeration is
 algorithm-level `optimal` value cannot conceal failed or missing robust
 post-evaluation; unrecognized raw statuses are never promoted to success.
 
-Attempt 3 records `execution_attempt: 3`, all previously accessed development
+Attempt 4 records `execution_attempt: 4`, all previously accessed development
 seeds 120--129, and structured prior identities. Attempt 1 used commit
 `7bc8e81f91f4a4c7baf2c080af63a09ada1178d6` and seeds 120--126 and was
 invalidated by the separation-certificate architecture defect. Attempt 2 used
 commit `98c615767032bb6c57f28476bebc0392037fbf34` and seeds 120--129 and was
-invalidated by the post-evaluation tolerance-boundary defect. Both are
-scientifically invalid, are not reused, and cannot supply a baseline, anchor,
-run, manifest, or summary to Attempt 3.
+invalidated by the post-evaluation tolerance-boundary defect.
+
+Attempt 3 used commit
+`2becc7a2b2d42f783e72602567f4aa6fa72e0683`. Medium-large completed. Large
+stopped with 33 complete run records; seed 125, rho 0.025 was the incomplete
+34th task. The absence of a post-evaluation global wall-clock envelope,
+checkpoint, phase heartbeat, safe fine-grained resume, and end-to-end timing
+evidence is a runtime-pipeline and timing-protocol blocker, not evidence of a
+mathematical-model error. Attempts 1--3 are scientifically invalid, are not
+reused, and cannot supply a baseline, anchor, run, checkpoint, summary,
+manifest, statistic, figure, or scientific selection to Attempt 4.
+
+Protocol SHA256 history is retained rather than overwritten:
+
+- original development protocol:
+  `BBA9973BB8A4D660202FA3D99DBDC957DB00A8A336632667A09B9F47974E22B5`;
+- post-evaluation boundary/status revision:
+  `04D4A833A5FE018FA3120B1ECA7DDAC6F2BEF216DE4D27EAB806280B2261F16E`;
+- Attempt 3 protocol:
+  `A3B13526778DE8049A03F47B01825474ABC562CB9E67F2355717435D3754FA5F`;
+- Attempt 4 checkpoint/runtime revision: frozen by
+  `src.fairness_development_audit` and reported in the protocol PR.
 
 A single-writer lock protects each scale output directory. Every run record
 and both manifests are atomically replaced. `--resume` validates config, Git,
