@@ -15,10 +15,12 @@ from src.fairness_benders import (
     PRIOR_ATTEMPTS,
     PREVIOUS_ATTEMPT_SEEDS,
     _attempt_identity,
+    _baseline_method_config,
     _certified_baseline_anchor,
     _development_run_keys,
     _record_failed_task,
-    _prepare_attempt3_output,
+    _prepare_attempt4_output,
+    _repair_completed_run_state,
     _validate_development_manifest_identity,
     _validate_frontier_anchor_identity,
     _validate_resume_record_identity,
@@ -87,7 +89,22 @@ def test_dry_run_plan_reports_exact_scenario_counts_without_instances(tmp_path: 
     large = development_run_plan(configs["regional_fairness_development_large"])
     assert medium["scenario_count_by_size"] == {"medium_large": 1831}
     assert large["scenario_count_by_size"] == {"large": 4657}
+    assert medium["algorithm_solver_time_envelope_seconds"] == 50 * 600
+    assert medium["post_evaluation_solver_time_envelope_seconds"] == 50 * 1831 * 30
+    assert large["algorithm_solver_time_envelope_seconds"] == 50 * 1800
+    assert large["post_evaluation_solver_time_envelope_seconds"] == 50 * 4657 * 30
+    assert medium["theoretical_envelope_excludes_model_build_and_io"] is True
     assert not list(tmp_path.iterdir())
+
+
+def test_baseline_time_limit_has_explicit_runtime_precedence() -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    mutated = deepcopy(config)
+    mutated["baseline_time_limit"] = 321
+    mutated["time_limit"] = 999
+    _method, method_config = _baseline_method_config(mutated, "medium_large", 1)
+    assert method_config["benders"]["time_limit"] == 321
+    assert config["baseline_time_limit"] == config["time_limit"] == 600
 
 
 def test_future_seeds_are_reserved_but_not_in_run_plan() -> None:
@@ -198,12 +215,7 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
         **_attempt_identity(
             config=config, config_hash="config", commit="commit", run_keys=keys
         ),
-        "execution_restart_after_correctness_hotfix": True,
-        "previous_attempt_scientifically_invalid": True,
-        "execution_restart_after_post_evaluation_hotfix": True,
-        "previous_attempt2_scientifically_invalid": True,
-        "previous_attempt2_results_reused": False,
-        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
+        "execution_restart_after_runtime_pipeline_hotfix": True,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": keys,
     }
@@ -230,17 +242,9 @@ def test_development_manifest_rejects_run_plan_or_commit_drift() -> None:
             commit="commit",
             run_keys=keys,
         )
-    with pytest.raises(ValueError, match="execution_restart_after_correctness_hotfix"):
+    with pytest.raises(ValueError, match="execution_restart_after_runtime_pipeline_hotfix"):
         _validate_development_manifest_identity(
-            {**manifest, "execution_restart_after_correctness_hotfix": False},
-            config=config,
-            config_hash="config",
-            commit="commit",
-            run_keys=keys,
-        )
-    with pytest.raises(ValueError, match="previous_attempt2_results_reused"):
-        _validate_development_manifest_identity(
-            {**manifest, "previous_attempt2_results_reused": True},
+            {**manifest, "execution_restart_after_runtime_pipeline_hotfix": False},
             config=config,
             config_hash="config",
             commit="commit",
@@ -326,10 +330,10 @@ def _prepare_identity(
     *,
     resume: bool = False,
     overwrite: bool = False,
-    commit: str = "attempt3-commit",
+    commit: str = "attempt4-commit",
 ) -> list[str]:
     keys = _development_run_keys(config)
-    _prepare_attempt3_output(
+    _prepare_attempt4_output(
         output,
         resume=resume,
         overwrite=overwrite,
@@ -338,16 +342,20 @@ def _prepare_identity(
         commit=commit,
         run_keys=keys,
     )
+    if not resume:
+        (output / "resolved_config.yaml").write_text(
+            yaml.safe_dump(config, sort_keys=True), encoding="utf-8"
+        )
     return keys
 
 
-def test_attempt3_fresh_output_identity_and_resume_are_strict(tmp_path: Path) -> None:
+def test_attempt4_fresh_output_identity_and_resume_are_strict(tmp_path: Path) -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
-    output = tmp_path / "rf3"
+    output = tmp_path / "rf4"
     keys = _prepare_identity(output, config)
     manifest = json.loads((output / "fairness_development_manifest.json").read_text())
     assert len(keys) == 60
-    assert manifest["execution_attempt"] == EXECUTION_ATTEMPT == 3
+    assert manifest["execution_attempt"] == EXECUTION_ATTEMPT == 4
     assert manifest["development_seeds_previously_accessed"] == list(range(120, 130))
     assert manifest["prior_attempts"] == PRIOR_ATTEMPTS
     assert manifest["previous_attempt_results_reused"] is False
@@ -355,13 +363,13 @@ def test_attempt3_fresh_output_identity_and_resume_are_strict(tmp_path: Path) ->
     _prepare_identity(output, config, resume=True)
 
 
-def test_attempt3_rejects_existing_empty_or_prior_attempt_directory(tmp_path: Path) -> None:
+def test_attempt4_rejects_existing_empty_or_prior_attempt_directory(tmp_path: Path) -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
     empty = tmp_path / "empty"
     empty.mkdir()
     with pytest.raises(ValueError, match="does not exist"):
         _prepare_identity(empty, config)
-    for name in ("attempt1", "attempt2"):
+    for name in ("attempt1", "attempt2", "attempt3"):
         prior = tmp_path / name
         prior.mkdir()
         (prior / "fairness_development_manifest.json").write_text(
@@ -371,9 +379,9 @@ def test_attempt3_rejects_existing_empty_or_prior_attempt_directory(tmp_path: Pa
             _prepare_identity(prior, config, resume=True)
 
 
-def test_attempt3_resume_rejects_identity_drift_and_external_run(tmp_path: Path) -> None:
+def test_attempt4_resume_rejects_identity_drift_and_external_run(tmp_path: Path) -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
-    output = tmp_path / "rf3"
+    output = tmp_path / "rf4"
     keys = _prepare_identity(output, config)
     with pytest.raises(ValueError, match="identity mismatch"):
         _prepare_identity(output, config, resume=True, commit="different")
@@ -391,7 +399,9 @@ def test_attempt3_resume_rejects_identity_drift_and_external_run(tmp_path: Path)
     (output / "resolved_config.yaml").write_text("foreign: true\n")
     with pytest.raises(ValueError, match="resolved config identity"):
         _prepare_identity(output, config, resume=True)
-    (output / "resolved_config.yaml").unlink()
+    (output / "resolved_config.yaml").write_text(
+        yaml.safe_dump(config, sort_keys=True), encoding="utf-8"
+    )
 
     injected = output / "runs" / keys[0]
     injected.mkdir(parents=True)
@@ -402,7 +412,7 @@ def test_attempt3_resume_rejects_identity_drift_and_external_run(tmp_path: Path)
         _prepare_identity(output, config, resume=True)
 
 
-def test_attempt3_rejects_missing_identity_and_overwrite(tmp_path: Path) -> None:
+def test_attempt4_rejects_missing_identity_and_overwrite(tmp_path: Path) -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
     missing = tmp_path / "missing-identity"
     missing.mkdir()
@@ -436,7 +446,7 @@ def test_summary_uses_public_status_enum_consistently(tmp_path: Path) -> None:
             key,
             {
                 **{
-                    "execution_attempt": 3,
+                    "execution_attempt": 4,
                     "previous_attempt_results_reused": False,
                     "prior_attempts": PRIOR_ATTEMPTS,
                 },
@@ -460,5 +470,139 @@ def test_summary_uses_public_status_enum_consistently(tmp_path: Path) -> None:
     assert summary["optimal_count"] == "1"
     assert summary["uncertified_count"] == "2"
     assert summary["infeasible_count"] == "1"
-    assert summary["execution_attempt"] == "3"
+    assert summary["execution_attempt"] == "4"
     assert summary["previous_attempt_results_reused"] == "False"
+
+
+def test_results_publish_end_to_end_runtime_without_changing_par2(
+    tmp_path: Path,
+) -> None:
+    _write_record(
+        tmp_path,
+        "frontier",
+        {
+            **{
+                "execution_attempt": 4,
+                "previous_attempt_results_reused": False,
+                "prior_attempts": PRIOR_ATTEMPTS,
+            },
+            "run_key": "frontier",
+            "task_type": "fairness_frontier",
+            "instance_size": "tiny",
+            "seed": 1,
+            "method": "robust_regional_fairness",
+            "rho": 0.0,
+            "overall_status": "certified_robust_optimal",
+            "algorithm_status": "optimal",
+            "certification_status": "certified_robust_optimal",
+            "solved_to_tolerance": True,
+            "result": {
+                "status": "certified_robust_optimal",
+                "runtime": 12.0,
+                "algorithm_runtime": 12.0,
+                "post_evaluation_runtime": 34.0,
+                "post_evaluation_solver_runtime": 30.0,
+                "total_wall_runtime": 47.0,
+                "post_evaluation_runtime_excluded_from_algorithm_runtime": True,
+                "penalized_runtime_par2": 12.0,
+            },
+        },
+    )
+    _write_fairness_result_tables(tmp_path, ["frontier"])
+    with (tmp_path / "results.csv").open(newline="", encoding="utf-8") as stream:
+        row = next(csv.DictReader(stream))
+    assert row["algorithm_runtime"] == "12.0"
+    assert row["post_evaluation_runtime"] == "34.0"
+    assert row["total_wall_runtime"] == "47.0"
+    assert row["penalized_runtime_par2"] == "12.0"
+    assert row["post_evaluation_runtime_excluded_from_algorithm_runtime"] == "True"
+
+
+def test_resume_repairs_status_after_atomic_run_commit(tmp_path: Path) -> None:
+    record = {
+        "success": True,
+        "solved_to_tolerance": True,
+        "certification_status": "certified_robust_optimal",
+        "algorithm_status": "optimal",
+        "overall_status": "certified_robust_optimal",
+        "result": {
+            "runtime": 12.0,
+            "algorithm_runtime": 12.0,
+            "post_evaluation_runtime": 34.0,
+            "total_wall_runtime": 47.0,
+        },
+    }
+    _repair_completed_run_state(
+        tmp_path, run_key="frontier", record=record, resume_count=2
+    )
+    status = json.loads(
+        (tmp_path / "runs" / "frontier" / "status.json").read_text(encoding="utf-8")
+    )
+    assert status["state"] == "complete"
+    assert status["phase"] == "completed"
+    assert status["resume_count"] == 2
+    assert status["algorithm_runtime"] == 12.0
+    assert status["post_evaluation_runtime"] == 34.0
+    assert status["total_wall_runtime"] == 47.0
+
+
+def test_resume_after_run_commit_before_csv_repairs_and_aggregates(
+    tmp_path: Path,
+) -> None:
+    record = {
+        "run_key": "frontier",
+        "task_type": "fairness_frontier",
+        "instance_size": "tiny",
+        "seed": 1,
+        "method": "robust_regional_fairness",
+        "rho": 0.0,
+        "state": "complete",
+        "success": True,
+        "solved_to_tolerance": True,
+        "certification_status": "certified_robust_optimal",
+        "algorithm_status": "optimal",
+        "overall_status": "certified_robust_optimal",
+        "result": {
+            "status": "certified_robust_optimal",
+            "runtime": 12.0,
+            "algorithm_runtime": 12.0,
+            "post_evaluation_runtime": 34.0,
+            "total_wall_runtime": 47.0,
+        },
+    }
+    _write_record(tmp_path, "frontier", record)
+    assert not (tmp_path / "results.csv").exists()
+    _repair_completed_run_state(
+        tmp_path, run_key="frontier", record=record, resume_count=1
+    )
+    _write_fairness_result_tables(tmp_path, ["frontier"])
+    with (tmp_path / "results.csv").open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    assert len(rows) == 1
+    assert rows[0]["run_key"] == "frontier"
+
+
+def test_resume_after_csv_commit_is_idempotent(tmp_path: Path) -> None:
+    _write_record(
+        tmp_path,
+        "frontier",
+        {
+            "run_key": "frontier",
+            "task_type": "fairness_frontier",
+            "instance_size": "tiny",
+            "seed": 1,
+            "method": "robust_regional_fairness",
+            "rho": 0.0,
+            "state": "complete",
+            "success": True,
+            "solved_to_tolerance": True,
+            "certification_status": "certified_robust_optimal",
+            "algorithm_status": "optimal",
+            "overall_status": "certified_robust_optimal",
+            "result": {"status": "certified_robust_optimal", "runtime": 12.0},
+        },
+    )
+    _write_fairness_result_tables(tmp_path, ["frontier"])
+    first = (tmp_path / "results.csv").read_bytes()
+    _write_fairness_result_tables(tmp_path, ["frontier"])
+    assert (tmp_path / "results.csv").read_bytes() == first

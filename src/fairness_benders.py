@@ -43,10 +43,10 @@ from .precision_policy import (
     select_joint_error_budget_precision,
 )
 from .regional_fairness_pipeline import SingleWriterLock
+from .fairness_post_evaluation import checkpointed_fairness_post_evaluation
 from .robust_regional_fairness import (
     FAIRNESS_FEASIBILITY_TOLERANCE,
     FairnessFeasibilityCut,
-    evaluate_fairness_solution,
     fairness_cost_budget,
     separate_robust_fairness_feasibility,
 )
@@ -434,6 +434,11 @@ def development_run_plan(config: dict[str, Any]) -> dict[str, Any]:
     frontier = baseline * len(rhos)
     baseline_limit = float(config.get("baseline_time_limit", config.get("time_limit", 0.0)))
     fairness_limit = float(config.get("fairness_time_limit", config.get("time_limit", 0.0)))
+    post_limit = float(
+        config.get("fairness_development", {}).get(
+            "post_evaluation_time_limit_per_scenario", 0.0
+        )
+    )
     scenario_counts = {
         size: sum(
             math.comb(INSTANCE_SIZES[size]["num_products"] * INSTANCE_SIZES[size]["num_regions"], k)
@@ -453,7 +458,18 @@ def development_run_plan(config: dict[str, Any]) -> dict[str, Any]:
         "total_computational_run_count": baseline + frontier,
         "output_dir": config.get("output_dir"),
         "scenario_count_by_size": scenario_counts,
-        "theoretical_serial_upper_bound_seconds": baseline * baseline_limit + frontier * fairness_limit,
+        "algorithm_solver_time_envelope_seconds": frontier * fairness_limit,
+        "post_evaluation_solver_time_envelope_seconds": sum(
+            scenario_counts.values()
+        )
+        * frontier
+        * post_limit,
+        "theoretical_serial_upper_bound_seconds": (
+            baseline * baseline_limit
+            + frontier * fairness_limit
+            + sum(scenario_counts.values()) * frontier * post_limit
+        ),
+        "theoretical_envelope_excludes_model_build_and_io": True,
         "automatic_parallelism_enabled": False,
         "instances_generated": False,
         "solver_called": False,
@@ -462,7 +478,11 @@ def development_run_plan(config: dict[str, Any]) -> dict[str, Any]:
 
 def _baseline_method_config(config: dict[str, Any], instance_size: str, seed: int) -> tuple[str, dict[str, Any]]:
     resolved = _apply_selected_parameters(config)
-    base = _base_config(resolved, instance_size, seed)
+    baseline_resolved = deepcopy(resolved)
+    baseline_resolved["time_limit"] = float(
+        resolved.get("baseline_time_limit", resolved.get("time_limit", 0.0))
+    )
+    base = _base_config(baseline_resolved, instance_size, seed)
     variant = dict(resolved.get("variant_settings", {}).get("joint_v1_core_point_strengthened", {}))
     method, _flags, method_config = _apply_variant_config(base, "proposed_adaptive_benders", variant)
     return method, method_config
@@ -493,8 +513,8 @@ def _validate_resume_record_identity(
         raise ValueError(f"Git-commit identity mismatch while resuming {run_key}.")
 
 
-FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 3
-EXECUTION_ATTEMPT = 3
+FAIRNESS_DEVELOPMENT_MANIFEST_SCHEMA_VERSION = 4
+EXECUTION_ATTEMPT = 4
 PREVIOUS_ATTEMPT_SEEDS = list(range(120, 130))
 POST_EVALUATION_INVALID_ATTEMPT_SEEDS = list(range(120, 130))
 PRIOR_ATTEMPTS = [
@@ -513,6 +533,22 @@ PRIOR_ATTEMPTS = [
         "scientifically_valid": False,
         "results_reused": False,
         "invalidation_reason": "post_evaluation_tolerance_boundary_defect",
+    },
+    {
+        "attempt": 3,
+        "git_commit": "2becc7a2b2d42f783e72602567f4aa6fa72e0683",
+        "seeds_accessed": list(range(120, 130)),
+        "scientifically_valid": False,
+        "results_reused": False,
+        "invalidation_reason": "runtime_pipeline_and_timing_protocol_blocker",
+        "medium_large_status": "completed_but_scientifically_frozen_invalid",
+        "large_status": {
+            "complete_run_count": 33,
+            "incomplete_run_key": (
+                "regional_fairness_development_large__rho__0_025__large__"
+                "seed_125__robust_regional_fairness"
+            ),
+        },
     },
 ]
 
@@ -654,12 +690,7 @@ def _write_fairness_development_manifest(
         **_attempt_identity(
             config=config, config_hash=config_hash, commit=commit, run_keys=run_keys
         ),
-        "execution_restart_after_correctness_hotfix": True,
-        "previous_attempt_scientifically_invalid": True,
-        "execution_restart_after_post_evaluation_hotfix": True,
-        "previous_attempt2_scientifically_invalid": True,
-        "previous_attempt2_results_reused": False,
-        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
+        "execution_restart_after_runtime_pipeline_hotfix": True,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
         "baseline_anchors": anchors,
@@ -667,6 +698,8 @@ def _write_fairness_development_manifest(
         "completed_count": sum(task["state"] == "complete" for task in tasks),
         "solved_count": sum(task["solved_to_tolerance"] for task in tasks),
         "pending_count": sum(task["state"] != "complete" for task in tasks),
+        "current_task": previous.get("current_task"),
+        "resume_count": int(previous.get("resume_count", 0)),
         "created_at": previous.get("created_at", utc_now_iso()),
         "updated_at": utc_now_iso(),
     }
@@ -716,6 +749,17 @@ def _write_fairness_result_tables(output_dir: Path, run_keys: list[str]) -> None
                 "upper_bound": result.get("upper_bound"),
                 "gap": result.get("gap"),
                 "runtime": result.get("runtime"),
+                "algorithm_runtime": result.get(
+                    "algorithm_runtime", result.get("runtime")
+                ),
+                "post_evaluation_runtime": result.get("post_evaluation_runtime"),
+                "post_evaluation_solver_runtime": result.get(
+                    "post_evaluation_solver_runtime"
+                ),
+                "total_wall_runtime": result.get("total_wall_runtime"),
+                "post_evaluation_runtime_excluded_from_algorithm_runtime": result.get(
+                    "post_evaluation_runtime_excluded_from_algorithm_runtime"
+                ),
                 "penalized_runtime_par2": result.get("penalized_runtime_par2"),
                 "iterations": result.get("iterations"),
                 "cuts": result.get("cuts"),
@@ -804,12 +848,7 @@ def _validate_development_manifest_identity(
         **_attempt_identity(
             config=config, config_hash=config_hash, commit=commit, run_keys=run_keys
         ),
-        "execution_restart_after_correctness_hotfix": True,
-        "previous_attempt_scientifically_invalid": True,
-        "execution_restart_after_post_evaluation_hotfix": True,
-        "previous_attempt2_scientifically_invalid": True,
-        "previous_attempt2_results_reused": False,
-        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
+        "execution_restart_after_runtime_pipeline_hotfix": True,
         "baseline_anchor_source": "solve_result.upper_bound",
         "run_keys": run_keys,
     }
@@ -820,7 +859,7 @@ def _validate_development_manifest_identity(
         )
 
 
-def _prepare_attempt3_output(
+def _prepare_attempt4_output(
     output_dir: Path,
     *,
     resume: bool,
@@ -830,16 +869,16 @@ def _prepare_attempt3_output(
     commit: str,
     run_keys: list[str],
 ) -> None:
-    """Create a fresh Attempt 3 identity or validate an exact resume identity."""
+    """Create a fresh Attempt 4 identity or validate an exact resume identity."""
     if overwrite:
         raise ValueError("--overwrite is prohibited for frozen fairness development.")
     manifest_path = output_dir / "fairness_development_manifest.json"
     if resume:
         if not output_dir.is_dir():
-            raise ValueError("Attempt 3 resume requires an existing output directory.")
+            raise ValueError("Attempt 4 resume requires an existing output directory.")
         manifest = read_json(manifest_path)
         if manifest is None:
-            raise ValueError("Attempt 3 resume requires a complete identity manifest.")
+            raise ValueError("Attempt 4 resume requires a complete identity manifest.")
         _validate_development_manifest_identity(
             manifest,
             config=config,
@@ -848,45 +887,71 @@ def _prepare_attempt3_output(
             run_keys=run_keys,
         )
         resolved_path = output_dir / "resolved_config.yaml"
-        if resolved_path.exists():
-            resolved = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
-            if not isinstance(resolved, dict) or config_sha256(resolved) != config_hash:
-                raise ValueError("Attempt 3 resolved config identity mismatch.")
+        if not resolved_path.is_file():
+            raise ValueError("Attempt 4 resume requires the locked resolved config.")
+        resolved = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
+        if not isinstance(resolved, dict) or config_sha256(resolved) != config_hash:
+            raise ValueError("Attempt 4 resolved config identity mismatch.")
         runs_dir = output_dir / "runs"
         if runs_dir.exists():
+            unknown_directories = [
+                path.name
+                for path in runs_dir.iterdir()
+                if path.is_dir() and path.name not in run_keys
+            ]
+            if unknown_directories:
+                raise ValueError(
+                    "Attempt 4 resume found external run directories: "
+                    + ", ".join(sorted(unknown_directories))
+                )
             for run_path in runs_dir.glob("*/run.json"):
                 run_key = run_path.parent.name
                 if run_key not in run_keys:
-                    raise ValueError("Attempt 3 resume found an external or unknown run key.")
+                    raise ValueError("Attempt 4 resume found an external or unknown run key.")
                 _validate_resume_record_identity(
                     read_json(run_path),
                     config_hash=config_hash,
                     commit=commit,
                     run_key=run_key,
                 )
+            for checkpoint_path in runs_dir.glob("*/algorithm_checkpoint.json"):
+                checkpoint = read_json(checkpoint_path)
+                identity = None if checkpoint is None else checkpoint.get("identity")
+                if (
+                    not isinstance(identity, dict)
+                    or identity.get("execution_attempt") != EXECUTION_ATTEMPT
+                    or identity.get("config_sha256") != config_hash
+                    or identity.get("git_commit") != commit
+                    or identity.get("run_key") != checkpoint_path.parent.name
+                ):
+                    raise ValueError(
+                        "Attempt 4 resume found an algorithm checkpoint identity mismatch."
+                    )
         return
     if output_dir.exists():
-        raise ValueError("Fresh Attempt 3 requires an output directory that does not exist.")
+        raise ValueError("Fresh Attempt 4 requires an output directory that does not exist.")
     output_dir.mkdir(parents=False, exist_ok=False)
     identity = {
         **_attempt_identity(
             config=config, config_hash=config_hash, commit=commit, run_keys=run_keys
         ),
-        "execution_restart_after_correctness_hotfix": True,
-        "previous_attempt_scientifically_invalid": True,
-        "execution_restart_after_post_evaluation_hotfix": True,
-        "previous_attempt2_scientifically_invalid": True,
-        "previous_attempt2_results_reused": False,
-        "post_evaluation_invalid_attempt_seeds": POST_EVALUATION_INVALID_ATTEMPT_SEEDS,
+        "execution_restart_after_runtime_pipeline_hotfix": True,
         "baseline_anchors": {},
         "tasks": [],
         "completed_count": 0,
         "solved_count": 0,
         "pending_count": len(run_keys),
+        "current_task": None,
+        "resume_count": 0,
         "created_at": utc_now_iso(),
         "updated_at": utc_now_iso(),
     }
     atomic_write_json(manifest_path, identity)
+
+
+# Kept as a compatibility alias for external static tooling; it now enforces
+# Attempt 4 identity and cannot resume any Attempt 1--3 artifact.
+_prepare_attempt3_output = _prepare_attempt4_output
 
 
 def _record_failed_task(
@@ -932,6 +997,11 @@ def _record_failed_task(
         "certified_cost_anchor": anchor,
         "created_at": utc_now_iso(),
         "failure_reason": str(error),
+        "phase": (
+            (read_json(output_dir / "runs" / run_key / "status.json") or {}).get(
+                "phase"
+            )
+        ),
         "result": {
             "status": status,
             "algorithm_status": status,
@@ -953,8 +1023,26 @@ def _record_failed_task(
             "overall_status": public_status,
             "failure_reason": str(error),
             "error_type": type(error).__name__,
+            "phase": record["phase"],
+            "heartbeat_at": utc_now_iso(),
         },
     )
+    manifest_path = output_dir / "fairness_development_manifest.json"
+    manifest = read_json(manifest_path)
+    if manifest is not None:
+        current = dict(manifest.get("current_task") or {})
+        current.update(
+            {
+                "run_key": run_key,
+                "phase": record["phase"],
+                "state": status,
+                "failure_reason": str(error),
+                "heartbeat_at": utc_now_iso(),
+            }
+        )
+        manifest["current_task"] = current
+        manifest["updated_at"] = utc_now_iso()
+        atomic_write_json(manifest_path, manifest)
 
 
 def _refresh_manifests_after_failure(
@@ -1023,6 +1111,132 @@ def _development_run_keys(config: dict[str, Any]) -> list[str]:
     return run_keys
 
 
+def _set_development_progress(
+    output_dir: Path,
+    *,
+    run_key: str,
+    phase: str,
+    seed: int,
+    rho: float | None,
+    resume_count: int,
+    details: dict[str, Any] | None = None,
+) -> None:
+    progress = {
+        "phase": phase,
+        "seed": int(seed),
+        "rho": rho,
+        "run_key": run_key,
+        "heartbeat_at": utc_now_iso(),
+        "resume_count": int(resume_count),
+        **(details or {}),
+    }
+    write_run_state(output_dir, run_key, state="running", details=progress)
+    manifest_path = output_dir / "fairness_development_manifest.json"
+    manifest = read_json(manifest_path)
+    if manifest is None:
+        raise ValueError("Attempt 4 identity manifest is missing during progress update.")
+    manifest["current_task"] = progress
+    manifest["resume_count"] = int(resume_count)
+    manifest["updated_at"] = utc_now_iso()
+    atomic_write_json(manifest_path, manifest)
+
+
+def _clear_development_progress(output_dir: Path) -> None:
+    manifest_path = output_dir / "fairness_development_manifest.json"
+    manifest = read_json(manifest_path)
+    if manifest is None:
+        raise ValueError("Attempt 4 identity manifest is missing during progress clear.")
+    manifest["current_task"] = None
+    manifest["updated_at"] = utc_now_iso()
+    atomic_write_json(manifest_path, manifest)
+
+
+def _repair_completed_run_state(
+    output_dir: Path,
+    *,
+    run_key: str,
+    record: dict[str, Any],
+    resume_count: int,
+) -> None:
+    """Rebuild status.json after a crash that followed the run.json commit."""
+    result = dict(record.get("result") or {})
+    write_run_state(
+        output_dir,
+        run_key,
+        state="complete",
+        details={
+            "success": bool(record.get("success")),
+            "solved_to_tolerance": bool(record.get("solved_to_tolerance")),
+            "certification_status": record.get("certification_status"),
+            "algorithm_status": record.get("algorithm_status"),
+            "overall_status": record.get("overall_status"),
+            "phase": "completed",
+            "algorithm_runtime": result.get(
+                "algorithm_runtime", result.get("runtime")
+            ),
+            "post_evaluation_runtime": result.get("post_evaluation_runtime", 0.0),
+            "total_wall_runtime": result.get(
+                "total_wall_runtime", result.get("runtime")
+            ),
+            "resume_count": int(resume_count),
+        },
+    )
+
+
+def _algorithm_checkpoint_path(output_dir: Path, run_key: str) -> Path:
+    return output_dir / "runs" / run_key / "algorithm_checkpoint.json"
+
+
+def _algorithm_checkpoint_identity(
+    *,
+    run_key: str,
+    config_hash: str,
+    commit: str,
+    anchor_sha256: str,
+    rho: float,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "execution_attempt": EXECUTION_ATTEMPT,
+        "run_key": run_key,
+        "config_sha256": config_hash,
+        "git_commit": commit,
+        "baseline_anchor_sha256": anchor_sha256,
+        "rho": float(rho),
+    }
+
+
+def _load_algorithm_checkpoint(
+    output_dir: Path,
+    *,
+    identity: dict[str, Any],
+) -> dict[str, Any] | None:
+    checkpoint = read_json(_algorithm_checkpoint_path(output_dir, identity["run_key"]))
+    if checkpoint is None:
+        return None
+    if checkpoint.get("identity") != identity or not isinstance(
+        checkpoint.get("result"), dict
+    ):
+        raise ValueError("Attempt 4 algorithm checkpoint identity mismatch.")
+    return dict(checkpoint["result"])
+
+
+def _write_algorithm_checkpoint(
+    output_dir: Path,
+    *,
+    identity: dict[str, Any],
+    result: dict[str, Any],
+) -> None:
+    atomic_write_json(
+        _algorithm_checkpoint_path(output_dir, identity["run_key"]),
+        {
+            "identity": identity,
+            "result": result,
+            "completed_at": utc_now_iso(),
+        },
+    )
+
+
 def _run_fairness_development_locked(
     config: dict[str, Any], *, resume: bool = False, overwrite: bool = False
 ) -> Path:
@@ -1038,7 +1252,7 @@ def _run_fairness_development_locked(
         raise ValueError("Existing fairness development manifest is unreadable or corrupt.")
     if resume:
         if existing_manifest is None:
-            raise ValueError("Attempt 3 resume requires a complete identity manifest.")
+            raise ValueError("Attempt 4 resume requires a complete identity manifest.")
         _validate_development_manifest_identity(
             existing_manifest,
             config=config,
@@ -1058,6 +1272,13 @@ def _run_fairness_development_locked(
         run_keys=run_keys,
         anchors=anchors,
     )
+    resume_count = int((existing_manifest or {}).get("resume_count", 0)) + int(resume)
+    manifest = read_json(output_dir / "fairness_development_manifest.json")
+    if manifest is None:
+        raise ValueError("Attempt 4 identity manifest disappeared.")
+    manifest["resume_count"] = resume_count
+    manifest["current_task"] = None
+    atomic_write_json(output_dir / "fairness_development_manifest.json", manifest)
     skipped = 0
     for seed in seeds:
         instance = generate_instance(_base_config(config, size, seed), seed=seed)
@@ -1074,8 +1295,21 @@ def _run_fairness_development_locked(
         action = decide_run_action(baseline_record, resume=resume, overwrite=overwrite)
         if action == "skip_success":
             skipped += 1
+            _repair_completed_run_state(
+                output_dir,
+                run_key=baseline_key,
+                record=baseline_record,
+                resume_count=resume_count,
+            )
         elif action.startswith("run"):
-            write_run_state(output_dir, baseline_key, state="running")
+            _set_development_progress(
+                output_dir,
+                run_key=baseline_key,
+                phase="baseline",
+                seed=seed,
+                rho=None,
+                resume_count=resume_count,
+            )
             method, method_config = _baseline_method_config(config, size, seed)
             try:
                 result = solve_benders(method_config, instance, method)
@@ -1143,6 +1377,11 @@ def _run_fairness_development_locked(
                     "certification_status": baseline_public_status,
                     "algorithm_status": result.status,
                     "overall_status": baseline_public_status,
+                    "phase": "completed",
+                    "algorithm_runtime": baseline_payload.get("runtime"),
+                    "post_evaluation_runtime": 0.0,
+                    "total_wall_runtime": baseline_payload.get("runtime"),
+                    "resume_count": resume_count,
                 },
             )
         if not baseline_record or not baseline_record.get("solved_to_tolerance"):
@@ -1167,6 +1406,7 @@ def _run_fairness_development_locked(
             run_keys=run_keys,
             anchors=anchors,
         )
+        _clear_development_progress(output_dir)
         _write_fairness_result_tables(output_dir, run_keys)
         c_anchor = float(anchor["value"])
         for rho in rhos:
@@ -1188,24 +1428,54 @@ def _run_fairness_development_locked(
             action = decide_run_action(existing, resume=resume, overwrite=overwrite)
             if action == "skip_success":
                 skipped += 1
+                _repair_completed_run_state(
+                    output_dir,
+                    run_key=key,
+                    record=existing,
+                    resume_count=resume_count,
+                )
                 continue
             if not action.startswith("run"):
                 continue
-            write_run_state(output_dir, key, state="running")
+            _set_development_progress(
+                output_dir,
+                run_key=key,
+                phase="algorithm",
+                seed=seed,
+                rho=rho,
+                resume_count=resume_count,
+            )
             algorithm = load_development_config(str(config["candidate_parameters_must_be_fixed_from"]))["algorithm"]
+            algorithm_checkpoint_identity = _algorithm_checkpoint_identity(
+                run_key=key,
+                config_hash=cfg_hash,
+                commit=commit,
+                anchor_sha256=anchor["anchor_sha256"],
+                rho=rho,
+            )
             try:
-                result = solve_fairness_benders(
-                    instance,
-                    baseline_cost=c_anchor,
-                    rho=rho,
-                    gamma=int(config["gamma_target"]),
-                    algorithm_config=algorithm,
-                    max_iterations=int(config["max_iterations"]),
-                    time_limit=float(config["fairness_time_limit"]),
-                    tol=float(config["tol"]),
-                    feasibility_tolerance=float(config["fairness_development"]["feasibility_tolerance"]),
-                    output_flag=bool(config.get("output_flag", False)),
+                payload = _load_algorithm_checkpoint(
+                    output_dir, identity=algorithm_checkpoint_identity
                 )
+                if payload is None:
+                    result = solve_fairness_benders(
+                        instance,
+                        baseline_cost=c_anchor,
+                        rho=rho,
+                        gamma=int(config["gamma_target"]),
+                        algorithm_config=algorithm,
+                        max_iterations=int(config["max_iterations"]),
+                        time_limit=float(config["fairness_time_limit"]),
+                        tol=float(config["tol"]),
+                        feasibility_tolerance=float(config["fairness_development"]["feasibility_tolerance"]),
+                        output_flag=bool(config.get("output_flag", False)),
+                    )
+                    payload = result.to_dict()
+                    _write_algorithm_checkpoint(
+                        output_dir,
+                        identity=algorithm_checkpoint_identity,
+                        result=payload,
+                    )
             except BaseException as error:
                 _record_failed_task(
                     output_dir,
@@ -1231,27 +1501,48 @@ def _run_fairness_development_locked(
                     skipped_run_count=skipped,
                 )
                 raise
+            algorithm_status = str(payload["status"])
+            algorithm_runtime = float(payload["runtime"])
             algorithm_solved = (
-                result.status == "optimal"
-                and result.gap is not None
-                and result.gap <= float(config["tol"])
+                algorithm_status == "optimal"
+                and payload.get("gap") is not None
+                and float(payload["gap"]) <= float(config["tol"])
             )
-            payload = result.to_dict()
             evaluation_valid = False
             evaluation_attempted = False
+            post_solver_runtime = 0.0
+            post_wall_runtime = 0.0
+            aggregation_runtime = 0.0
+            checkpoint_io_runtime = 0.0
             if (
                 algorithm_solved
-                and result.y_values is not None
-                and result.x_values is not None
-                and result.objective_t is not None
+                and payload.get("y_values") is not None
+                and payload.get("x_values") is not None
+                and payload.get("objective_t") is not None
             ):
                 evaluation_attempted = True
                 try:
-                    evaluation = evaluate_fairness_solution(
+                    def progress_callback(details: dict[str, Any]) -> None:
+                        _set_development_progress(
+                            output_dir,
+                            run_key=key,
+                            phase=str(details["phase"]),
+                            seed=seed,
+                            rho=rho,
+                            resume_count=resume_count,
+                            details=details,
+                        )
+
+                    evaluation, post_timing = checkpointed_fairness_post_evaluation(
                         instance,
-                        y_values=result.y_values,
-                        x_values=result.x_values,
-                        t_value=result.objective_t,
+                        root=output_dir / "runs" / key / "post_evaluation",
+                        run_key=key,
+                        config_sha256_value=cfg_hash,
+                        git_commit=commit,
+                        baseline_anchor_sha256=anchor["anchor_sha256"],
+                        y_values=payload["y_values"],
+                        x_values=payload["x_values"],
+                        t_value=float(payload["objective_t"]),
                         baseline_cost=c_anchor,
                         rho=rho,
                         gamma=int(config["gamma_target"]),
@@ -1264,8 +1555,19 @@ def _run_fairness_development_locked(
                         tolerance=float(
                             config["fairness_development"]["feasibility_tolerance"]
                         ),
+                        chunk_size=int(
+                            config["fairness_development"][
+                                "post_evaluation_checkpoint_chunk_size"
+                            ]
+                        ),
+                        resume_count=resume_count,
+                        progress_callback=progress_callback,
                         output_flag=bool(config.get("output_flag", False)),
                     )
+                    post_solver_runtime = post_timing.solver_runtime
+                    post_wall_runtime = post_timing.wall_runtime
+                    aggregation_runtime = post_timing.aggregation_runtime
+                    checkpoint_io_runtime = post_timing.checkpoint_io_runtime
                 except BaseException as error:
                     _record_failed_task(
                         output_dir,
@@ -1297,14 +1599,34 @@ def _run_fairness_development_locked(
                     evaluation.valid and evaluation.objective_t_consistent is not False
                 )
             solved = algorithm_solved and evaluation_valid
-            payload["algorithm_status"] = result.status
+            payload["algorithm_runtime"] = algorithm_runtime
+            payload["post_evaluation_solver_runtime"] = post_solver_runtime
+            payload["post_evaluation_runtime"] = post_wall_runtime
+            payload["post_evaluation_wall_runtime"] = post_wall_runtime
+            payload["aggregation_runtime"] = aggregation_runtime
+            payload["checkpoint_io_runtime"] = checkpoint_io_runtime
+            payload["total_wall_runtime"] = math.fsum(
+                (
+                    algorithm_runtime,
+                    post_wall_runtime,
+                    aggregation_runtime,
+                    checkpoint_io_runtime,
+                )
+            )
+            payload["runtime_semantics"] = {
+                "algorithm_runtime": "fairness Benders only",
+                "post_evaluation_runtime": "sum of completed scenario-chunk wall runtimes",
+                "total_wall_runtime": "algorithm + post-evaluation + aggregation + checkpoint I/O; excludes downtime",
+                "par2_basis": "algorithm_runtime and fairness_time_limit only",
+            }
+            payload["algorithm_status"] = algorithm_status
             payload["overall_status"] = fairness_frontier_overall_status(
-                algorithm_status=result.status,
+                algorithm_status=algorithm_status,
                 algorithm_solved=algorithm_solved,
                 post_evaluation_attempted=evaluation_attempted,
                 post_evaluation_valid=evaluation_valid,
                 infeasibility_certified=bool(
-                    result.metadata.get("robust_infeasibility_certified", False)
+                    payload.get("metadata", {}).get("robust_infeasibility_certified", False)
                 ),
             )
             certification_status = payload["overall_status"]
@@ -1314,7 +1636,7 @@ def _run_fairness_development_locked(
             payload["status"] = payload["overall_status"]
             payload["penalized_runtime_par2"] = penalized_runtime_par2(
                 solved_to_tolerance=solved,
-                runtime=result.runtime,
+                runtime=algorithm_runtime,
                 time_limit=float(config["fairness_time_limit"]),
             )
             _write_record(output_dir, key, {
@@ -1328,7 +1650,7 @@ def _run_fairness_development_locked(
                 "success": solved,
                 "solved_to_tolerance": solved,
                 "certification_status": certification_status,
-                "algorithm_status": result.status,
+                "algorithm_status": algorithm_status,
                 "overall_status": payload["overall_status"],
                 "git_commit": commit,
                 "config_sha256": cfg_hash,
@@ -1348,8 +1670,13 @@ def _run_fairness_development_locked(
                     "success": solved,
                     "solved_to_tolerance": solved,
                     "certification_status": certification_status,
-                    "algorithm_status": result.status,
+                    "algorithm_status": algorithm_status,
                     "overall_status": payload["overall_status"],
+                    "phase": "completed",
+                    "algorithm_runtime": algorithm_runtime,
+                    "post_evaluation_runtime": post_wall_runtime,
+                    "total_wall_runtime": payload["total_wall_runtime"],
+                    "resume_count": resume_count,
                 },
             )
             _write_fairness_development_manifest(
@@ -1360,6 +1687,7 @@ def _run_fairness_development_locked(
                 run_keys=run_keys,
                 anchors=anchors,
             )
+            _clear_development_progress(output_dir)
             _write_fairness_result_tables(output_dir, run_keys)
         update_run_manifest(
             output_dir=output_dir,
@@ -1393,14 +1721,14 @@ def run_fairness_development(
     output_dir = Path(str(config["output_dir"]))
     if resume:
         if not output_dir.is_dir():
-            raise ValueError("Attempt 3 resume requires an existing output directory.")
+            raise ValueError("Attempt 4 resume requires an existing output directory.")
     elif output_dir.exists():
-        raise ValueError("Fresh Attempt 3 requires an output directory that does not exist.")
+        raise ValueError("Fresh Attempt 4 requires an output directory that does not exist.")
     lock_path = output_dir.parent / f".{output_dir.name}.fairness_development.lock"
     with SingleWriterLock(lock_path, resume=resume):
         commit = git_commit(Path(__file__).resolve().parents[1])
         config_hash = config_sha256(config)
-        _prepare_attempt3_output(
+        _prepare_attempt4_output(
             output_dir,
             resume=resume,
             overwrite=overwrite,
