@@ -10,6 +10,13 @@ import yaml
 
 from .experiment_protocol import file_sha256
 from .fairness_scalability import SCALABILITY_CANDIDATES
+from .fairness_scalability_runner import (
+    PUBLIC_STATUSES,
+    SCALABILITY_MANIFEST_SCHEMA_VERSION,
+    cumulative_run_plan,
+    stage_new_specs,
+    validate_runtime_config,
+)
 from .fairness_scalability_suite import dry_run_report
 
 
@@ -27,10 +34,10 @@ FROZEN_HASHES = {
 EXPECTED_SEEDS = list(range(160, 170))
 SEALED_SEEDS = set(range(130, 160))
 EXPECTED_RHOS = [0.0, 0.01, 0.025, 0.05, 0.10]
-EXPECTED_PROTOCOL_HASH = "20DB7AEF62E0C0958C2AC99D51D5F3F326639468CAAC8620419FB9639DDB4C91"
+EXPECTED_PROTOCOL_HASH = "E4DBC0AE3C14F5907A3DE88EABC1BEBB33DE0D6D6A9F7C788060E655E9540DA5"
 EXPECTED_CONFIG_HASHES = {
-    "medium_large": "26A3E952C38E07EE0075CE91158992508762FA973634A53849D5F5C2FAF82B5C",
-    "large": "56DDAA42F9ED9F393D0767B05697AE7DD28C6A4D3D04AE5240ED1C443C951107",
+    "medium_large": "3B5366F099A1B9BCB448D46D12E4391FE6FAF20499C837B7C1908930F6256ABE",
+    "large": "5676C3017385134ADAEE31EA716569C17D3158862E146E9ACAF1FC5B1D351AEE",
 }
 
 
@@ -81,14 +88,52 @@ def audit_fairness_scalability(
 
     source = (ROOT / "src/fairness_scalability.py").read_text(encoding="utf-8")
     benders_source = (ROOT / "src/fairness_benders.py").read_text(encoding="utf-8")
+    runner_source = (ROOT / "src/fairness_scalability_runner.py").read_text(encoding="utf-8")
+    suite_source = (ROOT / "src/fairness_scalability_suite.py").read_text(encoding="utf-8")
     _add(checks, "old_ray_not_cached", "self._patterns" in source and "self._rays" not in source)
     _add(checks, "cache_recertifies_current_point", "certify_current_point" in source and "certifier(" in source)
     _add(checks, "call_local_exclusions_removed", "self.model.remove(temporary_exclusions)" in source)
     _add(checks, "objective_bound_certification_preserved", "separation_partition_certifies" in source)
     _add(checks, "benders_success_requires_certification", "separation.robust_feasibility_certified" in benders_source)
+    _add(checks, "formal_runner_schema", SCALABILITY_MANIFEST_SCHEMA_VERSION == 1)
+    _add(
+        checks,
+        "formal_cli_flags",
+        all(flag in suite_source for flag in ('"--config"', '"--stage"', '"--resume"', '"--dry-run"'))
+        and '"--overwrite"' not in suite_source,
+    )
+    _add(checks, "atomic_scalability_manifest", "atomic_write_json(_manifest_path" in runner_source)
+    _add(checks, "atomic_run_manifest", "atomic_write_json(" in runner_source and "_run_manifest_path(output_dir)" in runner_source)
+    _add(checks, "fresh_candidate_solver_call", "frontier_solver(" in runner_source and "solve_fairness_benders(" in runner_source)
+    _add(checks, "post_checkpoint_pipeline", "checkpointed_fairness_post_evaluation(" in runner_source)
+    _add(checks, "shared_baseline_anchor", "baseline_run_key" in runner_source and "anchor_sha256" in runner_source and "anchor_value_hex" in runner_source)
+    _add(checks, "stage_decision_gates", "validate_stage_decision(" in runner_source and "at least 16/20" in runner_source)
+    _add(checks, "strict_resume_identity", "Scalability resume identity mismatch" in runner_source and "Existing output lacks a valid scalability identity manifest" in runner_source)
+    _add(
+        checks,
+        "scientific_status_schema",
+        all(
+            status in PUBLIC_STATUSES
+            for status in (
+                "certified_robust_optimal",
+                "master_optimal_but_robust_uncertified",
+                "time_limit_uncertified",
+                "infeasible",
+                "invalid_post_evaluation",
+                "implementation_error",
+                "interrupted",
+            )
+        ),
+    )
 
     for size, config in configs.items():
         prefix = size
+        try:
+            validate_runtime_config(config)
+            runtime_config_valid = True
+        except (TypeError, ValueError):
+            runtime_config_valid = False
+        _add(checks, f"{prefix}_runtime_config_identity", runtime_config_valid)
         seeds = config.get("development_seeds", [])
         candidates = config.get("scalability_candidates", [])
         settings = config.get("candidate_settings", {})
@@ -112,10 +157,31 @@ def audit_fairness_scalability(
         _add(checks, f"{prefix}_certification_rules", certification.get("incumbent_role") == "candidate_scenario_only" and certification.get("cached_pattern_role") == "candidate_scenario_only" and certification.get("old_ray_reuse_allowed") is False and certification.get("old_cut_reuse_allowed") is False and certification.get("current_point_fixed_scenario_certification_required") is True and certification.get("complete_separation_objective_bound_required_for_robust_feasibility") is True)
         _add(checks, f"{prefix}_s2_gate", config.get("full_grid_gate") == {"correctness_required": True, "minimum_certified_solved_rate": 0.8, "minimum_certified_solved_count": 16, "denominator": 20})
         _add(checks, f"{prefix}_selection_order", config.get("selection_order") == ["mathematical_and_certification_correctness", "certified_solved_count_descending", "par2_ascending", "separation_runtime_ascending", "total_wall_runtime_ascending"])
-        report = dry_run_report(config)
-        _add(checks, f"{prefix}_dry_run_counts", report["s1"]["total_tasks"] == 27 and report["s2_cumulative"]["total_tasks"] == 90 and report["complete_staged_unique_tasks"] == 120)
-        _add(checks, f"{prefix}_scenario_count", report["scenario_count"] == (1831 if size == "medium_large" else 4657))
-        _add(checks, f"{prefix}_no_formal_output", report["output_dir_exists"] is False)
+        report = dry_run_report(config) if runtime_config_valid else None
+        _add(checks, f"{prefix}_dry_run_counts", report is not None and report["s1"]["total_tasks"] == 27 and report["s2_cumulative"]["total_tasks"] == 90 and report["complete_staged_unique_tasks"] == 120)
+        _add(checks, f"{prefix}_scenario_count", report is not None and report["scenario_count"] == (1831 if size == "medium_large" else 4657))
+        _add(checks, f"{prefix}_no_formal_output", report is not None and report["output_dir_exists"] is False)
+        if runtime_config_valid:
+            s1 = cumulative_run_plan(config, "s1")
+            s2 = cumulative_run_plan(config, "s2")
+            full = cumulative_run_plan(config, "full-grid", selected_candidate="single_cut")
+            _add(
+                checks,
+                f"{prefix}_machine_plan_counts",
+                (len(s1), len(s2), len(full)) == (27, 90, 120)
+                and tuple(len(stage_new_specs(plan, stage)) for plan, stage in (
+                    (s1, "s1"), (s2, "s2"), (full, "full-grid")
+                )) == (27, 63, 30),
+            )
+            _add(
+                checks,
+                f"{prefix}_one_baseline_per_seed",
+                all(
+                    len([spec for spec in plan if spec.task_type == "baseline"])
+                    == len({spec.seed for spec in plan})
+                    for plan in (s1, s2, full)
+                ),
+            )
     _add(checks, "configs_equal_except_size", _without_size_fields(configs["medium_large"]) == _without_size_fields(configs["large"]))
     passed = sum(item["passed"] for item in checks)
     return {"status": "passed" if passed == len(checks) else "failed", "passed_checks": passed, "total_checks": len(checks), "checks": checks}

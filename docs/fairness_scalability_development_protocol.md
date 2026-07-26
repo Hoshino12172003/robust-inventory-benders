@@ -65,7 +65,72 @@ sealed and may not be accessed. No formal seed is used by unit tests.
   The complete staged unique plan is therefore 120 tasks per scale.
 
 Formal execution requires a later pre-run audit and explicit authorization.
-The protocol-only CLI refuses non-dry-run invocation.
+The runner is present so that its identity and recovery semantics can be
+audited before authorization; this PR itself does not execute it.
+
+## Stable execution and recovery contract
+
+The cumulative machine plan has 27 S1 tasks, 90 S2 tasks, and 120 full-grid
+tasks. S2 adds exactly 63 tasks (seven baselines and 56 frontier tasks) to S1;
+full-grid adds exactly 30 tasks. A baseline key is unique by scale and seed and is never candidate
+specific. Every frontier record locks the same instance, baseline run key,
+certified conservative `C_anchor`, `float.hex`, and anchor SHA256 for its seed.
+A non-certified baseline fails all frontier tasks for that seed closed.
+
+Each seed/rho/candidate frontier task makes a fresh `solve_fairness_benders`
+call. Persistent models, MIP state, cache patterns, pool solutions, no-good
+constraints, timers, and iteration state live only within that call. No state,
+including patterns or MIP starts, is passed across rho, candidate, or seed.
+
+The scalability manifest schema is version 1. It atomically locks the Git
+commit, input and resolved configuration hashes, protocol and frozen V3
+candidate hashes, scale, cumulative stage, exact run specs, prior decision
+hash, candidate definitions, Gurobi `Threads=1`, `Seed=0`,
+`FeasibilityTol=1e-7`, both 1,800-second algorithm limits, post-evaluation
+scenario/chunk settings, public status enum, PAR-2 basis, and runtime semantics.
+Every algorithm checkpoint locks its run key, candidate, rho, anchor, Git and
+configuration identities. Post-evaluation uses the existing atomic deterministic
+scenario chunks and resumes only matching committed chunks. Corrupt or drifting
+records/checkpoints fail closed. Final CSV files are rebuilt deterministically
+from atomic run records, so a crash after `run.json` but before aggregation is
+recoverable without resolving the task.
+
+The frozen output schema comprises `scalability_development_manifest.json`,
+`run_manifest.json`, `resolved_config.yaml`, `results.csv`, `summary.csv`,
+`audit_log.json`, per-task `status.json` and `run.json`, an atomic whole-
+algorithm checkpoint, and deterministic post-evaluation checkpoint chunks and
+index. An interruption before the whole-algorithm checkpoint is committed
+restarts only that frontier algorithm task; an interruption after it never
+repeats the algorithm. Committed post-evaluation chunks are never resolved
+again. No artifact may be imported from another output directory.
+
+`baseline_time_limit` is explicitly wired to the V3 baseline call,
+`fairness_time_limit` to every fairness candidate call, and generic
+`time_limit` remains the common frozen default. All three are 1,800 seconds,
+so explicit wiring changes no frozen numerical limit. The manifest locks the
+post-evaluation chunk size and solver parameters as well as all runtime fields.
+
+Only `certified_robust_optimal` counts as solved. Public statuses distinguish
+master-optimal but uncertified, time limit, infeasible, invalid post-evaluation,
+implementation error, and interruption (with additional iteration-limit,
+numeric, and unknown uncertified fail-closed states). PAR-2 remains based only on algorithm
+runtime; post-evaluation solver/wall time, aggregation, checkpoint I/O, and total
+wall time are separately reported.
+
+S2 requires a frozen read-only S1 decision with its SHA256. Full-grid requires
+a frozen S2 decision, at least 16/20 certified runs at each scale, correctness
+approval, the exact preregistered ordering, and one separately hashed selected
+candidate file. A missing, drifting, non-unique, or ineligible selection fails
+closed. S1/S2 results cannot be used to alter the batch size or full-grid rho
+set.
+
+Stage advancement uses the same physical output and requires every prior-stage
+run to have an atomic complete record. Already completed S1 keys are verified
+and skipped during S2; they are never solved again. Resume requires exact
+schema, Git, byte and resolved configuration hashes, protocol hash, frozen V3
+candidate hash, scale, solver/post-evaluation settings, and stage-decision
+identity. A pre-existing directory without that identity is rejected, even if
+empty. There is no overwrite path.
 
 ## Frozen selection rule
 
@@ -104,3 +169,22 @@ python -m src.fairness_scalability_suite `
   --config experiments/configs/fairness_scalability_development_large.yaml `
   --dry-run
 ```
+
+After a separate authorization, the same first-run/resume command is used. The
+S1 output directory must either not exist (atomic initialization) or contain a
+matching schema-1 identity (resume):
+
+```powershell
+python -m src.fairness_scalability_suite `
+  --config experiments/configs/fairness_scalability_development_medium_large.yaml `
+  --stage s1 `
+  --resume
+
+python -m src.fairness_scalability_suite `
+  --config experiments/configs/fairness_scalability_development_large.yaml `
+  --stage s1 `
+  --resume
+```
+
+S2 and full-grid use `--decision <frozen-decision.yaml>`. There is deliberately
+no `--overwrite` option.

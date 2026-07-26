@@ -8,7 +8,9 @@ random_seeds: [160, 161, 162, 163, 164, 165, 166, 167, 168, 169]
 s1_seeds: [160, 161, 162]
 reserved_seeds_prohibited: [130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159]
 baseline_method: joint_v1_core_point_strengthened
+candidate_parameters_must_be_fixed_from: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
 candidate_config_sha256: 7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6
+protocol_document: docs/fairness_scalability_development_protocol.md
 
 scalability_candidates:
   - single_cut
@@ -47,6 +49,10 @@ fairness_time_limit: 1800
 time_limit: 1800
 max_iterations: 10000
 tol: 1.0e-4
+gurobi_parameters:
+  Threads: 1
+  Seed: 0
+  FeasibilityTol: 1.0e-7
 gamma_target: 2
 gamma_schedule: [2]
 gamma_continuation_enabled: false
@@ -106,3 +112,15 @@ certification:
   feasibility_tolerance: 1.0e-7
   par2_multiplier: 2
   attempt3_numerical_results_for_selection_allowed: false
+post_evaluation:
+  enabled: true
+  exact_scenarios: true
+  max_scenarios: 5000
+  time_limit_per_scenario: 30.0
+  checkpoint_chunk_size: 25
+  feasibility_tolerance: 1.0e-7
+runtime_semantics:
+  par2_multiplier: 2
+  par2_basis: algorithm_runtime
+  algorithm_runtime_excludes_post_evaluation: true
+  total_wall_runtime_includes: [algorithm, post_evaluation, aggregation, checkpoint_io]

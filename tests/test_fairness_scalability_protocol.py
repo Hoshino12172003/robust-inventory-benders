@@ -34,6 +34,8 @@ def test_dry_run_is_static_and_has_frozen_counts(size: str, scenarios: int) -> N
 def test_cli_refuses_formal_execution() -> None:
     with pytest.raises(SystemExit):
         main(["--config", str(CONFIGS["medium_large"])])
+    with pytest.raises(SystemExit):
+        main(["--config", str(CONFIGS["medium_large"]), "--overwrite"])
 
 
 @pytest.mark.parametrize(
@@ -45,6 +47,8 @@ def test_cli_refuses_formal_execution() -> None:
         lambda c: c["large"]["full_grid_gate"].update(minimum_certified_solved_rate=0.75),
         lambda c: c["large"]["certification"].update(old_cut_reuse_allowed=True),
         lambda c: c["large"]["candidate_settings"]["persistent_certified_cache_batch5"].update(max_cuts_per_iteration=6),
+        lambda c: c["large"]["gurobi_parameters"].update(Threads=2),
+        lambda c: c["medium_large"]["post_evaluation"].update(checkpoint_chunk_size=50),
     ],
 )
 def test_audit_rejects_protocol_drift(mutation) -> None:
