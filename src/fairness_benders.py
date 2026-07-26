@@ -44,11 +44,15 @@ from .precision_policy import (
 )
 from .regional_fairness_pipeline import SingleWriterLock
 from .fairness_post_evaluation import checkpointed_fairness_post_evaluation
+from .fairness_scalability import (
+    FairnessScalabilitySeparator,
+    SINGLE_CUT,
+    validate_scalability_strategy,
+)
 from .robust_regional_fairness import (
     FAIRNESS_FEASIBILITY_TOLERANCE,
     FairnessFeasibilityCut,
     fairness_cost_budget,
-    separate_robust_fairness_feasibility,
 )
 from .status import gurobi_status_name
 
@@ -219,6 +223,24 @@ def solve_fairness_benders(
     patterns_seen: list[list[dict[str, int]]] = []
     status = "iteration_limit"
     certification_active = False
+    scalability_strategy = validate_scalability_strategy(
+        str(cfg.get("fairness_scalability_strategy", SINGLE_CUT))
+    )
+    separator = FairnessScalabilitySeparator(
+        instance,
+        strategy=scalability_strategy,
+        gamma=gamma,
+        feasibility_tolerance=feasibility_tolerance,
+        output_flag=output_flag,
+    )
+    separation_model_build_runtime = 0.0
+    separation_optimize_runtime = 0.0
+    cache_candidate_count = 0
+    cache_hit_count = 0
+    certified_cached_cut_count = 0
+    pool_candidate_count = 0
+    certified_batch_cut_count = 0
+    duplicate_pattern_count = 0
 
     try:
         for iteration in range(1, int(max_iterations) + 1):
@@ -256,33 +278,48 @@ def solve_fairness_benders(
             if remaining <= 0.0:
                 status = "time_limit"
                 break
-            separation = separate_robust_fairness_feasibility(
-                instance,
+            separation = separator.separate(
                 y_values=candidate_y,
                 x_values=candidate_x,
                 t_value=candidate_t,
                 cost_budget_value=budget.budget,
-                gamma=gamma,
                 mip_gap=subproblem_gap,
                 time_limit=remaining,
-                feasibility_tolerance=feasibility_tolerance,
-                output_flag=output_flag,
             )
             separation_runtime += separation.runtime
+            separation_model_build_runtime += separation.separation_model_build_runtime
+            separation_optimize_runtime += separation.separation_optimize_runtime
+            cache_candidate_count += separation.cache_candidate_count
+            cache_hit_count += separation.cache_hit_count
+            certified_cached_cut_count += separation.certified_cached_cut_count
+            pool_candidate_count += separation.pool_candidate_count
+            certified_batch_cut_count += separation.certified_batch_cut_count
+            duplicate_pattern_count += separation.duplicate_pattern_count
             cut_added = False
             duplicate_cut = False
             cut_value_at_candidate: float | None = None
-            if separation.cut is not None:
-                cut_value_at_candidate = separation.cut.value(candidate_y, candidate_x, candidate_t)
-                key = _cut_key(separation.cut)
-                if key not in seen_cuts and cut_value_at_candidate < -float(feasibility_tolerance):
-                    _add_fairness_cut(model, y, x, t, separation.cut, cuts)
+            cuts_added_this_iteration = 0
+            candidate_cuts = separation.cuts or (
+                [separation.cut] if separation.cut is not None else []
+            )
+            cut_values_at_candidate: list[float] = []
+            for candidate_cut in candidate_cuts[: separator.max_cuts]:
+                candidate_value = candidate_cut.value(
+                    candidate_y, candidate_x, candidate_t
+                )
+                cut_values_at_candidate.append(candidate_value)
+                if cut_value_at_candidate is None:
+                    cut_value_at_candidate = candidate_value
+                key = _cut_key(candidate_cut)
+                if key not in seen_cuts and candidate_value < -float(feasibility_tolerance):
+                    _add_fairness_cut(model, y, x, t, candidate_cut, cuts)
                     seen_cuts.add(key)
                     cuts += 1
-                    has_cost_component = separation.cut.ray.cost > feasibility_tolerance
+                    cuts_added_this_iteration += 1
+                    has_cost_component = candidate_cut.ray.cost > feasibility_tolerance
                     has_fairness_component = any(
                         value > feasibility_tolerance
-                        for value in separation.cut.ray.regional_fairness
+                        for value in candidate_cut.ray.regional_fairness
                     )
                     cost_component_cuts += int(has_cost_component)
                     fairness_component_cuts += int(has_fairness_component)
@@ -290,9 +327,9 @@ def solve_fairness_benders(
                         has_cost_component and has_fairness_component
                     )
                     cut_added = True
-                    patterns_seen.append(separation.cut.active_deviations)
+                    patterns_seen.append(candidate_cut.active_deviations)
                 else:
-                    duplicate_cut = key in seen_cuts
+                    duplicate_cut = duplicate_cut or key in seen_cuts
             if separation.robust_feasibility_certified:
                 if upper_bound is None or candidate_t < upper_bound:
                     upper_bound = candidate_t
@@ -345,6 +382,17 @@ def solve_fairness_benders(
                     ),
                     "duplicate_cut": duplicate_cut,
                     "cut_value_at_candidate": cut_value_at_candidate,
+                    "cut_values_at_candidate": cut_values_at_candidate,
+                    "fairness_scalability_strategy": scalability_strategy,
+                    "separation_model_build_runtime": separation.separation_model_build_runtime,
+                    "separation_optimize_runtime": separation.separation_optimize_runtime,
+                    "cache_candidate_count": separation.cache_candidate_count,
+                    "cache_hit_count": separation.cache_hit_count,
+                    "certified_cached_cut_count": separation.certified_cached_cut_count,
+                    "pool_candidate_count": separation.pool_candidate_count,
+                    "certified_batch_cut_count": separation.certified_batch_cut_count,
+                    "duplicate_pattern_count": separation.duplicate_pattern_count,
+                    "cuts_per_iteration": cuts_added_this_iteration,
                     "lower_bound": lower_bound,
                     "upper_bound": upper_bound,
                     "global_gap": gap,
@@ -376,6 +424,7 @@ def solve_fairness_benders(
         else:
             status = "iteration_limit"
     finally:
+        separator.dispose()
         model.dispose()
 
     runtime = time.perf_counter() - start
@@ -415,6 +464,21 @@ def solve_fairness_benders(
             "separation_incumbent_role": "candidate_scenario_only",
             "fixed_scenario_certificate_required_for_cut": True,
             "secondary_cut_enabled": False,
+            "fairness_scalability_strategy": scalability_strategy,
+            "separation_model_build_runtime": separation_model_build_runtime,
+            "separation_optimize_runtime": separation_optimize_runtime,
+            "cache_candidate_count": cache_candidate_count,
+            "cache_hit_count": cache_hit_count,
+            "certified_cached_cut_count": certified_cached_cut_count,
+            "pool_candidate_count": pool_candidate_count,
+            "certified_batch_cut_count": certified_batch_cut_count,
+            "duplicate_pattern_count": duplicate_pattern_count,
+            "cuts_per_iteration": (
+                0.0 if not log else sum(row["cuts_per_iteration"] for row in log) / len(log)
+            ),
+            "total_iterations": len(log),
+            "algorithm_runtime": runtime,
+            "total_wall_runtime": runtime,
         },
     )
 

@@ -125,6 +125,15 @@ class FairnessSeparationResult:
     false_positive_scenarios_excluded: int = 0
     excluded_candidate_evidence: list[dict[str, Any]] = field(default_factory=list)
     cut_certificate_source: str | None = None
+    cuts: list[FairnessFeasibilityCut] = field(default_factory=list)
+    separation_model_build_runtime: float = 0.0
+    separation_optimize_runtime: float = 0.0
+    cache_candidate_count: int = 0
+    cache_hit_count: int = 0
+    certified_cached_cut_count: int = 0
+    pool_candidate_count: int = 0
+    certified_batch_cut_count: int = 0
+    duplicate_pattern_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -1087,6 +1096,18 @@ def separate_robust_fairness_feasibility(
         for r in instance.R
     )
     model.setObjective(objective, GRB.MAXIMIZE)
+    model.update()
+    separation_model_build_runtime = time.perf_counter() - start
+    separation_optimize_runtime = 0.0
+
+    def finish(result: FairnessSeparationResult) -> FairnessSeparationResult:
+        model.dispose()
+        return replace(
+            result,
+            separation_model_build_runtime=separation_model_build_runtime,
+            separation_optimize_runtime=separation_optimize_runtime,
+        )
+
     false_positive_count = 0
     excluded_candidate_evidence: list[dict[str, Any]] = []
     deviation_dimension = instance.num_regions * instance.num_products
@@ -1110,10 +1131,11 @@ def separate_robust_fairness_feasibility(
                 false_positive_scenarios_excluded=false_positive_count,
                 excluded_candidate_evidence=excluded_candidate_evidence,
             )
-            model.dispose()
-            return result
+            return finish(result)
         model.Params.TimeLimit = max(1.0e-3, remaining)
+        optimize_start = time.perf_counter()
         model.optimize()
+        separation_optimize_runtime += time.perf_counter() - optimize_start
         status_code = int(model.Status)
         status = gurobi_status_name(status_code)
         has_incumbent = model.SolCount > 0
@@ -1164,8 +1186,7 @@ def separate_robust_fairness_feasibility(
                 false_positive_scenarios_excluded=false_positive_count,
                 excluded_candidate_evidence=excluded_candidate_evidence,
             )
-            model.dispose()
-            return result
+            return finish(result)
 
         active = [
             (r, j) for r in instance.R for j in instance.J if float(z[r, j].X) >= 0.5
@@ -1211,8 +1232,7 @@ def separate_robust_fairness_feasibility(
                 false_positive_scenarios_excluded=false_positive_count,
                 excluded_candidate_evidence=excluded_candidate_evidence,
             )
-            model.dispose()
-            return result
+            return finish(result)
         fixed = certify_fixed_scenario_fairness_feasibility(
             instance,
             y_values=y_values,
@@ -1260,8 +1280,7 @@ def separate_robust_fairness_feasibility(
                     false_positive_scenarios_excluded=false_positive_count,
                     excluded_candidate_evidence=excluded_candidate_evidence,
                 )
-                model.dispose()
-                return result
+                return finish(result)
             # This candidate is a MILP/McCormick numerical false positive.
             # Excluding a scenario independently proven feasible is safe; the
             # restricted MILP bound can still certify all remaining scenarios.
@@ -1282,8 +1301,7 @@ def separate_robust_fairness_feasibility(
                     false_positive_scenarios_excluded=false_positive_count,
                     excluded_candidate_evidence=excluded_candidate_evidence,
                 )
-                model.dispose()
-                return result
+                return finish(result)
             active_set = set(active)
             model.addConstr(
                 gp.quicksum(z[r, j] for r, j in active)
@@ -1332,8 +1350,7 @@ def separate_robust_fairness_feasibility(
                     excluded_candidate_evidence=excluded_candidate_evidence,
                     cut_certificate_source="fixed_scenario_normalized_farkas_lp",
                 )
-                model.dispose()
-                return result
+                return finish(result)
         result = FairnessSeparationResult(
             status=f"uncertified_{fixed.primal_status}",
             has_incumbent=True,
@@ -1350,8 +1367,7 @@ def separate_robust_fairness_feasibility(
             false_positive_scenarios_excluded=false_positive_count,
             excluded_candidate_evidence=excluded_candidate_evidence,
         )
-        model.dispose()
-        return result
+        return finish(result)
 
 
 def solve_scenario_policy_with_shared_caps(
