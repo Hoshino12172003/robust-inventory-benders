@@ -145,6 +145,7 @@ class FairnessScenarioPolicy:
     fill_rate_gap: float | None
     worst_region_deviation: float | None
     weighted_mean_fill_rate: float | None
+    solver_runtime: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -1406,7 +1407,10 @@ def solve_scenario_policy_with_shared_caps(
     if model.Status != GRB.OPTIMAL:
         model.dispose()
         raise RuntimeError(f"Shared-cap recourse ended with status {status}.")
-    policy = _policy_from_solution(instance, scenario, q, u, e)
+    policy = replace(
+        _policy_from_solution(instance, scenario, q, u, e),
+        solver_runtime=float(model.Runtime),
+    )
     model.dispose()
     return policy
 

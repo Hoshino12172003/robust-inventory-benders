@@ -1,7 +1,8 @@
 experiment_name: regional_fairness_development_large
 protocol_phase: fairness_model_development
 authorization: fairness_model_development_protocol_only
-output_dir: experiments/results_regional_fairness_model/development_large
+output_dir: experiments/results_regional_fairness_model/attempt4_development_large
+execution_attempt: 4
 instance_sizes: [large]
 random_seeds: [120, 121, 122, 123, 124, 125, 126, 127, 128, 129]
 variants: [joint_v1_core_point_strengthened]
@@ -79,6 +80,7 @@ fairness_development:
   feasibility_tolerance: 1.0e-7
   metric_tolerance: 1.0e-9
   post_evaluation_time_limit_per_scenario: 30.0
+  post_evaluation_checkpoint_chunk_size: 25
   zero_demand_policy: not_applicable_excluded
   separation_mode: budgeted_uncertainty_farkas_milp
   separation_requires_objective_bound_for_certification: true
