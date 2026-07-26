@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -23,7 +24,6 @@ from .experiment_protocol import (
     read_json,
     stable_run_key,
     utc_now_iso,
-    write_run_state,
 )
 from .experiment_suite import _base_config
 from .fairness_benders import (
@@ -38,7 +38,22 @@ from .instance import InventoryInstance, generate_instance
 from .regional_fairness_pipeline import SingleWriterLock
 
 
-SCALABILITY_MANIFEST_SCHEMA_VERSION = 1
+SCALABILITY_MANIFEST_SCHEMA_VERSION = 2
+SCALABILITY_EXECUTION_ATTEMPT = 2
+RUN_DIRECTORY_HASH_HEX_LENGTH = 24
+WINDOWS_PORTABLE_PATH_LIMIT = 220
+PRIOR_ATTEMPTS = (
+    {
+        "attempt": 1,
+        "stage": "scalability_s1_medium_large",
+        "git_commit": "22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c",
+        "status": "execution_incomplete",
+        "scientifically_usable_for_candidate_selection": False,
+        "results_reused": False,
+        "seeds_accessed": [160],
+        "failure_class": "windows_path_length_pipeline_defect",
+    },
+)
 STAGES = ("s1", "s2", "full-grid")
 STAGE_ORDER = {name: index for index, name in enumerate(STAGES)}
 S1_SEEDS = [160, 161, 162]
@@ -80,6 +95,114 @@ class ScalabilityDependencies:
     solve_frontier: Callable[..., dict[str, Any]] | None = None
     post_evaluate: Callable[..., tuple[dict[str, Any], dict[str, float]]] | None = None
     configure_solver: Callable[[Mapping[str, Any]], None] | None = None
+
+
+def run_directory_id(run_key: str) -> str:
+    """Return the stable physical directory id for a canonical scientific key."""
+    digest = hashlib.sha256(str(run_key).encode("utf-8")).hexdigest()
+    return f"r_{digest[:RUN_DIRECTORY_HASH_HEX_LENGTH]}"
+
+
+def build_run_directory_mapping(
+    run_keys: list[str] | tuple[str, ...],
+    *,
+    directory_id_factory: Callable[[str], str] = run_directory_id,
+) -> tuple[dict[str, str], dict[str, str]]:
+    forward: dict[str, str] = {}
+    reverse: dict[str, str] = {}
+    for key in run_keys:
+        directory_id = str(directory_id_factory(key))
+        if not directory_id.startswith("r_") or len(directory_id) != 2 + RUN_DIRECTORY_HASH_HEX_LENGTH:
+            raise ValueError("Invalid scalability run directory id.")
+        previous = reverse.get(directory_id)
+        if previous is not None and previous != key:
+            raise ValueError(
+                f"Scalability run-directory hash collision: {directory_id} maps to multiple run keys."
+            )
+        if key in forward and forward[key] != directory_id:
+            raise ValueError(f"Scalability run key has inconsistent directory mapping: {key}")
+        forward[key] = directory_id
+        reverse[directory_id] = key
+    if len(forward) != len(run_keys):
+        raise ValueError("Duplicate canonical scalability run key.")
+    return forward, reverse
+
+
+def _run_directory(output_dir: Path, run_key: str) -> Path:
+    return output_dir / "runs" / run_directory_id(run_key)
+
+
+def _atomic_temporary_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.tmp")
+
+
+def path_portability_report(
+    output_dir: Path,
+    specs: list[ScalabilityRunSpec],
+    *,
+    scenario_count: int,
+    chunk_size: int,
+) -> dict[str, Any]:
+    """Enumerate every frozen output path, including atomic temporary names."""
+    if scenario_count <= 0 or chunk_size <= 0:
+        raise ValueError("Scenario count and checkpoint chunk size must be positive.")
+    forward, reverse = build_run_directory_mapping([spec.run_key for spec in specs])
+    root = output_dir.resolve(strict=False)
+    candidates: list[tuple[str, Path]] = []
+
+    def add(path_type: str, path: Path, *, atomic: bool = False) -> None:
+        candidates.append((path_type, path))
+        if atomic:
+            candidates.append((f"{path_type}_atomic_tmp", _atomic_temporary_path(path)))
+
+    for name, path_type in (
+        ("scalability_development_manifest.json", "scalability_manifest"),
+        ("run_manifest.json", "run_manifest"),
+        ("resolved_config.yaml", "resolved_config"),
+        ("results.csv", "results_csv"),
+        ("summary.csv", "summary_csv"),
+        ("audit_log.json", "audit_log"),
+    ):
+        add(path_type, root / name, atomic=True)
+    for seed in sorted({spec.seed for spec in specs}):
+        add("instance", root / "instances" / f"{seed}.json", atomic=True)
+    total_chunks = math.ceil(scenario_count / chunk_size)
+    last_chunk = max(0, total_chunks - 1)
+    for spec in specs:
+        run_root = root / "runs" / forward[spec.run_key]
+        add("run_json", run_root / "run.json", atomic=True)
+        add("status_json", run_root / "status.json", atomic=True)
+        if spec.task_type == "frontier":
+            add("algorithm_checkpoint", run_root / "algorithm_checkpoint.json", atomic=True)
+            post_root = run_root / "post_evaluation"
+            add(
+                "post_evaluation_chunk",
+                post_root / "checkpoint" / f"chunk_{last_chunk:05d}.json",
+                atomic=True,
+            )
+            add("post_evaluation_index", post_root / "checkpoint" / "index.json", atomic=True)
+            add("post_evaluation_final", post_root / "post_evaluation.json", atomic=True)
+    longest_type, longest_path = max(candidates, key=lambda item: len(str(item[1])))
+    maximum = len(str(longest_path))
+    return {
+        "windows_portable_path_limit": WINDOWS_PORTABLE_PATH_LIMIT,
+        "max_absolute_path_length": maximum,
+        "longest_path_type": longest_type,
+        "longest_path": str(longest_path),
+        "windows_portability_check": maximum <= WINDOWS_PORTABLE_PATH_LIMIT,
+        "run_key_to_directory_id": forward,
+        "directory_id_to_run_key": reverse,
+        "atomic_temporary_paths_checked": True,
+    }
+
+
+def assert_windows_portable_paths(report: Mapping[str, Any]) -> None:
+    if report.get("windows_portability_check") is not True:
+        raise ValueError(
+            "Scalability output path is not Windows-portable: "
+            f"{report.get('max_absolute_path_length')} > {WINDOWS_PORTABLE_PATH_LIMIT} "
+            f"for {report.get('longest_path_type')}: {report.get('longest_path')}"
+        )
 
 
 def _stage_introduced(seed: int) -> str:
@@ -276,6 +399,12 @@ def post_evaluation_identity(config: Mapping[str, Any]) -> dict[str, Any]:
 
 def validate_runtime_config(config: Mapping[str, Any]) -> None:
     """Reject scientific or execution-identity drift before any artifact is made."""
+    if int(config.get("execution_attempt", -1)) != SCALABILITY_EXECUTION_ATTEMPT:
+        raise ValueError("Frozen scalability execution attempt drifted.")
+    if config.get("previous_attempt_results_reused") is not False:
+        raise ValueError("Prior scalability attempt results must not be reused.")
+    if config.get("prior_attempts") != [dict(item) for item in PRIOR_ATTEMPTS]:
+        raise ValueError("Frozen scalability prior-attempt history drifted.")
     if list(config.get("development_seeds", [])) != S2_SEEDS:
         raise ValueError("Frozen scalability development seeds drifted.")
     if list(config.get("s1_seeds", [])) != S1_SEEDS:
@@ -305,6 +434,13 @@ def validate_runtime_config(config: Mapping[str, Any]) -> None:
         raise ValueError("Frozen optimality tolerance drifted.")
     solver_identity(config)
     post_evaluation_identity(config)
+    path_config = dict(config.get("path_portability", {}))
+    if path_config != {
+        "windows_max_absolute_path_length": WINDOWS_PORTABLE_PATH_LIMIT,
+        "run_directory_hash_hex_length": RUN_DIRECTORY_HASH_HEX_LENGTH,
+        "atomic_temporary_suffix": ".tmp",
+    }:
+        raise ValueError("Frozen scalability path-portability settings drifted.")
 
 
 def execution_identity(
@@ -316,6 +452,9 @@ def execution_identity(
     candidate_path = Path(str(config["candidate_parameters_must_be_fixed_from"]))
     return {
         "schema_version": SCALABILITY_MANIFEST_SCHEMA_VERSION,
+        "execution_attempt": SCALABILITY_EXECUTION_ATTEMPT,
+        "prior_attempts": [dict(item) for item in PRIOR_ATTEMPTS],
+        "previous_attempt_results_reused": False,
         "experiment_name": str(config["experiment_name"]),
         "scale": str(config["instance_sizes"][0]),
         "git_commit": commit,
@@ -347,11 +486,33 @@ def _run_manifest_path(output_dir: Path) -> Path:
 
 
 def _record_path(output_dir: Path, run_key: str) -> Path:
-    return output_dir / "runs" / run_key / "run.json"
+    return _run_directory(output_dir, run_key) / "run.json"
+
+
+def _status_path(output_dir: Path, run_key: str) -> Path:
+    return _run_directory(output_dir, run_key) / "status.json"
 
 
 def _algorithm_checkpoint_path(output_dir: Path, run_key: str) -> Path:
-    return output_dir / "runs" / run_key / "algorithm_checkpoint.json"
+    return _run_directory(output_dir, run_key) / "algorithm_checkpoint.json"
+
+
+def _write_scalability_run_state(
+    output_dir: Path,
+    run_key: str,
+    *,
+    state: str,
+    details: Mapping[str, Any] | None = None,
+) -> Path:
+    _run_directory(output_dir, run_key).mkdir(parents=True, exist_ok=True)
+    payload = {
+        "run_key": run_key,
+        "run_directory_id": run_directory_id(run_key),
+        "state": state,
+        "updated_at": utc_now_iso(),
+    }
+    payload.update(dict(details or {}))
+    return atomic_write_json(_status_path(output_dir, run_key), payload)
 
 
 def _read_record(output_dir: Path, run_key: str) -> dict[str, Any] | None:
@@ -363,8 +524,9 @@ def _read_record(output_dir: Path, run_key: str) -> dict[str, Any] | None:
 
 
 def _write_record(output_dir: Path, spec: ScalabilityRunSpec, record: dict[str, Any]) -> None:
+    record = {**record, "run_key": spec.run_key, "run_directory_id": run_directory_id(spec.run_key)}
     atomic_write_json(_record_path(output_dir, spec.run_key), record)
-    write_run_state(
+    _write_scalability_run_state(
         output_dir,
         spec.run_key,
         state=str(record["state"]),
@@ -393,6 +555,9 @@ def _refresh_manifest(
         for record in records
     )
     previous = read_json(_manifest_path(output_dir)) or {}
+    run_key_to_directory_id, directory_id_to_run_key = build_run_directory_mapping(
+        [spec.run_key for spec in specs]
+    )
     payload = {
         **identity,
         "authorized_cumulative_stage": identity["requested_stage"],
@@ -412,6 +577,8 @@ def _refresh_manifest(
             "persistent_certified_cache_batch5": {"persistent": True, "cache": True, "pool": True, "max_cuts": 5},
         },
         "run_specs": [spec.to_dict() for spec in specs],
+        "run_key_to_directory_id": run_key_to_directory_id,
+        "directory_id_to_run_key": directory_id_to_run_key,
         "baseline_anchors": dict(anchors),
         "public_scientific_statuses": list(PUBLIC_STATUSES),
         "resume_count": int(resume_count),
@@ -425,6 +592,7 @@ def _refresh_manifest(
             key: payload[key]
             for key in (
                 "schema_version",
+                "execution_attempt",
                 "experiment_name",
                 "scale",
                 "git_commit",
@@ -443,6 +611,13 @@ def _refresh_manifest(
                 "created_at",
                 "updated_at",
             )
+        }
+        | {
+            "previous_attempt_results_reused": False,
+            "prior_attempts": [dict(item) for item in PRIOR_ATTEMPTS],
+            "run_key_to_directory_id": run_key_to_directory_id,
+            "directory_id_to_run_key": directory_id_to_run_key,
+            "path_portability_report": identity["path_portability_report"],
         },
     )
     return payload
@@ -459,6 +634,7 @@ def _aggregate(output_dir: Path, specs: list[ScalabilityRunSpec]) -> None:
         rows.append(
             {
                 "run_key": spec.run_key,
+                "run_directory_id": run_directory_id(spec.run_key),
                 "introduced_stage": spec.introduced_stage,
                 "task_type": spec.task_type,
                 "scale": spec.scale,
@@ -564,9 +740,15 @@ def _production_post_evaluate(
     spec: ScalabilityRunSpec, payload: dict[str, Any], anchor: dict[str, Any],
     identity: dict[str, Any], resume_count: int,
 ) -> tuple[dict[str, Any], dict[str, float]]:
+    run_root = _run_directory(output_dir, spec.run_key)
+    post_root = run_root / "post_evaluation"
+    checkpoint_root = post_root / "checkpoint"
+    run_root.mkdir(parents=True, exist_ok=True)
+    post_root.mkdir(parents=True, exist_ok=True)
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
     evaluation, timing = checkpointed_fairness_post_evaluation(
         instance,
-        root=output_dir / "runs" / spec.run_key / "post_evaluation",
+        root=post_root,
         run_key=spec.run_key,
         config_sha256_value=identity["resolved_config_sha256"],
         git_commit=identity["git_commit"],
@@ -639,6 +821,17 @@ def run_scalability_stage(
         decision_sha256=decision_sha,
         selected_candidate=selected,
     )
+    scenario_count = int(config["post_evaluation"]["max_scenarios"])
+    # The exact frozen counts are smaller than max_scenarios. Using the cap is
+    # conservative for filename width and does not enumerate or generate an instance.
+    portability_report = path_portability_report(
+        output_dir,
+        specs,
+        scenario_count=scenario_count,
+        chunk_size=int(config["post_evaluation"]["checkpoint_chunk_size"]),
+    )
+    assert_windows_portable_paths(portability_report)
+    identity["path_portability_report"] = portability_report
     existing = read_json(_manifest_path(output_dir))
     if output_dir.exists() and existing is None:
         raise ValueError("Existing output lacks a valid scalability identity manifest.")
@@ -648,10 +841,17 @@ def run_scalability_stage(
             "config_file_sha256", "resolved_config_sha256", "protocol_sha256",
             "candidate_config_sha256", "candidate_definitions", "gurobi_parameters",
             "baseline_time_limit", "fairness_time_limit", "post_evaluation", "par2",
+            "execution_attempt", "prior_attempts", "previous_attempt_results_reused",
         ):
             if existing.get(field) != identity.get(field):
                 raise ValueError(f"Scalability resume identity mismatch: {field}")
         previous_stage = str(existing.get("authorized_cumulative_stage"))
+        prior_mapping = existing.get("run_key_to_directory_id")
+        prior_reverse = existing.get("directory_id_to_run_key")
+        prior_keys = [str(value.get("run_key")) for value in existing.get("run_specs", [])]
+        expected_prior_mapping, expected_prior_reverse = build_run_directory_mapping(prior_keys)
+        if prior_mapping != expected_prior_mapping or prior_reverse != expected_prior_reverse:
+            raise ValueError("Scalability run-directory mapping identity mismatch.")
         if previous_stage == stage:
             for field in (
                 "requested_stage",
@@ -660,6 +860,8 @@ def run_scalability_stage(
             ):
                 if existing.get(field) != identity.get(field):
                     raise ValueError(f"Scalability stage identity mismatch: {field}")
+            if existing.get("path_portability_report") != portability_report:
+                raise ValueError("Scalability path-portability identity mismatch.")
         if STAGE_ORDER[stage] < STAGE_ORDER[previous_stage]:
             raise ValueError("Cannot resume an earlier stage over a later-stage output.")
         if STAGE_ORDER[stage] > STAGE_ORDER[previous_stage] + 1:
@@ -717,7 +919,12 @@ def run_scalability_stage(
                 raise ValueError("Completed baseline identity mismatch.")
             if baseline_record is None:
                 try:
-                    write_run_state(output_dir, baseline_spec.run_key, state="running", details={"phase": "baseline"})
+                    _write_scalability_run_state(
+                        output_dir,
+                        baseline_spec.run_key,
+                        state="running",
+                        details={"phase": "baseline"},
+                    )
                     if failure_injector:
                         failure_injector("before_baseline", baseline_spec)
                     payload = baseline_solver(config, instance, scale=baseline_spec.scale, seed=seed)
@@ -739,7 +946,12 @@ def run_scalability_stage(
                     }
                     _write_record(output_dir, baseline_spec, baseline_record)
                 except KeyboardInterrupt:
-                    write_run_state(output_dir, baseline_spec.run_key, state="interrupted", details={"scientific_status": "interrupted"})
+                    _write_scalability_run_state(
+                        output_dir,
+                        baseline_spec.run_key,
+                        state="interrupted",
+                        details={"scientific_status": "interrupted"},
+                    )
                     raise
                 except Exception as exc:
                     _write_record(output_dir, baseline_spec, {
@@ -825,7 +1037,12 @@ def run_scalability_stage(
                 ):
                     raise ValueError("Algorithm checkpoint identity mismatch.")
                 try:
-                    write_run_state(output_dir, spec.run_key, state="running", details={"phase": "algorithm", "candidate": spec.candidate})
+                    _write_scalability_run_state(
+                        output_dir,
+                        spec.run_key,
+                        state="running",
+                        details={"phase": "algorithm", "candidate": spec.candidate},
+                    )
                     if checkpoint is None:
                         if failure_injector:
                             failure_injector("before_frontier", spec)
@@ -898,7 +1115,7 @@ def run_scalability_stage(
                 except KeyboardInterrupt:
                     committed = _read_record(output_dir, spec.run_key)
                     if committed is None or committed.get("state") != "complete":
-                        write_run_state(
+                        _write_scalability_run_state(
                             output_dir,
                             spec.run_key,
                             state="interrupted",
