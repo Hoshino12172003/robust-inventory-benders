@@ -1,7 +1,22 @@
 experiment_name: fairness_scalability_development_medium_large
 protocol_phase: fairness_scalability_development
 authorization: protocol_only_no_formal_execution
-output_dir: experiments/results_fairness_scalability/development_medium_large
+execution_attempt: 2
+previous_attempt_results_reused: false
+prior_attempts:
+  - attempt: 1
+    stage: scalability_s1_medium_large
+    git_commit: 22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c
+    status: execution_incomplete
+    scientifically_usable_for_candidate_selection: false
+    results_reused: false
+    seeds_accessed: [160]
+    failure_class: windows_path_length_pipeline_defect
+output_dir: experiments/results_fairness_scalability/attempt2_development_medium_large
+path_portability:
+  windows_max_absolute_path_length: 220
+  run_directory_hash_hex_length: 24
+  atomic_temporary_suffix: .tmp
 instance_sizes: [medium_large]
 development_seeds: [160, 161, 162, 163, 164, 165, 166, 167, 168, 169]
 random_seeds: [160, 161, 162, 163, 164, 165, 166, 167, 168, 169]

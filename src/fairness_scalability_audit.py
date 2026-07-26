@@ -13,7 +13,10 @@ from .fairness_scalability import SCALABILITY_CANDIDATES
 from .fairness_scalability_runner import (
     PUBLIC_STATUSES,
     SCALABILITY_MANIFEST_SCHEMA_VERSION,
+    WINDOWS_PORTABLE_PATH_LIMIT,
     cumulative_run_plan,
+    path_portability_report,
+    run_directory_id,
     stage_new_specs,
     validate_runtime_config,
 )
@@ -34,10 +37,10 @@ FROZEN_HASHES = {
 EXPECTED_SEEDS = list(range(160, 170))
 SEALED_SEEDS = set(range(130, 160))
 EXPECTED_RHOS = [0.0, 0.01, 0.025, 0.05, 0.10]
-EXPECTED_PROTOCOL_HASH = "E4DBC0AE3C14F5907A3DE88EABC1BEBB33DE0D6D6A9F7C788060E655E9540DA5"
+EXPECTED_PROTOCOL_HASH = "240A702464FF524AAECEE00F2611EFA7882A64096CFA794C4147189A73C86623"
 EXPECTED_CONFIG_HASHES = {
-    "medium_large": "3B5366F099A1B9BCB448D46D12E4391FE6FAF20499C837B7C1908930F6256ABE",
-    "large": "5676C3017385134ADAEE31EA716569C17D3158862E146E9ACAF1FC5B1D351AEE",
+    "medium_large": "31FED8028653E6F0D7132F61D73157188320ABA5486A0A66FEF950642D958893",
+    "large": "CEB6025CD06DFBE91312827E738A47BF65FFCC2DCDEAFAD56EA5C3B9EE790801",
 }
 
 
@@ -90,12 +93,13 @@ def audit_fairness_scalability(
     benders_source = (ROOT / "src/fairness_benders.py").read_text(encoding="utf-8")
     runner_source = (ROOT / "src/fairness_scalability_runner.py").read_text(encoding="utf-8")
     suite_source = (ROOT / "src/fairness_scalability_suite.py").read_text(encoding="utf-8")
+    post_source = (ROOT / "src/fairness_post_evaluation.py").read_text(encoding="utf-8")
     _add(checks, "old_ray_not_cached", "self._patterns" in source and "self._rays" not in source)
     _add(checks, "cache_recertifies_current_point", "certify_current_point" in source and "certifier(" in source)
     _add(checks, "call_local_exclusions_removed", "self.model.remove(temporary_exclusions)" in source)
     _add(checks, "objective_bound_certification_preserved", "separation_partition_certifies" in source)
     _add(checks, "benders_success_requires_certification", "separation.robust_feasibility_certified" in benders_source)
-    _add(checks, "formal_runner_schema", SCALABILITY_MANIFEST_SCHEMA_VERSION == 1)
+    _add(checks, "formal_runner_schema", SCALABILITY_MANIFEST_SCHEMA_VERSION == 2)
     _add(
         checks,
         "formal_cli_flags",
@@ -109,6 +113,40 @@ def audit_fairness_scalability(
     _add(checks, "shared_baseline_anchor", "baseline_run_key" in runner_source and "anchor_sha256" in runner_source and "anchor_value_hex" in runner_source)
     _add(checks, "stage_decision_gates", "validate_stage_decision(" in runner_source and "at least 16/20" in runner_source)
     _add(checks, "strict_resume_identity", "Scalability resume identity mismatch" in runner_source and "Existing output lacks a valid scalability identity manifest" in runner_source)
+    _add(
+        checks,
+        "short_run_directory_mapping",
+        'hashlib.sha256(str(run_key).encode("utf-8"))' in runner_source
+        and '"run_key_to_directory_id"' in runner_source
+        and '"directory_id_to_run_key"' in runner_source
+        and "run-directory hash collision" in runner_source,
+    )
+    _add(
+        checks,
+        "portable_path_preflight_before_solver",
+        "assert_windows_portable_paths(portability_report)" in runner_source
+        and runner_source.index("assert_windows_portable_paths(portability_report)")
+        < runner_source.index("(deps.configure_solver or _configure_gurobi)"),
+    )
+    _add(
+        checks,
+        "atomic_temp_paths_preflighted",
+        "_atomic_temporary_path(path)" in runner_source
+        and "WINDOWS_PORTABLE_PATH_LIMIT = 220" in runner_source,
+    )
+    _add(
+        checks,
+        "post_checkpoint_directories_explicitly_created",
+        '(root / "checkpoint").mkdir(parents=True, exist_ok=True)' in post_source
+        and 'post_root.mkdir(parents=True, exist_ok=True)' in runner_source,
+    )
+    _add(
+        checks,
+        "attempt1_quarantined_attempt2_fresh",
+        "SCALABILITY_EXECUTION_ATTEMPT = 2" in runner_source
+        and "windows_path_length_pipeline_defect" in runner_source
+        and "previous_attempt_results_reused" in runner_source,
+    )
     _add(
         checks,
         "scientific_status_schema",
@@ -139,6 +177,13 @@ def audit_fairness_scalability(
         settings = config.get("candidate_settings", {})
         certification = config.get("certification", {})
         _add(checks, f"{prefix}_protocol_only", config.get("authorization") == "protocol_only_no_formal_execution")
+        _add(
+            checks,
+            f"{prefix}_attempt2_identity",
+            config.get("execution_attempt") == 2
+            and config.get("previous_attempt_results_reused") is False
+            and config.get("prior_attempts", [{}])[0].get("seeds_accessed") == [160],
+        )
         _add(checks, f"{prefix}_seeds_160_169", seeds == EXPECTED_SEEDS)
         _add(checks, f"{prefix}_random_seeds_match", config.get("random_seeds") == EXPECTED_SEEDS)
         _add(checks, f"{prefix}_sealed_seeds_unused", not (set(seeds) & SEALED_SEEDS))
@@ -181,6 +226,36 @@ def audit_fairness_scalability(
                     == len({spec.seed for spec in plan})
                     for plan in (s1, s2, full)
                 ),
+            )
+            portability = path_portability_report(
+                Path(str(config["output_dir"])),
+                s1,
+                scenario_count=(1831 if size == "medium_large" else 4657),
+                chunk_size=int(config["post_evaluation"]["checkpoint_chunk_size"]),
+            )
+            _add(
+                checks,
+                f"{prefix}_windows_portable_paths",
+                portability["windows_portability_check"] is True
+                and portability["max_absolute_path_length"] <= WINDOWS_PORTABLE_PATH_LIMIT
+                and portability["atomic_temporary_paths_checked"] is True,
+                {
+                    key: portability[key]
+                    for key in (
+                        "windows_portable_path_limit",
+                        "max_absolute_path_length",
+                        "longest_path_type",
+                        "longest_path",
+                        "windows_portability_check",
+                        "atomic_temporary_paths_checked",
+                    )
+                },
+            )
+            _add(
+                checks,
+                f"{prefix}_all_s1_run_directories_short_and_unique",
+                len({run_directory_id(spec.run_key) for spec in s1}) == 27
+                and all(len(run_directory_id(spec.run_key)) == 26 for spec in s1),
             )
     _add(checks, "configs_equal_except_size", _without_size_fields(configs["medium_large"]) == _without_size_fields(configs["large"]))
     passed = sum(item["passed"] for item in checks)

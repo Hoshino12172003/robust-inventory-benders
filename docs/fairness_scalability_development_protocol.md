@@ -2,6 +2,25 @@
 
 Status: preregistered protocol only. Formal execution is not authorized by this PR.
 
+## Attempt 1 quarantine and Attempt 2 identity
+
+The first Medium-large S1 execution used commit
+`22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c`. It accessed seed 160 and stopped
+after five atomic run records when the first post-evaluation chunk for
+`persistent_certified_cache_batch5` could not create the 264-character Windows
+temporary path. This is a physical path-length pipeline defect, not an
+algorithm or mathematical result. Attempt 1 is `execution_incomplete`, is not
+scientifically usable for candidate selection, and none of its instance,
+baseline, anchor, run, checkpoint, result, summary, or manifest artifacts may
+be resumed, imported, or reused.
+
+The next execution identity is `execution_attempt: 2`. Both frozen configs use
+new physical output directories and record the structured Attempt 1 history.
+Attempt 2 must start with a nonexistent output directory under the merged
+hotfix commit. Resume is permitted only for the same schema-2 Attempt 2
+identity. The scientific run plan, candidates, seeds, rho values, model,
+certification, time limits, and selection rules are unchanged.
+
 ## Scope and frozen scientific model
 
 This stage investigates engineering scalability of the already frozen robust
@@ -82,7 +101,7 @@ call. Persistent models, MIP state, cache patterns, pool solutions, no-good
 constraints, timers, and iteration state live only within that call. No state,
 including patterns or MIP starts, is passed across rho, candidate, or seed.
 
-The scalability manifest schema is version 1. It atomically locks the Git
+The scalability manifest schema is version 2. It atomically locks the Git
 commit, input and resolved configuration hashes, protocol and frozen V3
 candidate hashes, scale, cumulative stage, exact run specs, prior decision
 hash, candidate definitions, Gurobi `Threads=1`, `Seed=0`,
@@ -91,7 +110,8 @@ scenario/chunk settings, public status enum, PAR-2 basis, and runtime semantics.
 Every algorithm checkpoint locks its run key, candidate, rho, anchor, Git and
 configuration identities. Post-evaluation uses the existing atomic deterministic
 scenario chunks and resumes only matching committed chunks. Corrupt or drifting
-records/checkpoints fail closed. Final CSV files are rebuilt deterministically
+records/checkpoints fail closed. Attempt 2 rejects every schema-1 directory and
+never searches outside its own output root. Final CSV files are rebuilt deterministically
 from atomic run records, so a crash after `run.json` but before aggregation is
 recoverable without resolving the task.
 
@@ -103,6 +123,35 @@ index. An interruption before the whole-algorithm checkpoint is committed
 restarts only that frontier algorithm task; an interruption after it never
 repeats the algorithm. Committed post-evaluation chunks are never resolved
 again. No artifact may be imported from another output directory.
+
+### Windows-portable physical layout
+
+The canonical scientific `run_key` remains unchanged and is written to every
+run/status record, both manifests, `results.csv`, and all checkpoint identities.
+It is not used as a physical directory name. The physical id is frozen as:
+
+```text
+run_directory_id = "r_" + sha256(run_key UTF-8).hexdigest()[0:24]
+```
+
+Both manifests store `run_key_to_directory_id` and
+`directory_id_to_run_key`. All ids are calculated before output initialization;
+any hash collision fails closed. Resume locates artifacts only through the
+validated full-key mapping and never infers scientific identity from a
+directory name. Baseline records, status, algorithm checkpoints,
+post-evaluation chunks, and final aggregation all use this same mapping.
+
+Before creating the output directory, generating an instance, or configuring
+Gurobi, the runner expands every run path and atomic temporary path, including
+`run.json`, `status.json`, the algorithm checkpoint, the last possible
+post-evaluation chunk and `.tmp`, checkpoint index, final post-evaluation file,
+manifest, audit log, results, and summary. The frozen portable absolute-path
+limit is 220 characters. A longer path fails closed. Dry-run reports the
+maximum absolute length, longest path type and portability verdict without
+creating any directory, instance, or solver model. The run,
+`post_evaluation`, and `checkpoint` directories are explicitly created before
+checkpoint writes; directory creation is not used as a substitute for the
+short mapping.
 
 `baseline_time_limit` is explicitly wired to the V3 baseline call,
 `fairness_time_limit` to every fairness candidate call, and generic
@@ -171,8 +220,9 @@ python -m src.fairness_scalability_suite `
 ```
 
 After a separate authorization, the same first-run/resume command is used. The
-S1 output directory must either not exist (atomic initialization) or contain a
-matching schema-1 identity (resume):
+Attempt 2 S1 output directory must either not exist (atomic initialization) or
+contain a matching schema-2 identity and exact bidirectional run-directory
+mapping (resume):
 
 ```powershell
 python -m src.fairness_scalability_suite `

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -14,7 +15,10 @@ from src.fairness_scalability_runner import (
     SCALABILITY_MANIFEST_SCHEMA_VERSION,
     ScalabilityDependencies,
     ScalabilityRunSpec,
+    build_run_directory_mapping,
     cumulative_run_plan,
+    path_portability_report,
+    run_directory_id,
     run_scalability_stage,
     stage_new_specs,
     validate_stage_decision,
@@ -24,6 +28,10 @@ from tests.test_robust_regional_fairness import tiny_instance
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "experiments/configs/fairness_scalability_development_medium_large.yaml"
+
+
+def run_artifact(output: Path, run_key: str, name: str) -> Path:
+    return output / "runs" / run_directory_id(run_key) / name
 
 
 def load_config() -> dict:
@@ -171,7 +179,7 @@ def test_shared_baseline_anchor_candidate_isolation_and_outputs(monkeypatch, tmp
     assert len(calls["baseline"]) == 1
     assert len(calls["frontier"]) == 2
     assert len({id(call[3]) for call in calls["frontier"]}) == 2
-    records = [json.loads((output / "runs" / spec.run_key / "run.json").read_text(encoding="utf-8")) for spec in specs]
+    records = [json.loads(run_artifact(output, spec.run_key, "run.json").read_text(encoding="utf-8")) for spec in specs]
     frontier = [record for record in records if record["task_type"] == "frontier"]
     assert len({record["baseline_run_key"] for record in frontier}) == 1
     assert len({record["anchor_sha256"] for record in frontier}) == 1
@@ -188,6 +196,14 @@ def test_shared_baseline_anchor_candidate_isolation_and_outputs(monkeypatch, tmp
     assert calls["solver_settings"] == [{"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7}]
     manifest = json.loads((output / "scalability_development_manifest.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == SCALABILITY_MANIFEST_SCHEMA_VERSION
+    assert manifest["execution_attempt"] == 2
+    assert manifest["previous_attempt_results_reused"] is False
+    assert manifest["run_key_to_directory_id"] == {
+        spec.run_key: run_directory_id(spec.run_key) for spec in specs
+    }
+    assert manifest["directory_id_to_run_key"] == {
+        run_directory_id(spec.run_key): spec.run_key for spec in specs
+    }
     assert manifest["completed_run_count"] == 3
     assert manifest["solved_run_count"] == 3
     assert manifest["post_evaluation"]["checkpoint_chunk_size"] == 25
@@ -197,7 +213,7 @@ def test_shared_baseline_anchor_candidate_isolation_and_outputs(monkeypatch, tmp
     assert (output / "audit_log.json").is_file()
     for record, spec in zip(records, specs):
         status = json.loads(
-            (output / "runs" / spec.run_key / "status.json").read_text(encoding="utf-8")
+            run_artifact(output, spec.run_key, "status.json").read_text(encoding="utf-8")
         )
         assert status["state"] == record["state"] == "complete"
         assert status["scientific_status"] == record["scientific_status"]
@@ -206,6 +222,8 @@ def test_shared_baseline_anchor_candidate_isolation_and_outputs(monkeypatch, tmp
     assert len(result_rows) == 3
     assert len({row["run_key"] for row in result_rows}) == 3
     assert {row["scientific_status"] for row in result_rows} == {"certified_robust_optimal"}
+    assert all(record["run_directory_id"] == run_directory_id(record["run_key"]) for record in records)
+    assert not any((output / "runs" / spec.run_key).exists() for spec in specs)
 
 
 def test_interrupt_after_atomic_run_and_resume_is_idempotent(monkeypatch, tmp_path: Path) -> None:
@@ -243,8 +261,8 @@ def test_resume_identity_and_corrupt_checkpoint_fail_closed(monkeypatch, tmp_pat
 
     output = Path(config["output_dir"])
     target = specs[1]
-    (output / "runs" / target.run_key / "run.json").unlink()
-    checkpoint = output / "runs" / target.run_key / "algorithm_checkpoint.json"
+    run_artifact(output, target.run_key, "run.json").unlink()
+    checkpoint = run_artifact(output, target.run_key, "algorithm_checkpoint.json")
     checkpoint.write_text("{broken", encoding="utf-8")
     with pytest.raises(ValueError, match="checkpoint is corrupt"):
         run_scalability_stage(config, config_path=config_path, stage="s1", resume=True, dependencies=deps)
@@ -329,8 +347,125 @@ def test_uncertified_baseline_blocks_every_frontier_without_solving(monkeypatch,
     run_scalability_stage(config, config_path=config_path, stage="s1", resume=True, dependencies=deps)
     assert calls["frontier"] == []
     records = [
-        json.loads((Path(config["output_dir"]) / "runs" / spec.run_key / "run.json").read_text(encoding="utf-8"))
+        json.loads(run_artifact(Path(config["output_dir"]), spec.run_key, "run.json").read_text(encoding="utf-8"))
         for spec in specs if spec.task_type == "frontier"
     ]
     assert {record["algorithm_status"] for record in records} == {"baseline_uncertified"}
     assert {record["scientific_status"] for record in records} == {"implementation_error"}
+
+
+def test_run_directory_id_is_stable_and_separator_independent() -> None:
+    key = "scale=medium_large/task=frontier/seed=160/rho=0/candidate=batch5"
+    expected = "r_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
+    assert run_directory_id(key) == expected
+    assert run_directory_id(key) == run_directory_id(str(key))
+    assert len(run_directory_id(key)) == 26
+
+
+def test_run_directory_collision_fails_closed() -> None:
+    collision = "r_" + "0" * 24
+    with pytest.raises(ValueError, match="collision"):
+        build_run_directory_mapping(
+            ["canonical-a", "canonical-b"],
+            directory_id_factory=lambda _key: collision,
+        )
+
+
+def test_windows_259_character_regression_and_atomic_tmp_are_preflighted(tmp_path: Path) -> None:
+    config = load_config()
+    specs = cumulative_run_plan(config, "s1")
+    legacy_run_key = max((spec.run_key for spec in specs), key=len)
+    suffix = "/" + legacy_run_key + "/chunk_00000.json"
+    padding = 259 - len("C:/") - len(suffix)
+    legacy = "C:/" + "x" * padding + suffix
+    assert len(legacy) == 259
+    assert len(legacy.replace("chunk_00000.json", ".chunk_00000.json.tmp")) == 264
+
+    report = path_portability_report(
+        tmp_path / "new-output",
+        specs,
+        scenario_count=1831,
+        chunk_size=25,
+    )
+    assert report["atomic_temporary_paths_checked"] is True
+    assert report["windows_portability_check"] is True
+    assert report["max_absolute_path_length"] <= 220
+    assert set(report["run_key_to_directory_id"]) == {spec.run_key for spec in specs}
+
+
+def test_all_twenty_seven_s1_specs_use_short_unique_directories() -> None:
+    specs = cumulative_run_plan(load_config(), "s1")
+    forward, reverse = build_run_directory_mapping([spec.run_key for spec in specs])
+    assert len(specs) == len(forward) == len(reverse) == 27
+    assert max(map(len, forward.values())) == 26
+    assert all(reverse[directory_id] == run_key for run_key, directory_id in forward.items())
+
+
+def test_attempt_one_schema_and_output_are_rejected_without_solver_call(
+    monkeypatch, tmp_path: Path
+) -> None:
+    config, config_path, _specs, calls, deps = prepare_synthetic_run(monkeypatch, tmp_path)
+    output = Path(config["output_dir"])
+    output.mkdir(parents=True)
+    atomic_write_json(
+        output / "scalability_development_manifest.json",
+        {
+            "schema_version": 1,
+            "execution_attempt": 1,
+            "git_commit": "22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c",
+        },
+    )
+    with pytest.raises(ValueError, match="schema_version"):
+        run_scalability_stage(
+            config,
+            config_path=config_path,
+            stage="s1",
+            resume=True,
+            dependencies=deps,
+        )
+    assert calls["generate"] == calls["baseline"] == calls["frontier"] == []
+
+
+def test_attempt_two_identity_does_not_reference_external_attempt_artifacts(
+    monkeypatch, tmp_path: Path
+) -> None:
+    config, config_path, specs, _calls, deps = prepare_synthetic_run(monkeypatch, tmp_path)
+    run_scalability_stage(config, config_path=config_path, stage="s1", resume=True, dependencies=deps)
+    output = Path(config["output_dir"])
+    manifest = json.loads((output / "scalability_development_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["execution_attempt"] == 2
+    assert manifest["previous_attempt_results_reused"] is False
+    assert manifest["prior_attempts"][0]["seeds_accessed"] == [160]
+    assert all(run_artifact(output, spec.run_key, "run.json").is_file() for spec in specs)
+
+
+def test_overlong_output_fails_before_instance_or_solver(
+    monkeypatch, tmp_path: Path
+) -> None:
+    config, config_path, _specs, calls, deps = prepare_synthetic_run(monkeypatch, tmp_path)
+    config["output_dir"] = str(tmp_path / ("overlong_" + "x" * 180))
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="Windows-portable"):
+        run_scalability_stage(
+            config,
+            config_path=config_path,
+            stage="s1",
+            resume=True,
+            dependencies=deps,
+        )
+    assert calls["generate"] == calls["baseline"] == calls["frontier"] == []
+    assert calls["solver_settings"] == []
+    assert not Path(config["output_dir"]).exists()
+
+
+def test_run_directory_mapping_is_independent_of_host_path_separator() -> None:
+    specs = cumulative_run_plan(load_config(), "s1")
+    keys = [spec.run_key for spec in specs]
+    assert all("/" not in key and "\\" not in key for key in keys)
+    windows_root = Path("C:/portable-root")
+    posix_style_root = Path("/portable-root")
+    assert path_portability_report(
+        windows_root, specs, scenario_count=1831, chunk_size=25
+    )["run_key_to_directory_id"] == path_portability_report(
+        posix_style_root, specs, scenario_count=1831, chunk_size=25
+    )["run_key_to_directory_id"]

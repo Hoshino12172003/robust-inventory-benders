@@ -10,6 +10,8 @@ import yaml
 
 from .fairness_scalability_runner import (
     STAGES,
+    cumulative_run_plan,
+    path_portability_report,
     run_scalability_stage,
     validate_runtime_config,
 )
@@ -44,6 +46,28 @@ def dry_run_report(config: dict[str, Any], stage: str = "s1") -> dict[str, Any]:
     remaining_rhos = [rho for rho in full_rhos if rho not in s2_rhos]
     stage_counts = {"s1": 27, "s2": 90, "full-grid": 120}
     new_counts = {"s1": 27, "s2": 63, "full-grid": 30}
+    specs = cumulative_run_plan(
+        config,
+        stage,
+        selected_candidate=("single_cut" if stage == "full-grid" else None),
+    )
+    portability = path_portability_report(
+        Path(str(config["output_dir"])),
+        specs,
+        scenario_count=scenario_count_for_size(size, int(config["gamma_target"])),
+        chunk_size=int(config["post_evaluation"]["checkpoint_chunk_size"]),
+    )
+    portability_summary = {
+        key: portability[key]
+        for key in (
+            "windows_portable_path_limit",
+            "max_absolute_path_length",
+            "longest_path_type",
+            "longest_path",
+            "windows_portability_check",
+            "atomic_temporary_paths_checked",
+        )
+    }
     return {
         "experiment_name": config["experiment_name"],
         "authorization": config["authorization"],
@@ -72,6 +96,10 @@ def dry_run_report(config: dict[str, Any], stage: str = "s1") -> dict[str, Any]:
         "output_dir_exists": Path(config["output_dir"]).exists(),
         "instances_generated": False,
         "solver_called": False,
+        "path_portability": portability_summary,
+        "max_absolute_path_length": portability["max_absolute_path_length"],
+        "longest_path_type": portability["longest_path_type"],
+        "windows_portability_check": portability["windows_portability_check"],
     }
 
 

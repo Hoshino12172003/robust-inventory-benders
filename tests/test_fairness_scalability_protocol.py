@@ -29,6 +29,9 @@ def test_dry_run_is_static_and_has_frozen_counts(size: str, scenarios: int) -> N
     assert report["s2_cumulative"]["total_tasks"] == 90
     assert report["complete_staged_unique_tasks"] == 120
     assert report["output_dir_exists"] is False
+    assert report["windows_portability_check"] is True
+    assert report["max_absolute_path_length"] <= 220
+    assert report["path_portability"]["atomic_temporary_paths_checked"] is True
 
 
 def test_cli_refuses_formal_execution() -> None:
@@ -49,6 +52,9 @@ def test_cli_refuses_formal_execution() -> None:
         lambda c: c["large"]["candidate_settings"]["persistent_certified_cache_batch5"].update(max_cuts_per_iteration=6),
         lambda c: c["large"]["gurobi_parameters"].update(Threads=2),
         lambda c: c["medium_large"]["post_evaluation"].update(checkpoint_chunk_size=50),
+        lambda c: c["medium_large"].update(execution_attempt=1),
+        lambda c: c["large"].update(previous_attempt_results_reused=True),
+        lambda c: c["large"]["path_portability"].update(windows_max_absolute_path_length=260),
     ],
 )
 def test_audit_rejects_protocol_drift(mutation) -> None:

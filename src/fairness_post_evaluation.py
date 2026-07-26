@@ -401,7 +401,11 @@ def checkpointed_fairness_post_evaluation(
         "chunk_size": int(chunk_size),
         "per_scenario_time_limit": float(per_scenario_time_limit),
     }
+    # Create every checkpoint layer explicitly. Atomic writers still create
+    # parents defensively, but the recovery contract must not depend on that
+    # side effect and path preflight covers the temporary names separately.
     root.mkdir(parents=True, exist_ok=True)
+    (root / "checkpoint").mkdir(parents=True, exist_ok=True)
     final_path = _output_path(root)
     checkpoints = _load_checkpoints(
         root,
