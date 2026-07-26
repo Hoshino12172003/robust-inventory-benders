@@ -175,9 +175,13 @@ commit `98c615767032bb6c57f28476bebc0392037fbf34` and seeds 120--129 and was
 invalidated by the post-evaluation tolerance-boundary defect.
 
 Attempt 3 used commit
-`2becc7a2b2d42f783e72602567f4aa6fa72e0683`. Medium-large completed. Large
-stopped with 33 complete run records; seed 125, rho 0.025 was the incomplete
-34th task. The absence of a post-evaluation global wall-clock envelope,
+`2becc7a2b2d42f783e72602567f4aa6fa72e0683`. Its final read-only manifests are
+schema 3 with `execution_attempt: 3`. Medium-large completed 60/60 tasks with
+57 recorded as solved; Large completed 60/60 tasks with 28 recorded as solved.
+Both have zero pending tasks and `previous_attempt_results_reused: false`.
+These counts are provenance only and cannot be used to change rho, parameters,
+thresholds, the success definition, or any selection rule. The absence of a
+post-evaluation global wall-clock envelope,
 checkpoint, phase heartbeat, safe fine-grained resume, and end-to-end timing
 evidence is a runtime-pipeline and timing-protocol blocker, not evidence of a
 mathematical-model error. Attempts 1--3 are scientifically invalid, are not
@@ -192,8 +196,10 @@ Protocol SHA256 history is retained rather than overwritten:
   `04D4A833A5FE018FA3120B1ECA7DDAC6F2BEF216DE4D27EAB806280B2261F16E`;
 - Attempt 3 protocol:
   `A3B13526778DE8049A03F47B01825474ABC562CB9E67F2355717435D3754FA5F`;
-- Attempt 4 checkpoint/runtime revision: frozen by
-  `src.fairness_development_audit` and reported in the protocol PR.
+- initial Attempt 4 checkpoint/runtime revision:
+  `BC2158541263D544CE2A17106BD70A5525B00CB1A5A2F6BF2D0404254D1144ED`;
+- Attempt 3 final-completion evidence revision: frozen by
+  `src.fairness_development_audit` and reported in the updated protocol PR.
 
 A single-writer lock protects each scale output directory. Every run record
 and both manifests are atomically replaced. `--resume` validates config, Git,

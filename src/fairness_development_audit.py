@@ -39,7 +39,7 @@ EXPECTED_CANDIDATE_HASH = FROZEN_HASHES[
     "experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml"
 ]
 EXPECTED_ATTEMPT4_PROTOCOL_HASH = (
-    "BC2158541263D544CE2A17106BD70A5525B00CB1A5A2F6BF2D0404254D1144ED"
+    "7E2CE452531AEB86823DE3C90590352BD57F7C274EC6CBF88E63ED9F9BC093B8"
 )
 
 
@@ -345,12 +345,27 @@ def audit_fairness_development(
         and "PREVIOUS_ATTEMPT_SEEDS = list(range(120, 130))" in runner
         and '"prior_attempts": PRIOR_ATTEMPTS' in runner,
     )
+    attempt3_incident_path = (
+        ROOT / "docs/audits/fairness_development_attempt3_runtime_incident.md"
+    )
+    attempt3_incident_text = (
+        attempt3_incident_path.read_text(encoding="utf-8")
+        if attempt3_incident_path.exists()
+        else ""
+    )
     _check(
         checks,
         "attempt3_runtime_incident_frozen",
         "runtime_pipeline_and_timing_protocol_blocker" in runner
         and "2becc7a2b2d42f783e72602567f4aa6fa72e0683" in runner
-        and (ROOT / "docs/audits/fairness_development_attempt3_runtime_incident.md").exists(),
+        and '"completed_count": 60' in runner
+        and '"solved_count": 57' in runner
+        and '"solved_count": 28' in runner
+        and '"scientific_selection_allowed": False' in runner
+        and "| Medium-large | 60 | 0 | 57 | 60 | 60 |"
+        in attempt3_incident_text
+        and "| Large | 60 | 0 | 28 | 60 | 60 |" in attempt3_incident_text
+        and "must not be used to adjust parameters" in attempt3_incident_text,
     )
     _check(
         checks,

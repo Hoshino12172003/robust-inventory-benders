@@ -541,13 +541,16 @@ PRIOR_ATTEMPTS = [
         "scientifically_valid": False,
         "results_reused": False,
         "invalidation_reason": "runtime_pipeline_and_timing_protocol_blocker",
-        "medium_large_status": "completed_but_scientifically_frozen_invalid",
+        "scientific_selection_allowed": False,
+        "medium_large_status": {
+            "completed_count": 60,
+            "pending_count": 0,
+            "solved_count": 57,
+        },
         "large_status": {
-            "complete_run_count": 33,
-            "incomplete_run_key": (
-                "regional_fairness_development_large__rho__0_025__large__"
-                "seed_125__robust_regional_fairness"
-            ),
+            "completed_count": 60,
+            "pending_count": 0,
+            "solved_count": 28,
         },
     },
 ]

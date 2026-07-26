@@ -363,20 +363,57 @@ def test_attempt4_fresh_output_identity_and_resume_are_strict(tmp_path: Path) ->
     _prepare_identity(output, config, resume=True)
 
 
+def test_attempt3_final_history_is_complete_but_scientifically_invalid() -> None:
+    attempt3 = next(item for item in PRIOR_ATTEMPTS if item["attempt"] == 3)
+    assert attempt3["git_commit"] == "2becc7a2b2d42f783e72602567f4aa6fa72e0683"
+    assert attempt3["scientifically_valid"] is False
+    assert attempt3["results_reused"] is False
+    assert attempt3["scientific_selection_allowed"] is False
+    assert attempt3["invalidation_reason"] == (
+        "runtime_pipeline_and_timing_protocol_blocker"
+    )
+    assert attempt3["medium_large_status"] == {
+        "completed_count": 60,
+        "pending_count": 0,
+        "solved_count": 57,
+    }
+    assert attempt3["large_status"] == {
+        "completed_count": 60,
+        "pending_count": 0,
+        "solved_count": 28,
+    }
+
+
 def test_attempt4_rejects_existing_empty_or_prior_attempt_directory(tmp_path: Path) -> None:
     config = load_configs()["regional_fairness_development_medium_large"]
     empty = tmp_path / "empty"
     empty.mkdir()
     with pytest.raises(ValueError, match="does not exist"):
         _prepare_identity(empty, config)
-    for name in ("attempt1", "attempt2", "attempt3"):
+    for name in ("rf", "rf2", "rf3"):
         prior = tmp_path / name
         prior.mkdir()
+        attempt = {"rf": 1, "rf2": 2, "rf3": 3}[name]
         (prior / "fairness_development_manifest.json").write_text(
-            json.dumps({"schema_version": 3, "execution_attempt": int(name[-1])})
+            json.dumps({"schema_version": 3, "execution_attempt": attempt})
         )
         with pytest.raises(ValueError, match="identity mismatch"):
             _prepare_identity(prior, config, resume=True)
+
+
+def test_attempt4_never_imports_prior_attempt_artifacts(tmp_path: Path) -> None:
+    config = load_configs()["regional_fairness_development_medium_large"]
+    output = tmp_path / "rf4"
+    _prepare_identity(output, config)
+    assert not (output / "runs").exists()
+    assert not (output / "summary.csv").exists()
+    assert not (output / "results.csv").exists()
+    manifest = json.loads(
+        (output / "fairness_development_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["baseline_anchors"] == {}
+    assert manifest["tasks"] == []
+    assert manifest["previous_attempt_results_reused"] is False
 
 
 def test_attempt4_resume_rejects_identity_drift_and_external_run(tmp_path: Path) -> None:
