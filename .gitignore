@@ -12,4 +12,5 @@ final_evaluation_joint_v1_analysis.zip
 experiments/results_cut_v3/
 experiments/results_fairness_diagnostic/
 experiments/results_regional_fairness_model/
+experiments/results_fairness_scalability/
 .idea/

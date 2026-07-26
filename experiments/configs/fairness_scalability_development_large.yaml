@@ -1,0 +1,126 @@
+experiment_name: fairness_scalability_development_large
+protocol_phase: fairness_scalability_development
+authorization: protocol_only_no_formal_execution
+output_dir: experiments/results_fairness_scalability/development_large
+instance_sizes: [large]
+development_seeds: [160, 161, 162, 163, 164, 165, 166, 167, 168, 169]
+random_seeds: [160, 161, 162, 163, 164, 165, 166, 167, 168, 169]
+s1_seeds: [160, 161, 162]
+reserved_seeds_prohibited: [130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159]
+baseline_method: joint_v1_core_point_strengthened
+candidate_parameters_must_be_fixed_from: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+candidate_config_sha256: 7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6
+protocol_document: docs/fairness_scalability_development_protocol.md
+
+scalability_candidates:
+  - single_cut
+  - persistent_separation
+  - persistent_certified_cache
+  - persistent_certified_cache_batch5
+candidate_settings:
+  single_cut:
+    fairness_scalability_strategy: single_cut
+    max_cuts_per_iteration: 1
+    persistent_separation_enabled: false
+    certified_scenario_cache_enabled: false
+    separation_solution_pool_enabled: false
+  persistent_separation:
+    fairness_scalability_strategy: persistent_separation
+    max_cuts_per_iteration: 1
+    persistent_separation_enabled: true
+    certified_scenario_cache_enabled: false
+    separation_solution_pool_enabled: false
+  persistent_certified_cache:
+    fairness_scalability_strategy: persistent_certified_cache
+    max_cuts_per_iteration: 1
+    persistent_separation_enabled: true
+    certified_scenario_cache_enabled: true
+    separation_solution_pool_enabled: false
+  persistent_certified_cache_batch5:
+    fairness_scalability_strategy: persistent_certified_cache_batch5
+    max_cuts_per_iteration: 5
+    persistent_separation_enabled: true
+    certified_scenario_cache_enabled: true
+    separation_solution_pool_enabled: true
+    maximum_certified_cuts_per_iteration: 5
+
+baseline_time_limit: 1800
+fairness_time_limit: 1800
+time_limit: 1800
+max_iterations: 20000
+tol: 1.0e-4
+gurobi_parameters:
+  Threads: 1
+  Seed: 0
+  FeasibilityTol: 1.0e-7
+gamma_target: 2
+gamma_schedule: [2]
+gamma_continuation_enabled: false
+exact_scenarios: true
+max_scenarios: 5000
+rho_grid: [0.00, 0.01, 0.025, 0.05, 0.10]
+s1_rho_grid: [0.00, 0.01]
+s2_rho_grid: [0.00, 0.01]
+full_grid_gate:
+  correctness_required: true
+  minimum_certified_solved_rate: 0.80
+  minimum_certified_solved_count: 16
+  denominator: 20
+selection_order:
+  - mathematical_and_certification_correctness
+  - certified_solved_count_descending
+  - par2_ascending
+  - separation_runtime_ascending
+  - total_wall_runtime_ascending
+
+precision_policy: joint_error_budget
+master_error_budget_ratio: 0.25
+subproblem_error_budget_ratio: 0.50
+master_gap_max: 0.02
+master_gap_min: 0.0001
+subproblem_gap_max: 0.05
+subproblem_gap_min: 0.0001
+fixed_master_mip_gap: 0.02
+fixed_subproblem_mip_gap: 0.05
+monotone_precision_tightening: true
+cut_strengthening_policy: core_point
+core_point_update_weight: 0.50
+core_point_min_distance: 1.0e-9
+core_point_stage1_time_limit: 2.0
+core_point_stage2_time_limit: 2.0
+core_point_min_remaining_time: 10.0
+core_point_min_global_gap: 5.0e-4
+core_point_current_abs_tol: 1.0e-7
+core_point_current_rel_tol: 1.0e-8
+core_point_min_normalized_improvement: 1.0e-7
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+
+certification:
+  success_status: certified_robust_optimal
+  incumbent_role: candidate_scenario_only
+  cached_pattern_role: candidate_scenario_only
+  old_ray_reuse_allowed: false
+  old_cut_reuse_allowed: false
+  current_point_fixed_scenario_certification_required: true
+  complete_separation_objective_bound_required_for_robust_feasibility: true
+  feasibility_tolerance: 1.0e-7
+  par2_multiplier: 2
+  attempt3_numerical_results_for_selection_allowed: false
+post_evaluation:
+  enabled: true
+  exact_scenarios: true
+  max_scenarios: 5000
+  time_limit_per_scenario: 30.0
+  checkpoint_chunk_size: 25
+  feasibility_tolerance: 1.0e-7
+runtime_semantics:
+  par2_multiplier: 2
+  par2_basis: algorithm_runtime
+  algorithm_runtime_excludes_post_evaluation: true
+  total_wall_runtime_includes: [algorithm, post_evaluation, aggregation, checkpoint_io]
