@@ -115,6 +115,13 @@ never searches outside its own output root. Final CSV files are rebuilt determin
 from atomic run records, so a crash after `run.json` but before aggregation is
 recoverable without resolving the task.
 
+The resolved configuration identity is intentionally split into three fields.
+`resolved_config_file_sha256` hashes the exact bytes of `resolved_config.yaml`;
+`resolved_config_canonical_sha256` hashes UTF-8 PyYAML `safe_dump` output with
+sorted keys and Unicode enabled; and `resolved_config_canonicalization` records
+that exact canonicalization rule. The former ambiguous
+`resolved_config_sha256` field is not part of schema 2.
+
 The frozen output schema comprises `scalability_development_manifest.json`,
 `run_manifest.json`, `resolved_config.yaml`, `results.csv`, `summary.csv`,
 `audit_log.json`, per-task `status.json` and `run.json`, an atomic whole-
@@ -203,6 +210,29 @@ Iteration and result evidence includes `separation_model_build_runtime`,
 `certified_batch_cut_count`, `duplicate_pattern_count`, `cuts_per_iteration`,
 `total_iterations`, `algorithm_runtime`, and `total_wall_runtime`. Algorithm
 runtime and end-to-end wall time remain distinct.
+
+For frontier tasks, model-build runtime, optimize runtime, and every cache/pool/
+batch/duplicate count are task-level metadata totals and must exactly reproduce
+the sum of their `iteration_log` field. `cuts_per_iteration` is the task-level
+metadata mean and must reproduce the arithmetic mean of its iteration-log
+field. Baseline rows use structural zero for these fairness-separation-only
+metrics. `separation_runtime`, `master_runtime`, `total_iterations`, `cuts`,
+`algorithm_runtime`, PAR-2, and total wall runtime remain task-level result
+fields. No CSV column mixes totals and means.
+
+The reporting-only audit is solver-free and reads either an original ZIP or a
+copied result directory. It writes corrected derived files to a separate
+directory and never edits run records or checkpoints. The original ZIP remains
+immutable, every derived file records the original ZIP SHA-256, and derived
+artifacts are reporting evidence rather than a new optimization run:
+
+```powershell
+python -m src.fairness_scalability_results_audit `
+  --source <original-results.zip> `
+  --expected-zip-sha256 <sha256> `
+  --output-dir <separate-derived-directory> `
+  --repo-root <audited-worktree>
+```
 
 ## Dry-run
 

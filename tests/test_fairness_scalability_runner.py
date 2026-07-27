@@ -207,6 +207,16 @@ def test_shared_baseline_anchor_candidate_isolation_and_outputs(monkeypatch, tmp
     assert manifest["completed_run_count"] == 3
     assert manifest["solved_run_count"] == 3
     assert manifest["post_evaluation"]["checkpoint_chunk_size"] == 25
+    assert "resolved_config_sha256" not in manifest
+    assert manifest["resolved_config_file_sha256"] == file_sha256(
+        output / "resolved_config.yaml"
+    ).upper()
+    assert manifest["resolved_config_file_sha256"] != manifest[
+        "resolved_config_canonical_sha256"
+    ]
+    assert manifest["resolved_config_canonicalization"] == (
+        "PyYAML safe_dump(sort_keys=True, allow_unicode=True), UTF-8"
+    )
     assert (output / "results.csv").is_file()
     assert (output / "summary.csv").is_file()
     assert (output / "run_manifest.json").is_file()
@@ -224,6 +234,15 @@ def test_shared_baseline_anchor_candidate_isolation_and_outputs(monkeypatch, tmp
     assert {row["scientific_status"] for row in result_rows} == {"certified_robust_optimal"}
     assert all(record["run_directory_id"] == run_directory_id(record["run_key"]) for record in records)
     assert not any((output / "runs" / spec.run_key).exists() for spec in specs)
+    required = {
+        "separation_runtime", "separation_model_build_runtime",
+        "separation_optimize_runtime", "master_runtime", "cache_candidate_count",
+        "cache_hit_count", "certified_cached_cut_count", "pool_candidate_count",
+        "certified_batch_cut_count", "duplicate_pattern_count", "cuts_per_iteration",
+        "total_iterations", "cuts", "algorithm_runtime", "penalized_runtime_par2",
+        "total_wall_runtime",
+    }
+    assert all(row[field] != "" for row in result_rows for field in required)
 
 
 def test_interrupt_after_atomic_run_and_resume_is_idempotent(monkeypatch, tmp_path: Path) -> None:

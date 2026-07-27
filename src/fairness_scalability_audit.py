@@ -37,7 +37,7 @@ FROZEN_HASHES = {
 EXPECTED_SEEDS = list(range(160, 170))
 SEALED_SEEDS = set(range(130, 160))
 EXPECTED_RHOS = [0.0, 0.01, 0.025, 0.05, 0.10]
-EXPECTED_PROTOCOL_HASH = "240A702464FF524AAECEE00F2611EFA7882A64096CFA794C4147189A73C86623"
+EXPECTED_PROTOCOL_HASH = "CB64C7505F81296992164359E7B2C929AE2868F9364FADDE68631AFCA2CC78B4"
 EXPECTED_CONFIG_HASHES = {
     "medium_large": "31FED8028653E6F0D7132F61D73157188320ABA5486A0A66FEF950642D958893",
     "large": "CEB6025CD06DFBE91312827E738A47BF65FFCC2DCDEAFAD56EA5C3B9EE790801",
@@ -92,6 +92,7 @@ def audit_fairness_scalability(
     source = (ROOT / "src/fairness_scalability.py").read_text(encoding="utf-8")
     benders_source = (ROOT / "src/fairness_benders.py").read_text(encoding="utf-8")
     runner_source = (ROOT / "src/fairness_scalability_runner.py").read_text(encoding="utf-8")
+    reporting_source = (ROOT / "src/fairness_scalability_results_audit.py").read_text(encoding="utf-8")
     suite_source = (ROOT / "src/fairness_scalability_suite.py").read_text(encoding="utf-8")
     post_source = (ROOT / "src/fairness_post_evaluation.py").read_text(encoding="utf-8")
     _add(checks, "old_ray_not_cached", "self._patterns" in source and "self._rays" not in source)
@@ -146,6 +147,45 @@ def audit_fairness_scalability(
         "SCALABILITY_EXECUTION_ATTEMPT = 2" in runner_source
         and "windows_path_length_pipeline_defect" in runner_source
         and "previous_attempt_results_reused" in runner_source,
+    )
+    _add(
+        checks,
+        "reporting_csv_projection_complete",
+        "aggregate_records(" in runner_source
+        and "RESULT_FIELDS" in runner_source
+        and all(
+            field in reporting_source
+            for field in (
+                "separation_runtime", "separation_model_build_runtime",
+                "separation_optimize_runtime", "master_runtime",
+                "cache_candidate_count", "cache_hit_count",
+                "certified_cached_cut_count", "pool_candidate_count",
+                "certified_batch_cut_count", "duplicate_pattern_count",
+                "cuts_per_iteration", "total_iterations", "cuts",
+                "algorithm_runtime", "penalized_runtime_par2",
+                "total_wall_runtime",
+            )
+        ),
+    )
+    _add(
+        checks,
+        "reporting_projection_semantics_explicit",
+        "task_metadata_total_verified_against_iteration_log_sum" in reporting_source
+        and "task_metadata_mean_verified_against_iteration_log_mean" in reporting_source,
+    )
+    _add(
+        checks,
+        "resolved_config_hash_semantics_split",
+        all(
+            field in runner_source
+            for field in (
+                "resolved_config_file_sha256",
+                "resolved_config_canonical_sha256",
+                "resolved_config_canonicalization",
+            )
+        )
+        and "PyYAML safe_dump(sort_keys=True, allow_unicode=True), UTF-8"
+        in reporting_source,
     )
     _add(
         checks,
