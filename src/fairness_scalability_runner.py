@@ -34,6 +34,12 @@ from .fairness_benders import (
 )
 from .fairness_post_evaluation import checkpointed_fairness_post_evaluation
 from .fairness_scalability import SCALABILITY_CANDIDATES
+from .fairness_scalability_results_audit import (
+    CANONICALIZATION,
+    RESULT_FIELDS,
+    aggregate_records,
+    resolved_config_file_bytes,
+)
 from .instance import InventoryInstance, generate_instance
 from .regional_fairness_pipeline import SingleWriterLock
 
@@ -460,7 +466,11 @@ def execution_identity(
         "git_commit": commit,
         "config_path": config_path.as_posix(),
         "config_file_sha256": file_sha256(config_path).upper(),
-        "resolved_config_sha256": config_sha256(dict(config)).upper(),
+        "resolved_config_file_sha256": hashlib.sha256(
+            resolved_config_file_bytes(config)
+        ).hexdigest().upper(),
+        "resolved_config_canonical_sha256": config_sha256(dict(config)).upper(),
+        "resolved_config_canonicalization": CANONICALIZATION,
         "protocol_path": protocol_path.as_posix(),
         "protocol_sha256": file_sha256(protocol_path).upper(),
         "candidate_config_sha256": file_sha256(candidate_path).upper(),
@@ -597,7 +607,9 @@ def _refresh_manifest(
                 "scale",
                 "git_commit",
                 "config_file_sha256",
-                "resolved_config_sha256",
+                "resolved_config_file_sha256",
+                "resolved_config_canonical_sha256",
+                "resolved_config_canonicalization",
                 "protocol_sha256",
                 "candidate_config_sha256",
                 "authorized_cumulative_stage",
@@ -625,70 +637,14 @@ def _refresh_manifest(
 
 def _aggregate(output_dir: Path, specs: list[ScalabilityRunSpec]) -> None:
     start = time.perf_counter()
-    rows: list[dict[str, Any]] = []
-    for spec in specs:
-        record = _read_record(output_dir, spec.run_key)
-        if record is None:
-            continue
-        result = dict(record.get("result") or {})
-        rows.append(
-            {
-                "run_key": spec.run_key,
-                "run_directory_id": run_directory_id(spec.run_key),
-                "introduced_stage": spec.introduced_stage,
-                "task_type": spec.task_type,
-                "scale": spec.scale,
-                "seed": spec.seed,
-                "rho": spec.rho,
-                "candidate": spec.candidate,
-                "baseline_run_key": record.get("baseline_run_key"),
-                "anchor_sha256": record.get("anchor_sha256"),
-                "scientific_status": record.get("scientific_status"),
-                "algorithm_status": record.get("algorithm_status"),
-                "solved_to_tolerance": record.get("scientific_status") == "certified_robust_optimal",
-                "algorithm_runtime": result.get("algorithm_runtime", result.get("runtime")),
-                "post_evaluation_solver_runtime": result.get("post_evaluation_solver_runtime", 0.0),
-                "post_evaluation_wall_runtime": result.get("post_evaluation_wall_runtime", 0.0),
-                "aggregation_runtime": result.get("aggregation_runtime", 0.0),
-                "checkpoint_io_runtime": result.get("checkpoint_io_runtime", 0.0),
-                "total_wall_runtime": result.get("total_wall_runtime", result.get("runtime")),
-                "penalized_runtime_par2": result.get("penalized_runtime_par2"),
-                "iterations": result.get("iterations"),
-                "separation_model_build_runtime": result.get("separation_model_build_runtime"),
-                "separation_optimize_runtime": result.get("separation_optimize_runtime"),
-                "cache_candidate_count": result.get("cache_candidate_count"),
-                "cache_hit_count": result.get("cache_hit_count"),
-                "certified_cached_cut_count": result.get("certified_cached_cut_count"),
-                "pool_candidate_count": result.get("pool_candidate_count"),
-                "certified_batch_cut_count": result.get("certified_batch_cut_count"),
-                "duplicate_pattern_count": result.get("duplicate_pattern_count"),
-                "cuts_per_iteration": result.get("cuts_per_iteration"),
-                "total_iterations": result.get("total_iterations", result.get("iterations")),
-            }
-        )
-    rows.sort(key=lambda row: (row["seed"], row["task_type"] != "baseline", -1.0 if row["rho"] is None else row["rho"], row["candidate"]))
-    fields = list(rows[0]) if rows else ["run_key", "scientific_status"]
-    atomic_write_csv(output_dir / "results.csv", rows, fields)
-    grouped: dict[tuple[str, str, float | None], list[dict[str, Any]]] = {}
-    for row in rows:
-        grouped.setdefault((row["task_type"], row["candidate"], row["rho"]), []).append(row)
-    summary = []
-    for key, group in sorted(grouped.items(), key=lambda item: str(item[0])):
-        summary.append(
-            {
-                "task_type": key[0],
-                "candidate": key[1],
-                "rho": key[2],
-                "run_count": len(group),
-                "certified_solved_count": sum(row["scientific_status"] == "certified_robust_optimal" for row in group),
-                "failed_count": sum(row["scientific_status"] in {"implementation_error", "invalid_post_evaluation", "interrupted"} for row in group),
-            }
-        )
-    atomic_write_csv(
-        output_dir / "summary.csv",
-        summary,
-        ["task_type", "candidate", "rho", "run_count", "certified_solved_count", "failed_count"],
+    records = [record for spec in specs if (record := _read_record(output_dir, spec.run_key))]
+    rows, summary = aggregate_records(
+        records,
+        [spec.to_dict() for spec in specs],
+        time_limit=1800.0,
     )
+    atomic_write_csv(output_dir / "results.csv", rows, RESULT_FIELDS)
+    atomic_write_csv(output_dir / "summary.csv", summary, list(summary[0]) if summary else [])
     atomic_write_json(
         output_dir / "audit_log.json",
         {
@@ -750,7 +706,7 @@ def _production_post_evaluate(
         instance,
         root=post_root,
         run_key=spec.run_key,
-        config_sha256_value=identity["resolved_config_sha256"],
+        config_sha256_value=identity["resolved_config_canonical_sha256"],
         git_commit=identity["git_commit"],
         baseline_anchor_sha256=anchor["anchor_sha256"],
         y_values=payload["y_values"],
@@ -838,7 +794,9 @@ def run_scalability_stage(
     if existing is not None:
         for field in (
             "schema_version", "experiment_name", "scale", "git_commit",
-            "config_file_sha256", "resolved_config_sha256", "protocol_sha256",
+            "config_file_sha256", "resolved_config_file_sha256",
+            "resolved_config_canonical_sha256", "resolved_config_canonicalization",
+            "protocol_sha256",
             "candidate_config_sha256", "candidate_definitions", "gurobi_parameters",
             "baseline_time_limit", "fairness_time_limit", "post_evaluation", "par2",
             "execution_attempt", "prior_attempts", "previous_attempt_results_reused",
@@ -913,7 +871,7 @@ def run_scalability_stage(
             baseline_record = _read_record(output_dir, baseline_spec.run_key)
             if baseline_record is not None and (
                 baseline_record.get("git_commit") != current_commit
-                or baseline_record.get("config_sha256") != identity["resolved_config_sha256"]
+                or baseline_record.get("config_sha256") != identity["resolved_config_canonical_sha256"]
                 or baseline_record.get("instance_sha256") != instance_sha256
             ):
                 raise ValueError("Completed baseline identity mismatch.")
@@ -940,7 +898,7 @@ def run_scalability_stage(
                         "solved_to_tolerance": scientific == "certified_robust_optimal",
                         "algorithm_status": payload.get("status"),
                         "git_commit": current_commit,
-                        "config_sha256": identity["resolved_config_sha256"],
+                        "config_sha256": identity["resolved_config_canonical_sha256"],
                         "instance_sha256": instance_sha256,
                         "result": payload,
                     }
@@ -958,7 +916,7 @@ def run_scalability_stage(
                         "run_key": baseline_spec.run_key, "state": "complete", "task_type": "baseline",
                         "seed": seed, "candidate": baseline_spec.candidate,
                         "scientific_status": "implementation_error", "algorithm_status": "exception",
-                        "git_commit": current_commit, "config_sha256": identity["resolved_config_sha256"],
+                        "git_commit": current_commit, "config_sha256": identity["resolved_config_canonical_sha256"],
                         "instance_sha256": instance_sha256,
                         "failure_reason": str(exc), "result": {},
                     })
@@ -979,7 +937,7 @@ def run_scalability_stage(
                             "scientific_status": "implementation_error",
                             "algorithm_status": "baseline_uncertified",
                             "git_commit": current_commit,
-                            "config_sha256": identity["resolved_config_sha256"],
+                            "config_sha256": identity["resolved_config_canonical_sha256"],
                             "instance_sha256": instance_sha256,
                             "baseline_run_key": baseline_spec.run_key,
                             "failure_reason": "certified_baseline_anchor_unavailable",
@@ -997,7 +955,7 @@ def run_scalability_stage(
             certified_anchor = _certified_baseline_anchor(
                 baseline_record,
                 baseline_run_key=baseline_spec.run_key,
-                config_hash=identity["resolved_config_sha256"],
+                config_hash=identity["resolved_config_canonical_sha256"],
                 commit=current_commit,
                 candidate_config_sha256=identity["candidate_config_sha256"],
                 tolerance=float(config["tol"]),
@@ -1013,7 +971,7 @@ def run_scalability_stage(
                         record.get("baseline_run_key") != baseline_spec.run_key
                         or record.get("anchor_sha256") != anchor["anchor_sha256"]
                         or record.get("git_commit") != current_commit
-                        or record.get("config_sha256") != identity["resolved_config_sha256"]
+                        or record.get("config_sha256") != identity["resolved_config_canonical_sha256"]
                         or record.get("instance_sha256") != instance_sha256
                     ):
                         raise ValueError("Completed frontier anchor identity mismatch.")
@@ -1025,7 +983,7 @@ def run_scalability_stage(
                 checkpoint_identity = {
                     "run_key": spec.run_key,
                     "git_commit": current_commit,
-                    "config_sha256": identity["resolved_config_sha256"],
+                    "config_sha256": identity["resolved_config_canonical_sha256"],
                     "anchor_sha256": anchor["anchor_sha256"],
                     "instance_sha256": instance_sha256,
                     "candidate": spec.candidate,
@@ -1102,7 +1060,7 @@ def run_scalability_stage(
                         "scientific_status": scientific,
                         "algorithm_status": payload.get("status"),
                         "git_commit": current_commit,
-                        "config_sha256": identity["resolved_config_sha256"],
+                        "config_sha256": identity["resolved_config_canonical_sha256"],
                         "instance_sha256": instance_sha256,
                         "baseline_run_key": baseline_spec.run_key,
                         "anchor_sha256": anchor["anchor_sha256"],
@@ -1128,7 +1086,7 @@ def run_scalability_stage(
                         "run_key": spec.run_key, "state": "complete", "task_type": "frontier",
                         "seed": seed, "rho": spec.rho, "candidate": spec.candidate,
                         "scientific_status": "implementation_error", "algorithm_status": "exception",
-                        "git_commit": current_commit, "config_sha256": identity["resolved_config_sha256"],
+                        "git_commit": current_commit, "config_sha256": identity["resolved_config_canonical_sha256"],
                         "instance_sha256": instance_sha256,
                         "baseline_run_key": baseline_spec.run_key, "anchor_sha256": anchor["anchor_sha256"],
                         "failure_reason": str(exc), "result": {},
