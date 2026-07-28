@@ -1,8 +1,8 @@
 experiment_name: fairness_large_final_remediation_l0_pilot_baseline_schema_hotfix
 protocol_phase: fairness_large_final_remediation
 stage: L0
-authorization: protocol_only_no_formal_execution
-formal_run_authorized: false
+authorization: formal_execution_authorized
+formal_run_authorized: true
 schema_version: 3
 execution_attempt: 4
 previous_attempt_results_reused: false

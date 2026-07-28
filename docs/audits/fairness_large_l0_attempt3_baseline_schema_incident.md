@@ -45,4 +45,4 @@ The S0 and fake fixtures had serialized `y_values` and `x_values`, so they did n
 
 ## Hotfix isolation
 
-The hotfix L0 plan uses execution attempt 4 and the new output directory `experiments/results_fairness_large_final_remediation/attempt4_l0_large_pilot_baseline_schema_hotfix`. Attempt 3 instances, baseline, anchor, runs, checkpoints, manifest, and aggregates are explicitly not reused. L0, L1, and M1 remain formally unauthorized in the hotfix PR.
+The hotfix L0 plan uses execution attempt 4 and the new output directory `experiments/results_fairness_large_final_remediation/attempt4_l0_large_pilot_baseline_schema_hotfix`. Attempt 3 instances, baseline, anchor, runs, checkpoints, manifest, and aggregates are explicitly not reused. Attempt 4 L0 authorization and the schema hotfix are delivered in the same Draft PR; L1 and M1 remain formally unauthorized, and no formal execution is authorized before that PR is independently reviewed and merged.

@@ -379,7 +379,7 @@ def test_recovery_ledger_faults_resume_without_replaying_committed_phases(tmp_pa
         advance_recovery_ledger(ledger, identity={"run_key": "drift"}, phase_action=lambda _phase: None)
 
 
-def test_runner_dry_runs_are_read_only_and_hotfix_is_not_formally_authorized(monkeypatch):
+def test_runner_dry_runs_are_read_only_and_formal_gate_is_attempt4_l0_only(monkeypatch):
     expected = {"L0": (2, 1, 1), "L1": (9, 3, 6), "M1": (9, 3, 6)}
     executed_stages = []
 
@@ -398,12 +398,21 @@ def test_runner_dry_runs_are_read_only_and_hotfix_is_not_formally_authorized(mon
         assert report["solver_called"] is report["instances_generated"] is False
         assert report["output_dir_exists"] is False
         assert report["longest_windows_path_length"] <= 220
-        assert config["authorization"] == "protocol_only_no_formal_execution"
-        assert config["formal_run_authorized"] is False
-        with pytest.raises(RemediationGateError, match="formal_run_not_authorized"):
-            run_remediation_stage(path, stage=stage, resume=False, dry_run=False)
+        if stage == "L0":
+            assert config["execution_attempt"] == 4
+            assert config["authorization"] == "formal_execution_authorized"
+            assert config["formal_run_authorized"] is True
+            assert run_remediation_stage(path, stage=stage, resume=False, dry_run=False) == {
+                "stage": "L0", "authorized": True,
+            }
+        else:
+            assert config["execution_attempt"] == 3
+            assert config["authorization"] == "protocol_only_no_formal_execution"
+            assert config["formal_run_authorized"] is False
+            with pytest.raises(RemediationGateError, match="formal_run_not_authorized"):
+                run_remediation_stage(path, stage=stage, resume=False, dry_run=False)
         assert not output.exists()
-    assert executed_stages == []
+    assert executed_stages == ["L0"]
 
 
 def test_stage_gates_fail_closed_and_no_holdout_is_available():

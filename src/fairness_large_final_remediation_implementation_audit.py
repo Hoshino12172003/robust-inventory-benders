@@ -125,8 +125,9 @@ def audit(root: str | Path) -> dict[str, Any]:
         config = load_remediation_config(config_path)
         report = dry_run_remediation(config_path, stage=stage, root=root)
         dry_runs[stage] = report
-        check(f"{stage} authorization", config["authorization"] == "protocol_only_no_formal_execution")
-        check(f"{stage} formal flag", config["formal_run_authorized"] is False)
+        expected_authorization = "formal_execution_authorized" if stage == "L0" else "protocol_only_no_formal_execution"
+        check(f"{stage} authorization", config["authorization"] == expected_authorization)
+        check(f"{stage} formal flag", config["formal_run_authorized"] is (stage == "L0"))
         check(f"{stage} task arithmetic", report["tasks"] == expected[stage], report["tasks"])
         check(f"{stage} no solver", report["solver_called"] is False)
         check(f"{stage} no instances", report["instances_generated"] is False)
@@ -140,7 +141,7 @@ def audit(root: str | Path) -> dict[str, Any]:
         "checks_passed": passed,
         "checks_total": len(checks),
         "passed": passed == len(checks),
-        "formal_run_authorized": {"L0": False, "L1": False, "M1": False},
+        "formal_run_authorized": {"L0": True, "L1": False, "M1": False},
         "dry_run": dry_runs,
         "checks": checks,
     }
