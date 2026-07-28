@@ -224,10 +224,18 @@ def test_formal_experiment_configs_exist_and_parse() -> None:
 
     assert paths
     configs = {path.name: yaml.safe_load(path.read_text(encoding="utf-8")) for path in paths}
-    for config in configs.values():
+    candidate_definitions = {
+        name: config for name, config in configs.items()
+        if "candidate_name" in config and "experiment_name" not in config
+    }
+    assert set(candidate_definitions) == {"fairness_large_final_remediation_candidate.yaml"}
+    assert candidate_definitions["fairness_large_final_remediation_candidate.yaml"]["candidate_name"] == (
+        "certified_adaptive_multicut_fair_benders"
+    )
+    for config in (value for value in configs.values() if "experiment_name" in value):
         assert config["experiment_name"]
         assert config["output_dir"]
-        assert config["random_seeds"]
+        assert config.get("random_seeds") or config.get("seeds")
 
     assert "medium" in configs["baseline_comparison.yaml"]["instance_sizes"]
     assert "medium" in configs["ablation_study.yaml"]["instance_sizes"]
