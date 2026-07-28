@@ -132,7 +132,7 @@ def test_gate_state_machine_and_seed_isolation():
     assert not accessed.intersection(range(170, 180))
 
 
-def test_l0_hotfix_attempt_is_identity_isolated_from_frozen_l1():
+def test_l0_attempt5_hotfix_is_identity_isolated_from_frozen_l1():
     l0, l1 = (load(rel) for rel in CONFIGS[:2])
     l0_keys = {row["run_key"] for row in expand_plan(l0)}
     l1_keys = {row["run_key"] for row in expand_plan(l1)}
