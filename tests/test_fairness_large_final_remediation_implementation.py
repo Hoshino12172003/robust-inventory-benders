@@ -10,11 +10,14 @@ import pytest
 from src.experiment_protocol import config_sha256
 from src.fairness_large_final_remediation import (
     CANDIDATE,
+    CertifiedAdaptiveCut,
     InitialUpperBoundAssumptionFailure,
     construct_initial_t1_upper_bound,
+    deduplicate_certified_candidates,
     solve_certified_adaptive_multicut_fair_benders,
 )
 from src.fairness_large_final_remediation_audit import (
+    RelativeViolationFailClosed,
     relative_normalized_violation_evidence,
 )
 from src.fairness_large_final_remediation_runner import (
@@ -24,6 +27,8 @@ from src.fairness_large_final_remediation_runner import (
     dry_run_remediation,
     run_remediation_stage,
     validate_stage_gate,
+    RemediationDependencies,
+    _TEST_AUTHORIZATION,
 )
 from src.robust_regional_fairness import solve_fairness_extensive_form
 from tests.test_fairness_benders_against_extensive_form import FROZEN_PRECISION
@@ -41,8 +46,19 @@ CONFIGS = {
 def baseline_evidence(instance, *, gamma: int, upper: float | None = None):
     value = float(30.0 if gamma == 0 else 36.0) if upper is None else float(upper)
     inventory = 5.0 if gamma == 0 else 6.0
+    identity = {
+        "instance_sha256": config_sha256(instance.to_dict()).upper(),
+        "seed": 7,
+        "scale": "s0_tiny",
+        "git_commit": "1" * 40,
+        "config_file_sha256": "2" * 64,
+        "resolved_config_file_sha256": "3" * 64,
+        "candidate_sha256": "DAC7A01941215624DBC5D8831814B71FDDDCC2CFEA54D1FE15FA5EAEA7C6F305",
+        "baseline_run_key": f"manual-certified-baseline-gamma-{gamma}",
+    }
     record = {
         "run_key": f"manual-certified-baseline-gamma-{gamma}",
+        **identity,
         "solved_to_tolerance": True,
         "scientific_status": "certified_robust_optimal",
         "result": {
@@ -65,9 +81,29 @@ def baseline_evidence(instance, *, gamma: int, upper: float | None = None):
         "valid_UB": True,
         "baseline_status": "optimal",
         "baseline_final_gap": 0.0,
+        **identity,
     }
+    anchor["anchor_value_hex"] = value.hex()
     anchor["anchor_sha256"] = config_sha256(anchor)
     return record, anchor
+
+
+def upper_bound_identity(instance, record, anchor):
+    return {
+        "instance_sha256": config_sha256(instance.to_dict()).upper(),
+        "seed": record["seed"], "scale": record["scale"], "git_commit": record["git_commit"],
+        "config_file_sha256": record["config_file_sha256"],
+        "resolved_config_file_sha256": record["resolved_config_file_sha256"],
+        "candidate_sha256": record["candidate_sha256"], "baseline_run_key": record["run_key"],
+        "anchor_value_hex": anchor["value_hex"], "anchor_sha256": anchor["anchor_sha256"],
+    }
+
+
+def solver_identity_kwargs(instance, record, anchor):
+    return {
+        "expected_identity": upper_bound_identity(instance, record, anchor),
+        "solver_parameters": {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7},
+    }
 
 
 def relative_candidate(digit: str, bucket: int, *, source="solution_pool", certified=True):
@@ -87,6 +123,7 @@ def test_initial_t1_upper_bound_has_complete_auditable_evidence():
     record, anchor = baseline_evidence(instance, gamma=0)
     initial = construct_initial_t1_upper_bound(
         instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-7,
+        expected_identity=upper_bound_identity(instance, record, anchor),
     )
     assert initial.value == initial.t_value == 1.0
     assert initial.x_values == [[5.0]]
@@ -117,6 +154,7 @@ def test_initial_t1_upper_bound_assumptions_fail_closed(mutation):
     with pytest.raises(InitialUpperBoundAssumptionFailure) as error:
         construct_initial_t1_upper_bound(
             instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-7,
+            expected_identity=upper_bound_identity(instance, record, anchor),
         )
     assert error.value.status == "initial_upper_bound_assumption_failure"
 
@@ -144,6 +182,11 @@ def test_relative_union_denominator_integer_formula_and_zero_policies():
 @pytest.mark.parametrize("gamma,rho,baseline", [(0, 0.0, 30.0), (0, 0.01, 30.0), (2, 0.0, 36.0), (2, 0.01, 36.0)])
 def test_s0_adaptive_solver_matches_extensive_form(gamma, rho, baseline):
     instance = tiny_instance()
+    if gamma == 2:
+        # Avoid an intentionally fail-closed duplicate-cut/different-pattern
+        # identity collision while retaining a genuine Gamma=2 equivalence case.
+        instance.demand_deviation[1][0] = 2.0
+        baseline = 1000.0
     record, anchor = baseline_evidence(instance, gamma=gamma, upper=baseline)
     extensive = solve_fairness_extensive_form(
         instance, baseline_cost=baseline, rho=rho, gamma=gamma,
@@ -153,6 +196,7 @@ def test_s0_adaptive_solver_matches_extensive_form(gamma, rho, baseline):
         instance,
         baseline_record=record,
         anchor=anchor,
+        **solver_identity_kwargs(instance, record, anchor),
         rho=rho,
         gamma=gamma,
         algorithm_config=FROZEN_PRECISION,
@@ -174,6 +218,7 @@ def test_s0_zero_demand_region_and_initial_ub():
     record, anchor = baseline_evidence(instance, gamma=0, upper=25.0)
     result = solve_certified_adaptive_multicut_fair_benders(
         instance, baseline_record=record, anchor=anchor, rho=0.0, gamma=0,
+        **solver_identity_kwargs(instance, record, anchor),
         algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
     )
     assert result.status == "optimal"
@@ -185,6 +230,7 @@ def test_s0_selection_checkpoint_interrupt_resumes_to_clean_result(tmp_path):
     record, anchor = baseline_evidence(instance, gamma=0)
     clean = solve_certified_adaptive_multicut_fair_benders(
         instance, baseline_record=record, anchor=anchor, rho=0.01, gamma=0,
+        **solver_identity_kwargs(instance, record, anchor),
         algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
     )
     checkpoint = tmp_path / "algorithm_checkpoint.json"
@@ -198,6 +244,7 @@ def test_s0_selection_checkpoint_interrupt_resumes_to_clean_result(tmp_path):
     with pytest.raises(KeyboardInterrupt):
         solve_certified_adaptive_multicut_fair_benders(
             instance, baseline_record=record, anchor=anchor, rho=0.01, gamma=0,
+            **solver_identity_kwargs(instance, record, anchor),
             algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
             checkpoint_path=checkpoint, checkpoint_identity={"run_key": "s0-resume"},
             failure_injector=interrupt,
@@ -206,6 +253,7 @@ def test_s0_selection_checkpoint_interrupt_resumes_to_clean_result(tmp_path):
     assert persisted["selection"]["cut_commit_state"] == "selection_complete_not_committed"
     resumed = solve_certified_adaptive_multicut_fair_benders(
         instance, baseline_record=record, anchor=anchor, rho=0.01, gamma=0,
+        **solver_identity_kwargs(instance, record, anchor),
         algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
         checkpoint_path=checkpoint, checkpoint_identity={"run_key": "s0-resume"},
     )
@@ -228,6 +276,7 @@ def test_s0_fault_points_resume_to_same_scientific_result(tmp_path, fault_point)
     record, anchor = baseline_evidence(instance, gamma=0)
     clean = solve_certified_adaptive_multicut_fair_benders(
         instance, baseline_record=record, anchor=anchor, rho=0.0, gamma=0,
+        **solver_identity_kwargs(instance, record, anchor),
         algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
     )
     checkpoint = tmp_path / f"{fault_point}.json"
@@ -241,12 +290,14 @@ def test_s0_fault_points_resume_to_same_scientific_result(tmp_path, fault_point)
     with pytest.raises(KeyboardInterrupt):
         solve_certified_adaptive_multicut_fair_benders(
             instance, baseline_record=record, anchor=anchor, rho=0.0, gamma=0,
+            **solver_identity_kwargs(instance, record, anchor),
             algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
             checkpoint_path=checkpoint, checkpoint_identity={"run_key": fault_point},
             failure_injector=interrupt,
         )
     resumed = solve_certified_adaptive_multicut_fair_benders(
         instance, baseline_record=record, anchor=anchor, rho=0.0, gamma=0,
+        **solver_identity_kwargs(instance, record, anchor),
         algorithm_config=FROZEN_PRECISION, max_iterations=100, time_limit=60.0, tol=1e-6,
         checkpoint_path=checkpoint, checkpoint_identity={"run_key": fault_point},
     )
@@ -319,3 +370,168 @@ def test_stage_gates_fail_closed_and_no_holdout_is_available():
     validate_stage_gate("M1", l1)
     with pytest.raises(RemediationGateError):
         validate_stage_gate("M1", {**l1, "certified_frontier_count": 3})
+
+
+def test_initial_ub_rejects_current_instance_drift():
+    instance = tiny_instance()
+    record, anchor = baseline_evidence(instance, gamma=0)
+    expected = upper_bound_identity(instance, record, anchor)
+    instance.base_demand[0][0] = 1.0e9
+    with pytest.raises(InitialUpperBoundAssumptionFailure, match="current_instance_identity_mismatch"):
+        construct_initial_t1_upper_bound(
+            instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-7,
+            expected_identity=expected,
+        )
+
+
+@pytest.mark.parametrize(
+    "field,replacement",
+    [
+        ("instance_sha256", "A" * 64), ("seed", 8), ("scale", "large"),
+        ("git_commit", "4" * 40), ("config_file_sha256", "5" * 64),
+        ("resolved_config_file_sha256", "6" * 64),
+        ("candidate_sha256", "8" * 64), ("baseline_run_key", "different-baseline"),
+        ("anchor_value_hex", float(0.5).hex()), ("anchor_sha256", "7" * 64),
+    ],
+)
+def test_initial_ub_rejects_each_run_identity_drift(field, replacement):
+    instance = tiny_instance()
+    record, anchor = baseline_evidence(instance, gamma=0)
+    expected = upper_bound_identity(instance, record, anchor)
+    expected[field] = replacement
+    with pytest.raises(InitialUpperBoundAssumptionFailure):
+        construct_initial_t1_upper_bound(
+            instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-7,
+            expected_identity=expected,
+        )
+
+
+def adaptive_candidate(source, *, pattern="B", bucket=10, payload=None):
+    return CertifiedAdaptiveCut(
+        cut=None, source=source, pattern_sha256=pattern * 64, cut_sha256="A" * 64,
+        canonical_cut_payload=payload or {"schema": "fairness_farkas_cut_v1", "row": 1},
+        raw_violation=1.0, normalized_violation=1.0, normalized_violation_bucket=bucket,
+        direction=(1.0,),
+    )
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        ("primary_full_separation_incumbent", "pattern_cache"),
+        ("primary_full_separation_incumbent", "solution_pool"),
+        ("pattern_cache", "solution_pool"),
+    ],
+)
+def test_duplicate_cut_same_identity_merges_sources(sources):
+    unique, merged = deduplicate_certified_candidates([adaptive_candidate(source) for source in sources])
+    assert list(unique) == ["A" * 64]
+    assert merged["A" * 64] == set(sources)
+
+
+@pytest.mark.parametrize("drift", ["pattern", "bucket", "payload"])
+def test_duplicate_cut_identity_drift_fails_closed(drift):
+    first = adaptive_candidate("primary_full_separation_incumbent")
+    kwargs = {"pattern": "C"} if drift == "pattern" else ({"bucket": 11} if drift == "bucket" else {"payload": {"schema": "fairness_farkas_cut_v1", "row": 2}})
+    second = adaptive_candidate("solution_pool", **kwargs)
+    with pytest.raises(RelativeViolationFailClosed, match="relative_violation_identity_mismatch"):
+        deduplicate_certified_candidates([first, second])
+
+
+def test_fake_authorized_pipeline_is_identity_locked_classified_and_resumable(tmp_path):
+    calls = {"generate": 0, "baseline": 0, "frontier": 0, "post": 0, "configure": []}
+
+    def fake_generate(_config, _seed):
+        calls["generate"] += 1
+        return tiny_instance()
+
+    def fake_baseline(_config, instance, _seed, parameters):
+        calls["baseline"] += 1
+        calls["configure"].append(parameters)
+        return baseline_evidence(instance, gamma=0)[0]["result"]
+
+    def fake_frontier(_config, instance, record, anchor, expected, checkpoint, parameters, _row):
+        calls["frontier"] += 1
+        initial = construct_initial_t1_upper_bound(
+            instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-4,
+            expected_identity=expected,
+        )
+        assert initial.evidence["initial_robust_ub_valid"] is True
+        assert parameters == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7}
+        checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint.write_text(json.dumps({"identity": expected}), encoding="utf-8")
+        return {
+            "status": "optimal", "gap": 0.0, "lower_bound": 0.5, "upper_bound": 0.5,
+            "objective_t": 0.5, "runtime": 2.0, "y_values": [1.0], "x_values": [[5.0]],
+            "metadata": {"full_separation_objective_bound_required": True},
+            "iteration_log": [{
+                "master_status": "optimal", "robust_feasibility_certified": True,
+                "separation_objective_bound": 0.0,
+            }],
+        }
+
+    def fake_post(_config, _instance, _result, _anchor, _identity, root, _row):
+        calls["post"] += 1
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "chunk_0000.json").write_text("{}", encoding="utf-8")
+        return {"valid": True, "objective_t_consistent": True, "errors": [], "scenario_count": 4657}, {
+            "post_evaluation_solver_runtime": 1.0, "post_evaluation_wall_runtime": 1.5,
+            "aggregation_runtime": 0.1, "checkpoint_io_runtime": 0.1,
+        }
+
+    deps = RemediationDependencies(
+        generate_instance=fake_generate, solve_baseline=fake_baseline,
+        solve_frontier=fake_frontier, post_evaluate=fake_post,
+        configure_solver=lambda settings: calls["configure"].append(settings),
+    )
+    output = tmp_path / "isolated_fake_pipeline"
+    config = CONFIGS["L0"]
+    first = run_remediation_stage(
+        config, stage="L0", resume=False, dry_run=False, dependencies=deps,
+        output_dir_override=output, test_authorization=_TEST_AUTHORIZATION,
+    )
+    assert first["completed_run_count"] == 2
+    assert first["certified_solved_count"] == 2
+    records = [json.loads(path.read_text(encoding="utf-8")) for path in (output / "runs").glob("*/run.json")]
+    assert {record["scientific_status"] for record in records} == {"certified_robust_optimal"}
+    assert (output / "results.csv").is_file() and (output / "summary.csv").is_file()
+    before = deepcopy(calls)
+    second = run_remediation_stage(
+        config, stage="L0", resume=True, dry_run=False, dependencies=deps,
+        output_dir_override=output, test_authorization=_TEST_AUTHORIZATION,
+    )
+    assert second["completed_run_count"] == 2
+    assert calls["generate"] == before["generate"]
+    assert calls["baseline"] == before["baseline"]
+    assert calls["frontier"] == before["frontier"]
+    assert calls["post"] == before["post"]
+
+    interrupted_output = tmp_path / "baseline_checkpoint_resume"
+    def interrupt_after_baseline(point, _payload):
+        if point == "after_baseline_checkpoint":
+            raise KeyboardInterrupt
+    with pytest.raises(KeyboardInterrupt):
+        run_remediation_stage(
+            config, stage="L0", resume=False, dry_run=False, dependencies=deps,
+            output_dir_override=interrupted_output, test_authorization=_TEST_AUTHORIZATION,
+            failure_injector=interrupt_after_baseline,
+        )
+    baseline_calls_after_checkpoint = calls["baseline"]
+    run_remediation_stage(
+        config, stage="L0", resume=True, dry_run=False, dependencies=deps,
+        output_dir_override=interrupted_output, test_authorization=_TEST_AUTHORIZATION,
+    )
+    assert calls["baseline"] == baseline_calls_after_checkpoint
+
+
+@pytest.mark.parametrize(
+    "result,post,expected",
+    [
+        ({"status": "time_limit"}, None, "time_limit_uncertified"),
+        ({"status": "optimal", "gap": 0.0, "lower_bound": 0.0, "upper_bound": 0.0, "metadata": {"full_separation_objective_bound_required": True}, "iteration_log": [{"master_status": "optimal", "robust_feasibility_certified": True, "separation_objective_bound": 0.0}]}, {"valid": False}, "invalid_post_evaluation"),
+        ({"status": "optimal", "gap": 0.0, "lower_bound": 0.0, "upper_bound": 0.0, "metadata": {}}, {"valid": True}, "master_optimal_but_robust_uncertified"),
+    ],
+)
+def test_scientific_status_never_promotes_uncertified_or_invalid(result, post, expected):
+    from src.fairness_large_final_remediation_runner import _classify_frontier
+    assert _classify_frontier(result, post, tolerance=1e-4) == expected

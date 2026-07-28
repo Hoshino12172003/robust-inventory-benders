@@ -10,7 +10,7 @@ identity implementation.
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field
 from decimal import Decimal
 import hashlib
 import json
@@ -30,6 +30,7 @@ from .fairness_large_final_remediation_audit import (
     PATTERN_SCHEMA,
     QUANTIZATION_SCHEMA,
     RELATIVE_VIOLATION_SCHEMA,
+    RelativeViolationFailClosed,
     canonical_cut_bytes,
     canonical_json_bytes,
     commit_selected_checkpoint,
@@ -161,9 +162,37 @@ def construct_initial_t1_upper_bound(
     anchor: dict[str, Any],
     rho: float,
     tolerance: float,
-    expected_identity: dict[str, str] | None = None,
+    expected_identity: dict[str, Any],
 ) -> InitialRobustUpperBound:
     """Apply the frozen theorem, or fail closed before creating a MIP start."""
+    required_identity = {
+        "instance_sha256", "seed", "scale", "git_commit", "config_file_sha256",
+        "resolved_config_file_sha256", "candidate_sha256", "baseline_run_key",
+        "anchor_value_hex", "anchor_sha256",
+    }
+    if not isinstance(expected_identity, dict) or set(expected_identity) != required_identity:
+        raise InitialUpperBoundAssumptionFailure("incomplete_expected_run_identity")
+    for field in required_identity - {"seed"}:
+        if not isinstance(expected_identity[field], str) or not expected_identity[field]:
+            raise InitialUpperBoundAssumptionFailure(f"invalid_expected_identity_{field}")
+    if isinstance(expected_identity["seed"], bool) or not isinstance(expected_identity["seed"], int):
+        raise InitialUpperBoundAssumptionFailure("invalid_expected_identity_seed")
+    expected_hash_fields = {
+        "instance_sha256", "config_file_sha256", "resolved_config_file_sha256",
+        "candidate_sha256", "anchor_sha256",
+    }
+    if any(
+        len(expected_identity[field]) != 64
+        or any(character not in "0123456789ABCDEF" for character in expected_identity[field].upper())
+        for field in expected_hash_fields
+    ):
+        raise InitialUpperBoundAssumptionFailure("invalid_expected_identity_sha256")
+    if expected_identity["candidate_sha256"].upper() != CANDIDATE_SHA256:
+        raise InitialUpperBoundAssumptionFailure("candidate_identity_mismatch")
+    current_instance_sha256 = config_sha256(instance.to_dict()).upper()
+    if expected_identity["instance_sha256"].upper() != current_instance_sha256:
+        raise InitialUpperBoundAssumptionFailure("current_instance_identity_mismatch")
+
     checks: dict[str, bool] = {}
     result = baseline_record.get("result")
     if not isinstance(result, dict):
@@ -198,11 +227,25 @@ def construct_initial_t1_upper_bound(
     baseline_run_key = baseline_record.get("run_key")
     if not isinstance(baseline_run_key, str) or not baseline_run_key:
         raise InitialUpperBoundAssumptionFailure("missing_baseline_run_key")
+    common_identity_fields = {
+        "instance_sha256", "seed", "scale", "git_commit", "config_file_sha256",
+        "resolved_config_file_sha256", "candidate_sha256", "baseline_run_key",
+    }
+    if not common_identity_fields.issubset(baseline_record):
+        raise InitialUpperBoundAssumptionFailure("incomplete_baseline_run_identity")
+    for field in common_identity_fields:
+        expected = expected_identity[field]
+        if field == "instance_sha256" or field.endswith("sha256"):
+            matches = str(baseline_record.get(field)).upper() == str(expected).upper()
+        else:
+            matches = baseline_record.get(field) == expected
+        checks[f"baseline_identity_{field}"] = matches
+
     required_anchor = {
         "source", "value", "value_hex", "baseline_run_key", "base_git_commit",
         "base_config_sha256", "candidate_config_sha256", "valid_UB",
         "baseline_status", "baseline_final_gap", "anchor_sha256",
-    }
+    } | common_identity_fields
     if not required_anchor.issubset(anchor):
         raise InitialUpperBoundAssumptionFailure("incomplete_anchor_identity")
     anchor_payload = {key: deepcopy(value) for key, value in anchor.items() if key != "anchor_sha256"}
@@ -211,8 +254,16 @@ def construct_initial_t1_upper_bound(
     checks["anchor_hex_matches"] = str(anchor["value_hex"]) == float(upper).hex()
     checks["anchor_baseline_run_key_matches"] = anchor["baseline_run_key"] == baseline_run_key
     checks["anchor_certification_matches"] = anchor["valid_UB"] is True and anchor["baseline_status"] == "optimal"
-    for key, expected in (expected_identity or {}).items():
-        checks[f"identity_{key}"] = str(anchor.get(key)) == str(expected)
+    checks["expected_baseline_run_key_matches"] = baseline_run_key == expected_identity["baseline_run_key"]
+    checks["expected_anchor_value_hex_matches"] = str(anchor["value_hex"]) == expected_identity["anchor_value_hex"]
+    checks["expected_anchor_sha256_matches"] = str(anchor["anchor_sha256"]).upper() == expected_identity["anchor_sha256"].upper()
+    for key in common_identity_fields:
+        expected = expected_identity[key]
+        if key == "instance_sha256" or key.endswith("sha256"):
+            matches = str(anchor.get(key)).upper() == str(expected).upper()
+        else:
+            matches = anchor.get(key) == expected
+        checks[f"anchor_identity_{key}"] = matches
     if not all(checks.values()):
         failed = sorted(name for name, passed in checks.items() if not passed)
         raise InitialUpperBoundAssumptionFailure(",".join(failed))
@@ -377,6 +428,25 @@ def _deterministic_diverse_order(
     return selected, evidence
 
 
+def deduplicate_certified_candidates(
+    candidates: list[CertifiedAdaptiveCut],
+) -> tuple[dict[str, CertifiedAdaptiveCut], dict[str, set[str]]]:
+    """Merge exact duplicate sources and reject every scientific identity mismatch."""
+    unique: dict[str, CertifiedAdaptiveCut] = {}
+    sources_by_hash: dict[str, set[str]] = {}
+    for candidate in candidates:
+        previous = unique.get(candidate.cut_sha256)
+        if previous is not None and (
+            previous.pattern_sha256 != candidate.pattern_sha256
+            or previous.normalized_violation_bucket != candidate.normalized_violation_bucket
+            or previous.canonical_cut_payload != candidate.canonical_cut_payload
+        ):
+            raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
+        unique.setdefault(candidate.cut_sha256, candidate)
+        sources_by_hash.setdefault(candidate.cut_sha256, set()).add(candidate.source)
+    return unique, sources_by_hash
+
+
 class CertifiedAdaptiveSeparator:
     """Persistent separator plus pattern-only cache and deterministic selection."""
 
@@ -449,9 +519,8 @@ class CertifiedAdaptiveSeparator:
             ))
             self.cache.add(cut.active_deviations)
 
-        unique: dict[str, CertifiedAdaptiveCut] = {}
+        certified_candidates: list[CertifiedAdaptiveCut] = []
         relative_inputs: list[dict[str, Any]] = []
-        sources_by_hash: dict[str, set[str]] = {}
         for source, cut in source_cuts:
             candidate = canonicalize_certified_cut(
                 self.instance,
@@ -463,21 +532,8 @@ class CertifiedAdaptiveSeparator:
             )
             if candidate is None:
                 continue
-            previous = unique.get(candidate.cut_sha256)
-            if previous is not None:
-                if previous.normalized_violation_bucket != candidate.normalized_violation_bucket:
-                    raise RemediationIdentityError("duplicate cut identity disagrees across sources")
-                # Exact cut identity is the deduplication identity.  Distinct
-                # certified scenarios can legitimately induce the exact same
-                # canonical row; retain one deterministic provenance hash so
-                # input/source order cannot affect the tie-break.
-                if candidate.pattern_sha256 < previous.pattern_sha256:
-                    unique[candidate.cut_sha256] = replace(
-                        previous, pattern_sha256=candidate.pattern_sha256,
-                    )
-            else:
-                unique[candidate.cut_sha256] = candidate
-            sources_by_hash.setdefault(candidate.cut_sha256, set()).add(source)
+            certified_candidates.append(candidate)
+        unique, sources_by_hash = deduplicate_certified_candidates(certified_candidates)
         for digest in sorted(unique):
             candidate = unique[digest]
             for source in sorted(sources_by_hash[digest]):
@@ -590,6 +646,8 @@ def solve_certified_adaptive_multicut_fair_benders(
     *,
     baseline_record: dict[str, Any],
     anchor: dict[str, Any],
+    expected_identity: dict[str, Any],
+    solver_parameters: dict[str, Any],
     rho: float,
     gamma: int = 2,
     algorithm_config: dict[str, Any] | None = None,
@@ -610,7 +668,13 @@ def solve_certified_adaptive_multicut_fair_benders(
         anchor=anchor,
         rho=rho,
         tolerance=tol,
+        expected_identity=expected_identity,
     )
+    if solver_parameters != {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7}:
+        raise RemediationIdentityError("frozen solver identity mismatch")
+    gp.setParam("Threads", 1)
+    gp.setParam("Seed", 0)
+    gp.setParam("FeasibilityTol", 1.0e-7)
     budget = fairness_cost_budget(float(anchor["value"]), rho)
     cfg = deepcopy(algorithm_config or {})
     precision = precision_policy_config(
@@ -623,6 +687,9 @@ def solve_certified_adaptive_multicut_fair_benders(
         raise RemediationIdentityError("precision_policy must remain joint_error_budget")
     precision_state = initialize_precision_state(precision)
     model, y, x, t = _build_master(instance, output_flag)
+    model.Params.Threads = 1
+    model.Params.Seed = 0
+    model.Params.FeasibilityTol = 1.0e-7
     variables = _master_variables(instance, y, x, t)
     for i in instance.I:
         y[i].Start = initial.y_values[i]
@@ -646,6 +713,8 @@ def solve_certified_adaptive_multicut_fair_benders(
         "quantization_schema": QUANTIZATION_SCHEMA,
         "rho_hex": float(rho).hex(),
         "anchor_sha256": str(anchor["anchor_sha256"]).upper(),
+        "run_identity": deepcopy(expected_identity),
+        "solver_parameters": deepcopy(solver_parameters),
         **deepcopy(checkpoint_identity or {}),
     }
     checkpoint = None if checkpoint_path is None else _load_checkpoint(Path(checkpoint_path), identity)

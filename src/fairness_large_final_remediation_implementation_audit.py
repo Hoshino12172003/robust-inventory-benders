@@ -67,6 +67,10 @@ def audit(root: str | Path) -> dict[str, Any]:
         "final certification": "final_certification=certification_active",
         "no cut deletion": "total_committed_unique_master_cuts",
         "post-runtime metadata": "runtime_driven_scientific_branching",
+        "mandatory expected run identity": "incomplete_expected_run_identity",
+        "current instance identity": "current_instance_identity_mismatch",
+        "duplicate identity fail closed": "relative_violation_identity_mismatch",
+        "frozen solver propagation": 'gp.setParam("Threads", 1)',
     }
     for name, token in required_implementation_tokens.items():
         check(name, token in implementation)
@@ -83,6 +87,23 @@ def audit(root: str | Path) -> dict[str, Any]:
     check("formal gate before execution", "formal_run_not_authorized" in runner)
     check("holdout and old stages rejected", "PROHIBITED_STAGES" in runner)
     check("recovery ledger", "RECOVERABLE_PHASES" in runner and "advance_recovery_ledger" in runner)
+    check("complete test-authorized pipeline", all(token in runner for token in (
+        "_TEST_AUTHORIZATION", "_execute_pipeline", "solve_frontier", "post_evaluate",
+        '"scientific_status"', '"results.csv"', '"summary.csv"',
+    )))
+    check("manifest runtime identities", all(token in runner for token in (
+        '"resolved_config_file_sha256"', '"resolved_config_canonical_sha256"',
+        '"solver_parameters"', '"instance_sha256"', '"baseline_anchors"',
+        '"checkpoint_identity"', '"post_evaluation_identity"',
+    )))
+    check("formal authorization precedes pipeline", runner.index("formal_run_not_authorized") < runner.index("return _execute_pipeline"))
+    check("direct blocker regression tests", all(token in tests for token in (
+        "test_initial_ub_rejects_current_instance_drift",
+        "test_initial_ub_rejects_each_run_identity_drift",
+        "test_duplicate_cut_identity_drift_fails_closed",
+        "test_fake_authorized_pipeline_is_identity_locked_classified_and_resumable",
+        "test_scientific_status_never_promotes_uncertified_or_invalid",
+    )))
     check("fault injection tests", all(token in tests for token in (
         "test_s0_selection_checkpoint_interrupt_resumes_to_clean_result",
         "test_recovery_ledger_faults_resume_without_replaying_committed_phases",
