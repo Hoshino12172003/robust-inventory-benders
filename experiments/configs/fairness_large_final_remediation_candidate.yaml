@@ -1,0 +1,38 @@
+candidate_name: certified_adaptive_multicut_fair_benders
+candidate_schema: 1
+components:
+  certified_initial_t1_upper_bound: true
+  persistent_separation_model_structure: true
+  pattern_only_certified_cache: true
+  adaptive_certified_multicut_selection: true
+forbidden:
+  cut_deletion: true
+  old_ray_reuse: true
+  old_cut_reuse: true
+  old_violation_reuse: true
+  old_certification_reuse: true
+certification:
+  success_status: certified_robust_optimal
+  fixed_scenario_recertification_at_current_point: true
+  full_separation_objective_bound_required: true
+adaptive_multicut:
+  minimum_cuts_when_a_certified_violation_exists: 1
+  maximum_certified_cuts_per_iteration: 5
+  coefficient_order: [y, x, T]
+  normalized_violation_denominator: max(1,l1_norm_of_cut_coefficients)
+  direction_similarity: cosine_of_l2_normalized_coefficient_vectors
+  maximum_similarity_for_secondary_cut: 0.98
+  minimum_secondary_relative_normalized_violation: 0.10
+  selection_order:
+    - normalized_violation_descending
+    - raw_violation_descending
+    - pattern_sha256_ascending
+    - cut_sha256_ascending
+  budget_rules:
+    - {condition: final_certification_or_active_cuts_ge_5000_or_master_share_ge_0.80_or_master_growth_ge_2.00, budget: 1}
+    - {condition: active_cuts_ge_2500_or_master_share_ge_0.60_or_master_growth_ge_1.50, budget: 2}
+    - {condition: active_cuts_ge_1000_or_master_share_ge_0.40, budget: 3}
+    - {condition: otherwise, budget: 5}
+  master_share_denominator_floor_seconds: 1.0e-9
+  master_growth_reference: median_of_up_to_three_preceding_positive_master_runtimes
+  missing_history_master_growth: 1.0
