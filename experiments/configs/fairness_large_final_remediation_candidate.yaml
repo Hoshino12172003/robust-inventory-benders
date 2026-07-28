@@ -33,7 +33,10 @@ canonical_identity:
     includes: [schema, farkas_normalization, sense, canonical_variable_ids, coefficients, constant, rhs]
     farkas_normalization: nonnegative_multipliers_sum_to_one_v1
 numeric_selection:
-  decimal_rounding_mode: ROUND_HALF_EVEN
+  quantization_schema: binary64_integer_ratio_round_half_even_v2
+  implementation: binary64_as_integer_ratio_arbitrary_precision_integer
+  rounding_mode: ROUND_HALF_EVEN
+  quantum_rational: {numerator: 1, denominator: 1000000000}
   raw_violation_acceptance_tolerance: 1.0e-7
   raw_violation_quantum: 1.0e-9
   normalized_violation_quantum: 1.0e-9
@@ -48,6 +51,11 @@ numeric_selection:
   cosine_deadband_policy: redundant
   signed_zero: canonical_positive_zero
   nonfinite: fail_closed
+  fail_closed_states:
+    - nonfinite_numeric_identity
+    - invalid_quantum
+    - invalid_binary64_input
+    - quantization_schema_mismatch
   lb_improvement_state: quantized_max_0_current_LB_minus_previous_LB
   stall_counter: consecutive_zero_lb_improvement_buckets_reporting_only
 adaptive_multicut:
@@ -64,26 +72,56 @@ adaptive_multicut:
     - cut_sha256_ascending
   adaptive_batch_schedule:
     - {condition: final_certification, maximum_batch_size: 1}
-    - {if_total_certified_cuts_lt: 1000, maximum_batch_size: 5}
-    - {if_total_certified_cuts_lt: 3000, maximum_batch_size: 3}
-    - {if_total_certified_cuts_lt: 5000, maximum_batch_size: 2}
+    - {if_total_committed_unique_master_cuts_lt: 1000, maximum_batch_size: 5}
+    - {if_total_committed_unique_master_cuts_lt: 3000, maximum_batch_size: 3}
+    - {if_total_committed_unique_master_cuts_lt: 5000, maximum_batch_size: 2}
     - {otherwise: true, maximum_batch_size: 1}
+  schedule_count_field: total_committed_unique_master_cuts
+  schedule_count_timing: start_of_iteration_before_selection
+  selected_count_formula: A_k=min(E_k,B(C_k))
+  committed_count_includes: [unique_valid_cuts_actually_added_to_master_and_atomically_checkpointed_before_iteration]
+  committed_count_excludes:
+    - certified_but_not_selected
+    - selected_but_not_committed
+    - duplicate
+    - numerical_redundancy_rejection
+    - invalid_or_uncertified
+    - pool_candidate
+    - cache_candidate
   runtime_fields_role: reporting_only_never_scientific_branching
   schedule_must_not_be_retuned_from_L0_L1_M1_or_holdout: true
 checkpointed_adaptive_state:
   - iteration
-  - total_certified_cuts
+  - total_committed_unique_master_cuts
   - final_certification
   - current_batch_schedule_segment
   - quantized_lb_improvement_state
   - stall_counter
   - pattern_sha256_values
-  - cut_sha256_values
   - candidate_ordering
   - duplicate_and_redundancy_decisions
+  - selected_cut_sha256_values
+  - committed_master_cut_sha256_values
+  - committed_cut_count_before_iteration
+  - committed_cut_count_after_iteration
+  - cut_commit_state
+  - canonical_cut_payloads_by_sha256
   - pattern_schema_version
   - cut_schema_version
   - quantization_schema
+  - quantization_identity
+cut_commit_state_machine:
+  states: [no_selection, selection_complete_not_committed, commit_complete]
+  committed_list: append_only_unique_in_successful_commit_order
+  checkpoint_identity_covers: [selected_cut_sha256_values, committed_master_cut_sha256_values, committed_cut_count_before_iteration, committed_cut_count_after_iteration, cut_commit_state]
+  selection_checkpoint: atomic_before_any_master_add
+  commit_checkpoint: atomic_after_all_selected_master_adds
+  partial_commit_checkpoint: forbidden
+  memory_add_without_commit_checkpoint: volatile_and_scientifically_invisible
+  resume_duplicate_prevention: rebuild_from_persisted_committed_list_and_never_add_existing_sha
+  selected_payload_reconstruction: canonical_cut_payloads_by_sha256
+  corrupt_duplicate_count_or_relation: fail_closed
+  deprecated_cut_sha256_values: forbidden_not_a_recovery_source
 manifest_identity_includes:
   - candidate_file_sha256
   - pattern_schema
@@ -91,4 +129,7 @@ manifest_identity_includes:
   - canonical_json_rule
   - float_encoding_rule
   - quantization_parameters
+  - quantization_schema
   - adaptive_batch_schedule
+  - committed_cut_state_machine
+  - checkpoint_selection_state

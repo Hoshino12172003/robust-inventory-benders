@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 import csv
-from decimal import Decimal, ROUND_HALF_EVEN, localcontext
+from copy import deepcopy
+from decimal import Decimal
 import hashlib
 import json
 import math
@@ -37,6 +38,26 @@ DIVERSITY_QUANTUM = Decimal("1e-9")
 THRESHOLD_DEADBAND_BUCKETS = 2
 RELATIVE_VIOLATION_THRESHOLD = Decimal("0.10")
 COSINE_REDUNDANCY_THRESHOLD = Decimal("0.98")
+QUANTIZATION_SCHEMA = "binary64_integer_ratio_round_half_even_v2"
+CUT_COMMIT_STATES = {
+    "no_selection", "selection_complete_not_committed", "commit_complete",
+}
+
+
+class QuantizationFailClosed(ValueError):
+    """A classified numeric-identity failure that must stop the scientific path."""
+
+    def __init__(self, status: str):
+        self.status = status
+        super().__init__(status)
+
+
+class CommitInterrupted(RuntimeError):
+    """Simulated volatile interruption; no partially committed state is durable."""
+
+
+class CheckpointWriteFailure(RuntimeError):
+    """Atomic commit-checkpoint failure; the process must stop and rebuild."""
 
 
 def canonical_json_bytes(payload: Any) -> bytes:
@@ -133,17 +154,54 @@ def cut_sha256(variable_ids: list[Any], terms: dict[Any, Any] | list[tuple[Any, 
     return hashlib.sha256(canonical_cut_bytes(variable_ids, terms, **identity)).hexdigest().upper()
 
 
-def quantized_bucket(value: Any, quantum: Decimal) -> int:
-    if not isinstance(quantum, Decimal) or not quantum.is_finite() or quantum <= 0:
-        raise ValueError("Selection quantum must be a finite positive Decimal.")
-    number = float(value)
+def _binary64(value: Any) -> float:
+    if isinstance(value, bool):
+        raise QuantizationFailClosed("invalid_binary64_input")
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise QuantizationFailClosed("invalid_binary64_input") from exc
     if not math.isfinite(number):
-        raise ValueError("Selection metrics must be finite IEEE-754 binary64 values.")
-    if number == 0.0:
-        number = 0.0
-    with localcontext() as context:
-        context.prec = 80
-        return int((Decimal.from_float(number) / quantum).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+        raise QuantizationFailClosed("nonfinite_numeric_identity")
+    return 0.0 if number == 0.0 else number
+
+
+def _positive_quantum_ratio(quantum: Any) -> tuple[int, int]:
+    try:
+        if isinstance(quantum, bool):
+            raise ValueError
+        if isinstance(quantum, Decimal):
+            if not quantum.is_finite() or quantum <= 0:
+                raise ValueError
+            numerator, denominator = quantum.as_integer_ratio()
+        elif isinstance(quantum, int):
+            if quantum <= 0:
+                raise ValueError
+            numerator, denominator = quantum, 1
+        elif isinstance(quantum, str):
+            parsed = Decimal(quantum)
+            if not parsed.is_finite() or parsed <= 0:
+                raise ValueError
+            numerator, denominator = parsed.as_integer_ratio()
+        else:
+            raise ValueError
+    except (ValueError, TypeError, ArithmeticError) as exc:
+        raise QuantizationFailClosed("invalid_quantum") from exc
+    return numerator, denominator
+
+
+def quantized_bucket(value: Any, quantum: Any) -> int:
+    """Exact RoundHalfEven(binary64 / rational quantum) using arbitrary-size ints."""
+    number = _binary64(value)
+    quantum_numerator, quantum_denominator = _positive_quantum_ratio(quantum)
+    numerator, denominator = number.as_integer_ratio()
+    scaled = abs(numerator) * quantum_denominator
+    divisor = denominator * quantum_numerator
+    quotient, remainder = divmod(scaled, divisor)
+    doubled = 2 * remainder
+    if doubled > divisor or (doubled == divisor and quotient % 2 == 1):
+        quotient += 1
+    return -quotient if numerator < 0 else quotient
 
 
 def raw_violation_is_accepted(value: Any) -> bool:
@@ -178,70 +236,215 @@ def candidate_order_key(
 
 
 def adaptive_batch_size(
-    total_certified_cuts: int,
+    total_committed_unique_master_cuts: int,
     *,
     final_certification: bool = False,
     reporting_runtime: dict[str, Any] | None = None,
 ) -> int:
     del reporting_runtime
-    if isinstance(total_certified_cuts, bool) or not isinstance(total_certified_cuts, int) or total_certified_cuts < 0:
-        raise ValueError("total_certified_cuts must be a nonnegative integer.")
+    if (isinstance(total_committed_unique_master_cuts, bool)
+            or not isinstance(total_committed_unique_master_cuts, int)
+            or total_committed_unique_master_cuts < 0):
+        raise ValueError("total_committed_unique_master_cuts must be a nonnegative integer.")
     if final_certification:
         return 1
-    if total_certified_cuts < 1000:
+    if total_committed_unique_master_cuts < 1000:
         return 5
-    if total_certified_cuts < 3000:
+    if total_committed_unique_master_cuts < 3000:
         return 3
-    if total_certified_cuts < 5000:
+    if total_committed_unique_master_cuts < 5000:
         return 2
     return 1
 
 
-def adaptive_batch_segment(total_certified_cuts: int, *, final_certification: bool = False) -> str:
-    size = adaptive_batch_size(total_certified_cuts, final_certification=final_certification)
+def adaptive_batch_segment(total_committed_unique_master_cuts: int, *, final_certification: bool = False) -> str:
+    size = adaptive_batch_size(total_committed_unique_master_cuts, final_certification=final_certification)
     if final_certification:
         return "final_certification_batch_1"
-    if total_certified_cuts < 1000:
+    if total_committed_unique_master_cuts < 1000:
         return "cuts_0_999_batch_5"
-    if total_certified_cuts < 3000:
+    if total_committed_unique_master_cuts < 3000:
         return "cuts_1000_2999_batch_3"
-    if total_certified_cuts < 5000:
+    if total_committed_unique_master_cuts < 5000:
         return "cuts_3000_4999_batch_2"
     assert size == 1
     return "cuts_5000_plus_batch_1"
 
 
+def selected_cut_count(eligible_count: int, committed_count: int, *, final_certification: bool = False) -> int:
+    if isinstance(eligible_count, bool) or not isinstance(eligible_count, int) or eligible_count < 0:
+        raise ValueError("eligible_count must be a nonnegative integer.")
+    return min(eligible_count, adaptive_batch_size(committed_count, final_certification=final_certification))
+
+
 CHECKPOINT_SELECTION_FIELDS = (
-    "iteration", "total_certified_cuts", "final_certification", "current_batch_schedule_segment",
-    "quantized_lb_improvement_state", "stall_counter", "pattern_sha256_values", "cut_sha256_values",
-    "candidate_ordering", "duplicate_and_redundancy_decisions", "pattern_schema_version",
-    "cut_schema_version", "quantization_schema",
+    "iteration", "total_committed_unique_master_cuts", "final_certification",
+    "current_batch_schedule_segment", "quantized_lb_improvement_state", "stall_counter",
+    "pattern_sha256_values", "candidate_ordering", "duplicate_and_redundancy_decisions",
+    "selected_cut_sha256_values", "committed_master_cut_sha256_values",
+    "committed_cut_count_before_iteration", "committed_cut_count_after_iteration",
+    "cut_commit_state", "canonical_cut_payloads_by_sha256", "pattern_schema_version",
+    "cut_schema_version", "quantization_schema", "quantization_identity",
 )
 
 
-def checkpoint_selection_signature(state: dict[str, Any]) -> str:
-    if any(field not in state for field in CHECKPOINT_SELECTION_FIELDS):
-        raise ValueError("Checkpoint is missing frozen adaptive-selection state.")
-    payload = {field: state[field] for field in CHECKPOINT_SELECTION_FIELDS}
-    expected_segment = adaptive_batch_segment(
-        payload["total_certified_cuts"], final_certification=payload["final_certification"]
+def _valid_sha_list(values: Any) -> bool:
+    return isinstance(values, list) and all(
+        isinstance(value, str) and re.fullmatch(r"[0-9A-F]{64}", value) for value in values
     )
-    if payload["current_batch_schedule_segment"] != expected_segment:
-        raise ValueError("Checkpoint batch schedule segment is inconsistent with discrete state.")
+
+
+def _validate_cut_payload_map(payloads: Any, required_hashes: set[str]) -> None:
+    if not isinstance(payloads, dict) or not required_hashes.issubset(payloads):
+        raise ValueError("Selected and committed cuts must have reconstructable canonical payloads.")
+    for digest in required_hashes:
+        payload = payloads[digest]
+        actual = hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
+        if actual != digest or payload.get("schema") != CUT_SCHEMA:
+            raise ValueError("Canonical cut payload does not match its cut SHA or schema.")
+
+
+def validate_checkpoint_state(state: dict[str, Any]) -> dict[str, Any]:
+    if any(field not in state for field in CHECKPOINT_SELECTION_FIELDS):
+        raise ValueError("Checkpoint is missing frozen adaptive-selection or commit state.")
+    payload = {field: deepcopy(state[field]) for field in CHECKPOINT_SELECTION_FIELDS}
+    if payload["quantization_schema"] != QUANTIZATION_SCHEMA:
+        raise QuantizationFailClosed("quantization_schema_mismatch")
     if payload["pattern_schema_version"] != PATTERN_SCHEMA or payload["cut_schema_version"] != CUT_SCHEMA:
         raise ValueError("Checkpoint canonicalization schema mismatch.")
-    for field in ("iteration", "total_certified_cuts", "quantized_lb_improvement_state", "stall_counter"):
+    for field in (
+        "iteration", "total_committed_unique_master_cuts", "quantized_lb_improvement_state",
+        "stall_counter", "committed_cut_count_before_iteration", "committed_cut_count_after_iteration",
+    ):
         value = payload[field]
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError(f"Checkpoint {field} must be a nonnegative integer.")
     if not isinstance(payload["final_certification"], bool):
         raise ValueError("Checkpoint final_certification must be boolean.")
-    for field in ("pattern_sha256_values", "cut_sha256_values"):
-        if not isinstance(payload[field], list) or not all(re.fullmatch(r"[0-9A-F]{64}", str(value)) for value in payload[field]):
+    for field in (
+        "pattern_sha256_values", "candidate_ordering", "selected_cut_sha256_values",
+        "committed_master_cut_sha256_values",
+    ):
+        if not _valid_sha_list(payload[field]):
             raise ValueError(f"Checkpoint {field} must contain uppercase SHA256 values.")
-    if payload["quantization_schema"] != "decimal_bucket_round_half_even_v1":
-        raise ValueError("Checkpoint quantization schema mismatch.")
+    candidates = payload["candidate_ordering"]
+    selected = payload["selected_cut_sha256_values"]
+    committed = payload["committed_master_cut_sha256_values"]
+    if any(len(values) != len(set(values)) for values in (candidates, selected, committed)):
+        raise ValueError("Candidate, selected and committed cut SHA lists must each be unique.")
+    before = payload["committed_cut_count_before_iteration"]
+    after = payload["committed_cut_count_after_iteration"]
+    state_name = payload["cut_commit_state"]
+    if state_name not in CUT_COMMIT_STATES:
+        raise ValueError("Illegal cut commit state.")
+    if payload["current_batch_schedule_segment"] != adaptive_batch_segment(
+        before, final_certification=payload["final_certification"]
+    ):
+        raise ValueError("Checkpoint batch schedule segment is inconsistent with start-of-iteration C_k.")
+    expected_selected_count = selected_cut_count(
+        len(candidates), before, final_certification=payload["final_certification"]
+    )
+    if selected != candidates[:expected_selected_count] or set(candidates).intersection(committed[:before]):
+        raise ValueError("Selected cuts must be exactly the frozen eligible-order prefix and new to the master.")
+    if payload["quantization_identity"] != {
+        "quantum_numerator": 1, "quantum_denominator": 10**9, "deadband_buckets": 2,
+    }:
+        raise QuantizationFailClosed("quantization_schema_mismatch")
+    if state_name in {"no_selection", "selection_complete_not_committed"}:
+        if before != after or after != len(committed) or payload["total_committed_unique_master_cuts"] != before:
+            raise ValueError("Uncommitted checkpoint counts must equal the committed list length C_k.")
+        if set(selected).intersection(committed):
+            raise ValueError("Selected uncommitted cuts must be new relative to committed cuts.")
+        if state_name == "no_selection" and selected:
+            raise ValueError("A no-selection checkpoint cannot contain selected cuts.")
+        if state_name == "selection_complete_not_committed" and not selected:
+            raise ValueError("A selection checkpoint must contain selected cuts.")
+    else:
+        if after != len(committed) or payload["total_committed_unique_master_cuts"] != after:
+            raise ValueError("Committed checkpoint after-count must equal the committed list length.")
+        if after != before + len(selected) or committed[before:] != selected:
+            raise ValueError("Committed cuts must append the selected list exactly once in frozen order.")
+    _validate_cut_payload_map(payload["canonical_cut_payloads_by_sha256"], set(selected) | set(committed))
+    return payload
+
+
+def checkpoint_selection_signature(state: dict[str, Any]) -> str:
+    payload = validate_checkpoint_state(state)
     return hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
+
+
+def make_selection_checkpoint(
+    *, iteration: int, committed_hashes: list[str], eligible_ordered_hashes: list[str],
+    canonical_cut_payloads_by_sha256: dict[str, Any], final_certification: bool = False,
+    pattern_hashes: list[str] | None = None, quantized_lb_improvement_state: int = 0,
+    stall_counter: int = 0, duplicate_and_redundancy_decisions: list[Any] | None = None,
+) -> dict[str, Any]:
+    if len(eligible_ordered_hashes) != len(set(eligible_ordered_hashes)):
+        raise ValueError("Eligible cut hashes must be unique before selection.")
+    if set(eligible_ordered_hashes).intersection(committed_hashes):
+        raise ValueError("Eligible cuts cannot already be committed.")
+    before = len(committed_hashes)
+    selected = eligible_ordered_hashes[:selected_cut_count(
+        len(eligible_ordered_hashes), before, final_certification=final_certification
+    )]
+    state = {
+        "iteration": iteration,
+        "total_committed_unique_master_cuts": before,
+        "final_certification": final_certification,
+        "current_batch_schedule_segment": adaptive_batch_segment(before, final_certification=final_certification),
+        "quantized_lb_improvement_state": quantized_lb_improvement_state,
+        "stall_counter": stall_counter,
+        "pattern_sha256_values": list(pattern_hashes or []),
+        "candidate_ordering": list(eligible_ordered_hashes),
+        "duplicate_and_redundancy_decisions": list(duplicate_and_redundancy_decisions or []),
+        "selected_cut_sha256_values": selected,
+        "committed_master_cut_sha256_values": list(committed_hashes),
+        "committed_cut_count_before_iteration": before,
+        "committed_cut_count_after_iteration": before,
+        "cut_commit_state": "selection_complete_not_committed" if selected else "no_selection",
+        "canonical_cut_payloads_by_sha256": deepcopy(canonical_cut_payloads_by_sha256),
+        "pattern_schema_version": PATTERN_SCHEMA,
+        "cut_schema_version": CUT_SCHEMA,
+        "quantization_schema": QUANTIZATION_SCHEMA,
+        "quantization_identity": {"quantum_numerator": 1, "quantum_denominator": 10**9, "deadband_buckets": 2},
+    }
+    validate_checkpoint_state(state)
+    return state
+
+
+def commit_selected_checkpoint(
+    state: dict[str, Any], *, interrupt_after_memory_adds: int | None = None,
+    checkpoint_write_success: bool = True,
+) -> dict[str, Any]:
+    persisted = validate_checkpoint_state(state)
+    if persisted["cut_commit_state"] != "selection_complete_not_committed":
+        raise ValueError("Only a persisted selection checkpoint can be committed.")
+    volatile_committed = list(persisted["committed_master_cut_sha256_values"])
+    for index, digest in enumerate(persisted["selected_cut_sha256_values"], start=1):
+        _validate_cut_payload_map(persisted["canonical_cut_payloads_by_sha256"], {digest})
+        if digest in volatile_committed:
+            raise ValueError("A cut SHA cannot be added to the master twice.")
+        volatile_committed.append(digest)
+        if interrupt_after_memory_adds == index:
+            raise CommitInterrupted("volatile master additions are not durable scientific state")
+    if not checkpoint_write_success:
+        raise CheckpointWriteFailure("atomic commit checkpoint failed; stop and rebuild")
+    committed = deepcopy(persisted)
+    committed["committed_master_cut_sha256_values"] = volatile_committed
+    committed["committed_cut_count_after_iteration"] = len(volatile_committed)
+    committed["total_committed_unique_master_cuts"] = len(volatile_committed)
+    committed["cut_commit_state"] = "commit_complete"
+    validate_checkpoint_state(committed)
+    return committed
+
+
+def resume_action(state: dict[str, Any]) -> str:
+    persisted = validate_checkpoint_state(state)
+    return {
+        "no_selection": "resolve_from_complete_separation",
+        "selection_complete_not_committed": "rebuild_committed_master_then_recommit_same_selected_hashes_once",
+        "commit_complete": "rebuild_committed_master_then_advance_to_next_iteration",
+    }[persisted["cut_commit_state"]]
 
 
 def sha256(path: Path) -> str:
@@ -330,7 +533,7 @@ def audit(root: Path) -> dict[str, Any]:
     check("float hex and signed zero", canonical["cut"]["coefficient_encoding"] == "python_float_hex_binary64" and canonical["cut"]["signed_zero"] == "canonical_positive_zero")
     check("nonfinite fails closed", canonical["cut"]["nonfinite"] == "fail_closed" and candidate["numeric_selection"]["nonfinite"] == "fail_closed")
     numeric = candidate["numeric_selection"]
-    check("quantization", numeric["decimal_rounding_mode"] == "ROUND_HALF_EVEN" and all(float(numeric[name]) == 1e-9 for name in (
+    check("exact integer-ratio quantization", numeric["rounding_mode"] == "ROUND_HALF_EVEN" and numeric["implementation"] == "binary64_as_integer_ratio_arbitrary_precision_integer" and numeric["quantization_schema"] == QUANTIZATION_SCHEMA and all(float(numeric[name]) == 1e-9 for name in (
         "raw_violation_quantum", "normalized_violation_quantum", "relative_violation_quantum",
         "cosine_similarity_quantum", "diversity_quantum", "lb_improvement_quantum",
     )))
@@ -341,27 +544,48 @@ def audit(root: Path) -> dict[str, Any]:
     ])
     expected_schedule = [
         {"condition": "final_certification", "maximum_batch_size": 1},
-        {"if_total_certified_cuts_lt": 1000, "maximum_batch_size": 5},
-        {"if_total_certified_cuts_lt": 3000, "maximum_batch_size": 3},
-        {"if_total_certified_cuts_lt": 5000, "maximum_batch_size": 2},
+        {"if_total_committed_unique_master_cuts_lt": 1000, "maximum_batch_size": 5},
+        {"if_total_committed_unique_master_cuts_lt": 3000, "maximum_batch_size": 3},
+        {"if_total_committed_unique_master_cuts_lt": 5000, "maximum_batch_size": 2},
         {"otherwise": True, "maximum_batch_size": 1},
     ]
     multicut = candidate["adaptive_multicut"]
     check("discrete batch schedule", multicut["adaptive_batch_schedule"] == expected_schedule)
+    check("start-of-iteration committed count", multicut["schedule_count_field"] == "total_committed_unique_master_cuts" and multicut["schedule_count_timing"] == "start_of_iteration_before_selection")
+    check("eligible min batch formula", multicut["selected_count_formula"] == "A_k=min(E_k,B(C_k))")
+    check("committed count exclusions", set(multicut["committed_count_excludes"]) == {
+        "certified_but_not_selected", "selected_but_not_committed", "duplicate",
+        "numerical_redundancy_rejection", "invalid_or_uncertified", "pool_candidate", "cache_candidate",
+    })
     check("runtime branching forbidden", multicut["runtime_fields_role"] == "reporting_only_never_scientific_branching" and not any("runtime" in json.dumps(row).lower() for row in multicut["adaptive_batch_schedule"]))
     required_checkpoint_state = {
-        "iteration", "total_certified_cuts", "final_certification", "current_batch_schedule_segment",
+        "iteration", "total_committed_unique_master_cuts", "final_certification", "current_batch_schedule_segment",
         "quantized_lb_improvement_state", "stall_counter", "pattern_sha256_values",
-        "cut_sha256_values", "candidate_ordering", "duplicate_and_redundancy_decisions",
-        "pattern_schema_version", "cut_schema_version", "quantization_schema",
+        "candidate_ordering", "duplicate_and_redundancy_decisions", "selected_cut_sha256_values",
+        "committed_master_cut_sha256_values", "committed_cut_count_before_iteration",
+        "committed_cut_count_after_iteration", "cut_commit_state", "canonical_cut_payloads_by_sha256",
+        "pattern_schema_version", "cut_schema_version", "quantization_schema", "quantization_identity",
     }
     check("checkpointed adaptive state", set(candidate["checkpointed_adaptive_state"]) == required_checkpoint_state)
+    check("selected committed state machine", candidate["cut_commit_state_machine"]["states"] == [
+        "no_selection", "selection_complete_not_committed", "commit_complete",
+    ] and candidate["cut_commit_state_machine"]["committed_list"] == "append_only_unique_in_successful_commit_order")
+    check("resume duplicate prevention", candidate["cut_commit_state_machine"]["resume_duplicate_prevention"] == "rebuild_from_persisted_committed_list_and_never_add_existing_sha")
+    check("append-only atomic commit", candidate["cut_commit_state_machine"]["partial_commit_checkpoint"] == "forbidden" and candidate["cut_commit_state_machine"]["memory_add_without_commit_checkpoint"] == "volatile_and_scientifically_invisible")
+    check("quantization failure states", set(numeric["fail_closed_states"]) == {
+        "nonfinite_numeric_identity", "invalid_quantum", "invalid_binary64_input", "quantization_schema_mismatch",
+    })
+    check("binary64 extremes", quantized_bucket(float.fromhex("0x1.fffffffffffffp+1023"), Decimal("1e-9")) > 0 and quantized_bucket(float.fromhex("0x0.0000000000001p-1022"), Decimal("1e-9")) == 0)
+    source_text = (root / "src/fairness_large_final_remediation_audit.py").read_text(encoding="utf-8")
+    check("integer ratio implementation", ".as_integer_ratio()" in source_text and "divmod(scaled, divisor)" in source_text)
+    check("Decimal context forbidden", "Decimal." + "from_float" not in source_text and "local" + "context" not in source_text and ".quan" + "tize(" not in source_text)
     check("canonical reference behavior", _canonical_float_hex(-0.0) == _canonical_float_hex(0.0) and adaptive_batch_size(999) == 5 and adaptive_batch_size(1000) == 3 and adaptive_batch_size(5000) == 1)
     test_text = (root / "tests/test_fairness_large_final_remediation_protocol.py").read_text(encoding="utf-8")
     check("canonical boundary tests present", all(name in test_text for name in (
         "test_pattern_hash_canonicalization_and_validation", "test_cut_hash_canonicalization_and_binary64_validation",
         "test_numeric_nextafter_deadbands_and_half_even", "test_batch_schedule_boundaries_and_runtime_independence",
-        "test_resume_selection_state_is_discrete_and_reproducible",
+        "test_resume_selection_state_is_discrete_and_reproducible", "test_binary64_extremes_use_exact_integer_arithmetic",
+        "test_selected_committed_interrupt_recovery_state_machine", "test_batch_count_uses_only_start_committed_unique_cuts",
     )))
 
     all_rows: dict[str, list[dict[str, Any]]] = {}
@@ -382,7 +606,8 @@ def audit(root: Path) -> dict[str, Any]:
         check(f"{config['stage']} resume no overwrite", config["resume"] is True and config["overwrite_supported"] is False)
         check(f"{config['stage']} adaptive identity lock", {
             "pattern_schema", "cut_schema", "canonical_json_rule", "float_encoding_rule",
-            "quantization_parameters", "adaptive_batch_schedule",
+            "quantization_parameters", "quantization_schema", "adaptive_batch_schedule",
+            "committed_cut_state_machine", "checkpoint_selection_state",
         }.issubset(set(config["manifest_identity_lock"])))
         output = root / config["output_dir"]
         outputs_absent = outputs_absent and not output.exists()

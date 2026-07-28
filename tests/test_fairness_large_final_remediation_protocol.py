@@ -1,7 +1,8 @@
 import hashlib
 import json
 import math
-from decimal import Decimal
+import sys
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,10 @@ from src.fairness_large_final_remediation_audit import (
     CANDIDATE,
     CONFIGS,
     CUT_SCHEMA,
+    QUANTIZATION_SCHEMA,
+    CheckpointWriteFailure,
+    CommitInterrupted,
+    QuantizationFailClosed,
     PATTERN_SCHEMA,
     adaptive_batch_segment,
     adaptive_batch_size,
@@ -20,6 +25,7 @@ from src.fairness_large_final_remediation_audit import (
     canonical_json_bytes,
     canonical_pattern_bytes,
     checkpoint_selection_signature,
+    commit_selected_checkpoint,
     cosine_is_redundant,
     cut_sha256,
     expand_plan,
@@ -27,10 +33,26 @@ from src.fairness_large_final_remediation_audit import (
     quantized_bucket,
     raw_violation_is_accepted,
     relative_violation_is_eligible,
+    make_selection_checkpoint,
+    resume_action,
+    selected_cut_count,
+    validate_checkpoint_state,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def cut_payloads(count: int, *, offset: int = 0):
+    result = {}
+    for index in range(offset, offset + count):
+        payload = json.loads(canonical_cut_bytes(
+            ["y[0]", "T"], {"y[0]": float(index + 1), "T": -1.0},
+            constant=0.0, rhs=float(index), sense=">=",
+        ))
+        digest = hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
+        result[digest] = payload
+    return result
 
 
 def load(rel: str):
@@ -188,8 +210,46 @@ def test_numeric_nextafter_deadbands_and_half_even():
     assert quantized_bucket(1.5, Decimal("1")) == 2
     assert quantized_bucket(-0.0, Decimal("1e-9")) == quantized_bucket(0.0, Decimal("1e-9")) == 0
     for bad in (math.nan, math.inf, -math.inf):
-        with pytest.raises(ValueError):
+        with pytest.raises(QuantizationFailClosed, match="nonfinite_numeric_identity"):
             quantized_bucket(bad, Decimal("1e-9"))
+
+
+def _integer_reference_bucket(value: float, quantum_numerator: int = 1, quantum_denominator: int = 10**9) -> int:
+    numerator, denominator = value.as_integer_ratio()
+    quotient, remainder = divmod(abs(numerator) * quantum_denominator, denominator * quantum_numerator)
+    divisor = denominator * quantum_numerator
+    if 2 * remainder > divisor or (2 * remainder == divisor and quotient % 2):
+        quotient += 1
+    return -quotient if numerator < 0 else quotient
+
+
+def test_binary64_extremes_use_exact_integer_arithmetic():
+    smallest_subnormal = math.nextafter(0.0, 1.0)
+    values = [sys.float_info.max, -sys.float_info.max, sys.float_info.min, smallest_subnormal, 0.0, -0.0, 1.5e-9, -1.5e-9]
+    for value in values:
+        assert quantized_bucket(value, Decimal("1e-9")) == _integer_reference_bucket(value)
+    assert quantized_bucket(0.5, Decimal("1")) == 0
+    assert quantized_bucket(1.5, Decimal("1")) == 2
+    assert quantized_bucket(-0.5, Decimal("1")) == 0
+    assert quantized_bucket(-1.5, Decimal("1")) == -2
+    with localcontext() as context:
+        context.prec = 1
+        low_precision = quantized_bucket(sys.float_info.max, Decimal("1e-9"))
+    with localcontext() as context:
+        context.prec = 999
+        high_precision = quantized_bucket(sys.float_info.max, Decimal("1e-9"))
+    assert low_precision == high_precision
+    for value in (math.nan, math.inf, -math.inf):
+        with pytest.raises(QuantizationFailClosed) as error:
+            quantized_bucket(value, Decimal("1e-9"))
+        assert error.value.status == "nonfinite_numeric_identity"
+    for quantum in (Decimal("0"), Decimal("-1"), Decimal("NaN"), 1e-9):
+        with pytest.raises(QuantizationFailClosed) as error:
+            quantized_bucket(1.0, quantum)
+        assert error.value.status == "invalid_quantum"
+    with pytest.raises(QuantizationFailClosed) as error:
+        quantized_bucket(object(), Decimal("1e-9"))
+    assert error.value.status == "invalid_binary64_input"
 
 
 def test_quantized_tie_break_is_hash_stable():
@@ -215,26 +275,101 @@ def test_batch_schedule_boundaries_and_runtime_independence():
     assert adaptive_batch_size(0, final_certification=True) == 1
 
 
+def test_batch_count_uses_only_start_committed_unique_cuts():
+    for committed_count, expected_batch in ((999, 5), (1000, 3), (2999, 3), (3000, 2), (4999, 2), (5000, 1)):
+        assert adaptive_batch_size(committed_count) == expected_batch
+        for eligible in (0, 1, max(0, expected_batch - 1), expected_batch, expected_batch + 1):
+            assert selected_cut_count(eligible, committed_count) == min(eligible, expected_batch)
+    assert selected_cut_count(99, 0, final_certification=True) == 1
+
+    committed_payloads = cut_payloads(999)
+    eligible_payload = cut_payloads(1, offset=2000)
+    state = make_selection_checkpoint(
+        iteration=5, committed_hashes=list(committed_payloads), eligible_ordered_hashes=list(eligible_payload),
+        canonical_cut_payloads_by_sha256={**committed_payloads, **eligible_payload},
+        duplicate_and_redundancy_decisions=[
+            {"source": "certified_not_selected", "counted": False}, {"source": "duplicate", "counted": False},
+            {"source": "redundancy_rejection", "counted": False}, {"source": "pool_candidate", "counted": False},
+            {"source": "cache_candidate", "counted": False},
+        ],
+    )
+    assert state["total_committed_unique_master_cuts"] == 999
+    assert adaptive_batch_size(state["committed_cut_count_before_iteration"]) == 5
+    committed = commit_selected_checkpoint(state)
+    assert committed["total_committed_unique_master_cuts"] == 1000
+    assert adaptive_batch_size(committed["total_committed_unique_master_cuts"]) == 3
+
+    empty = make_selection_checkpoint(
+        iteration=6, committed_hashes=list(committed_payloads), eligible_ordered_hashes=[],
+        canonical_cut_payloads_by_sha256=committed_payloads,
+    )
+    assert empty["cut_commit_state"] == "no_selection"
+    assert empty["selected_cut_sha256_values"] == []
+    assert empty["committed_cut_count_before_iteration"] == empty["committed_cut_count_after_iteration"] == 999
+
+
 def test_resume_selection_state_is_discrete_and_reproducible():
-    state = {
-        "iteration": 17,
-        "total_certified_cuts": 1000,
-        "final_certification": False,
-        "current_batch_schedule_segment": adaptive_batch_segment(1000),
-        "quantized_lb_improvement_state": 12,
-        "stall_counter": 3,
-        "pattern_sha256_values": ["A" * 64],
-        "cut_sha256_values": ["B" * 64],
-        "candidate_ordering": [[12, 8, 7, "A" * 64, "B" * 64]],
-        "duplicate_and_redundancy_decisions": [{"cut": "B" * 64, "decision": "selected"}],
-        "pattern_schema_version": PATTERN_SCHEMA,
-        "cut_schema_version": CUT_SCHEMA,
-        "quantization_schema": "decimal_bucket_round_half_even_v1",
-    }
+    payloads = cut_payloads(4)
+    state = make_selection_checkpoint(
+        iteration=17, committed_hashes=list(payloads)[:1], eligible_ordered_hashes=list(payloads)[1:],
+        canonical_cut_payloads_by_sha256=payloads, pattern_hashes=["A" * 64],
+        quantized_lb_improvement_state=12, stall_counter=3,
+    )
     before = checkpoint_selection_signature({**state, "runtime": {"master": 1.0}, "machine": "A"})
     after = checkpoint_selection_signature({**state, "runtime": {"master": 999.0}, "machine": "B"})
     assert before == after
-    assert adaptive_batch_size(state["total_certified_cuts"], reporting_runtime={"cpu": "A"}) == 3
-    assert adaptive_batch_size(state["total_certified_cuts"], reporting_runtime={"cpu": "B"}) == 3
+    assert adaptive_batch_size(state["total_committed_unique_master_cuts"], reporting_runtime={"cpu": "A"}) == 5
+    assert adaptive_batch_size(state["total_committed_unique_master_cuts"], reporting_runtime={"cpu": "B"}) == 5
     with pytest.raises(ValueError):
         checkpoint_selection_signature({**state, "current_batch_schedule_segment": "wrong"})
+    with pytest.raises(QuantizationFailClosed) as error:
+        checkpoint_selection_signature({**state, "quantization_schema": "drift"})
+    assert error.value.status == "quantization_schema_mismatch"
+
+
+def test_selected_committed_interrupt_recovery_state_machine():
+    payloads = cut_payloads(5)
+    hashes = list(payloads)
+    selection = make_selection_checkpoint(
+        iteration=9, committed_hashes=hashes[:2], eligible_ordered_hashes=hashes[2:],
+        canonical_cut_payloads_by_sha256=payloads,
+    )
+    assert selection["cut_commit_state"] == "selection_complete_not_committed"
+    assert resume_action(selection) == "rebuild_committed_master_then_recommit_same_selected_hashes_once"
+    selection_signature = checkpoint_selection_signature(selection)
+
+    # An interruption before selection simply reruns the same deterministic selection.
+    rerun = make_selection_checkpoint(
+        iteration=9, committed_hashes=hashes[:2], eligible_ordered_hashes=hashes[2:],
+        canonical_cut_payloads_by_sha256=payloads,
+    )
+    assert checkpoint_selection_signature(rerun) == selection_signature
+
+    # Partial and complete volatile adds are invisible until the atomic commit checkpoint exists.
+    for point in (1, len(selection["selected_cut_sha256_values"])):
+        with pytest.raises(CommitInterrupted):
+            commit_selected_checkpoint(selection, interrupt_after_memory_adds=point)
+        assert checkpoint_selection_signature(selection) == selection_signature
+    with pytest.raises(CheckpointWriteFailure):
+        commit_selected_checkpoint(selection, checkpoint_write_success=False)
+    assert checkpoint_selection_signature(selection) == selection_signature
+
+    committed = commit_selected_checkpoint(selection)
+    assert committed["cut_commit_state"] == "commit_complete"
+    assert committed["committed_master_cut_sha256_values"] == hashes
+    assert committed["committed_cut_count_before_iteration"] == 2
+    assert committed["committed_cut_count_after_iteration"] == 5
+    assert resume_action(committed) == "rebuild_committed_master_then_advance_to_next_iteration"
+    assert commit_selected_checkpoint(selection) == committed
+    with pytest.raises(ValueError):
+        commit_selected_checkpoint(committed)
+
+    corruptions = [
+        {**selection, "committed_master_cut_sha256_values": hashes[:2] + [hashes[0]]},
+        {**selection, "committed_cut_count_before_iteration": 99},
+        {**selection, "cut_commit_state": "partially_committed"},
+        {**committed, "committed_master_cut_sha256_values": hashes + [hashes[-1]]},
+    ]
+    for corrupted in corruptions:
+        with pytest.raises(ValueError):
+            validate_checkpoint_state(corrupted)
