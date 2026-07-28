@@ -58,6 +58,30 @@ numeric_selection:
     - quantization_schema_mismatch
   lb_improvement_state: quantized_max_0_current_LB_minus_previous_LB
   stall_counter: consecutive_zero_lb_improvement_buckets_reporting_only
+relative_normalized_violation:
+  schema: relative_normalized_violation_v1
+  candidate_set: all_unique_current_point_certified_strictly_violating_cuts_before_similarity_filtering
+  allowed_sources: [primary_full_separation_incumbent, pattern_cache, solution_pool]
+  source_union_before_denominator: true
+  exact_cut_sha256_deduplication_before_denominator: true
+  duplicate_source_policy: merge_sources_require_identical_pattern_and_normalized_bucket
+  uncertified_candidates_in_denominator: forbidden
+  normalized_violation_quantum: 1.0e-9
+  normalized_bucket_requirement: nonnegative_integer
+  denominator_rule: maximum_normalized_violation_bucket_over_unique_certified_violating_candidates
+  denominator_field: relative_violation_denominator_bucket
+  ratio_quantum_numerator: 1
+  ratio_quantum_denominator: 1000000000
+  ratio_formula: RoundHalfEven(N_i*1000000000/N_max)_with_arbitrary_precision_integers
+  binary64_or_decimal_context_division: forbidden
+  threshold_bucket: 100000000
+  deadband_buckets: 2
+  eligibility_rule: relative_violation_bucket_strictly_greater_than_100000002
+  empty_set_status: no_certified_violating_candidates
+  zero_denominator_status: no_positive_quantized_normalized_violation
+  empty_or_zero_denominator_robust_certification: forbidden
+  similarity_and_diversity_filtering: after_relative_eligibility_without_denominator_recomputation
+  resume_mismatch_status: relative_violation_identity_mismatch
 adaptive_multicut:
   minimum_cuts_when_a_certified_violation_exists: 1
   maximum_certified_cuts_per_iteration: 5
@@ -67,7 +91,6 @@ adaptive_multicut:
   selection_order:
     - quantized_normalized_violation_descending
     - quantized_diversity_descending
-    - quantized_raw_violation_descending
     - pattern_sha256_ascending
     - cut_sha256_ascending
   adaptive_batch_schedule:
@@ -110,6 +133,15 @@ checkpointed_adaptive_state:
   - cut_schema_version
   - quantization_schema
   - quantization_identity
+  - relative_violation_schema
+  - relative_violation_quantum
+  - relative_violation_threshold_bucket
+  - relative_violation_deadband_buckets
+  - relative_violation_denominator_rule
+  - relative_violation_denominator_bucket
+  - relative_violation_candidate_evidence
+  - relative_violation_status
+  - relative_violation_eligible_count
 cut_commit_state_machine:
   states: [no_selection, selection_complete_not_committed, commit_complete]
   committed_list: append_only_unique_in_successful_commit_order
@@ -133,3 +165,4 @@ manifest_identity_includes:
   - adaptive_batch_schedule
   - committed_cut_state_machine
   - checkpoint_selection_state
+  - relative_violation_identity

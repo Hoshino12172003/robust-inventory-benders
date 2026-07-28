@@ -39,6 +39,16 @@ THRESHOLD_DEADBAND_BUCKETS = 2
 RELATIVE_VIOLATION_THRESHOLD = Decimal("0.10")
 COSINE_REDUNDANCY_THRESHOLD = Decimal("0.98")
 QUANTIZATION_SCHEMA = "binary64_integer_ratio_round_half_even_v2"
+RELATIVE_VIOLATION_SCHEMA = "relative_normalized_violation_v1"
+RELATIVE_VIOLATION_SCALE = 10**9
+RELATIVE_VIOLATION_THRESHOLD_BUCKET = 100_000_000
+RELATIVE_VIOLATION_ELIGIBILITY_FLOOR = 100_000_002
+RELATIVE_VIOLATION_DENOMINATOR_RULE = (
+    "maximum_normalized_violation_bucket_over_unique_certified_violating_candidates"
+)
+RELATIVE_CANDIDATE_SOURCES = {
+    "primary_full_separation_incumbent", "pattern_cache", "solution_pool",
+}
 CUT_COMMIT_STATES = {
     "no_selection", "selection_complete_not_committed", "commit_complete",
 }
@@ -58,6 +68,14 @@ class CommitInterrupted(RuntimeError):
 
 class CheckpointWriteFailure(RuntimeError):
     """Atomic commit-checkpoint failure; the process must stop and rebuild."""
+
+
+class RelativeViolationFailClosed(ValueError):
+    """A classified relative-violation identity or candidate-set failure."""
+
+    def __init__(self, status: str):
+        self.status = status
+        super().__init__(status)
 
 
 def canonical_json_bytes(payload: Any) -> bytes:
@@ -210,10 +228,123 @@ def raw_violation_is_accepted(value: Any) -> bool:
     return bucket > threshold + THRESHOLD_DEADBAND_BUCKETS
 
 
-def relative_violation_is_eligible(value: Any) -> bool:
-    bucket = quantized_bucket(value, RELATIVE_VIOLATION_QUANTUM)
-    threshold = quantized_bucket(float(RELATIVE_VIOLATION_THRESHOLD), RELATIVE_VIOLATION_QUANTUM)
-    return bucket > threshold + THRESHOLD_DEADBAND_BUCKETS
+def relative_violation_bucket_is_eligible(bucket: int) -> bool:
+    if isinstance(bucket, bool) or not isinstance(bucket, int) or bucket < 0:
+        raise RelativeViolationFailClosed("invalid_relative_violation_bucket")
+    return bucket > RELATIVE_VIOLATION_ELIGIBILITY_FLOOR
+
+
+def round_half_even_nonnegative_ratio(numerator: int, denominator: int) -> int:
+    """Round a nonnegative integer ratio exactly, without floating-point division."""
+    if any(isinstance(value, bool) or not isinstance(value, int) for value in (numerator, denominator)):
+        raise RelativeViolationFailClosed("invalid_relative_violation_integer_ratio")
+    if numerator < 0 or denominator <= 0:
+        raise RelativeViolationFailClosed("invalid_relative_violation_integer_ratio")
+    quotient, remainder = divmod(numerator, denominator)
+    doubled = 2 * remainder
+    if doubled > denominator or (doubled == denominator and quotient % 2 == 1):
+        quotient += 1
+    return quotient
+
+
+def relative_normalized_violation_evidence(
+    candidates: list[dict[str, Any]], *, schema: str = RELATIVE_VIOLATION_SCHEMA,
+) -> dict[str, Any]:
+    """Build the order-independent relative-eligibility evidence for one iteration."""
+    if schema != RELATIVE_VIOLATION_SCHEMA:
+        raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
+    if not isinstance(candidates, list):
+        raise RelativeViolationFailClosed("invalid_relative_candidate_set")
+    unique: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            raise RelativeViolationFailClosed("invalid_relative_candidate_set")
+        source = candidate.get("source")
+        if source not in RELATIVE_CANDIDATE_SOURCES:
+            raise RelativeViolationFailClosed("invalid_relative_candidate_source")
+        if candidate.get("certified_current_point") is not True or candidate.get("strictly_violating") is not True:
+            continue
+        cut_hash = candidate.get("cut_sha256")
+        pattern_hash = candidate.get("pattern_sha256")
+        normalized = candidate.get("normalized_violation_bucket")
+        if not isinstance(cut_hash, str) or re.fullmatch(r"[0-9A-F]{64}", cut_hash) is None:
+            raise RelativeViolationFailClosed("invalid_relative_candidate_identity")
+        if not isinstance(pattern_hash, str) or re.fullmatch(r"[0-9A-F]{64}", pattern_hash) is None:
+            raise RelativeViolationFailClosed("invalid_relative_candidate_identity")
+        if isinstance(normalized, bool) or not isinstance(normalized, int) or normalized < 0:
+            raise RelativeViolationFailClosed("invalid_normalized_violation_bucket")
+        if candidate.get("canonical_cut_identity_valid") is not True:
+            raise RelativeViolationFailClosed("invalid_relative_candidate_identity")
+        previous = unique.get(cut_hash)
+        if previous is None:
+            unique[cut_hash] = {
+                "cut_sha256": cut_hash,
+                "pattern_sha256": pattern_hash,
+                "sources": {source},
+                "normalized_violation_bucket": normalized,
+            }
+        else:
+            if (previous["pattern_sha256"] != pattern_hash
+                    or previous["normalized_violation_bucket"] != normalized):
+                raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
+            previous["sources"].add(source)
+    ordered = [unique[key] for key in sorted(unique)]
+    common = {
+        "relative_violation_schema": RELATIVE_VIOLATION_SCHEMA,
+        "relative_violation_quantum": "1e-9",
+        "relative_violation_threshold_bucket": RELATIVE_VIOLATION_THRESHOLD_BUCKET,
+        "relative_violation_deadband_buckets": THRESHOLD_DEADBAND_BUCKETS,
+        "relative_violation_denominator_rule": RELATIVE_VIOLATION_DENOMINATOR_RULE,
+    }
+    if not ordered:
+        return {
+            **common,
+            "relative_violation_denominator_bucket": None,
+            "relative_violation_candidate_evidence": [],
+            "relative_violation_status": "no_certified_violating_candidates",
+            "relative_violation_eligible_count": 0,
+        }
+    maximum = max(item["normalized_violation_bucket"] for item in ordered)
+    if maximum == 0:
+        evidence = [
+            {
+                **item,
+                "sources": sorted(item["sources"]),
+                "relative_violation_bucket": None,
+                "relative_violation_eligible": False,
+                "relative_violation_status": "no_positive_quantized_normalized_violation",
+            }
+            for item in ordered
+        ]
+        return {
+            **common,
+            "relative_violation_denominator_bucket": 0,
+            "relative_violation_candidate_evidence": evidence,
+            "relative_violation_status": "no_positive_quantized_normalized_violation",
+            "relative_violation_eligible_count": 0,
+        }
+    evidence = []
+    for item in ordered:
+        relative = round_half_even_nonnegative_ratio(
+            item["normalized_violation_bucket"] * RELATIVE_VIOLATION_SCALE, maximum
+        )
+        eligible = relative > RELATIVE_VIOLATION_ELIGIBILITY_FLOOR
+        evidence.append(
+            {
+                **item,
+                "sources": sorted(item["sources"]),
+                "relative_violation_bucket": relative,
+                "relative_violation_eligible": eligible,
+                "relative_violation_status": "relative_violation_computed",
+            }
+        )
+    return {
+        **common,
+        "relative_violation_denominator_bucket": maximum,
+        "relative_violation_candidate_evidence": evidence,
+        "relative_violation_status": "relative_violation_computed",
+        "relative_violation_eligible_count": sum(item["relative_violation_eligible"] for item in evidence),
+    }
 
 
 def cosine_is_redundant(value: Any) -> bool:
@@ -223,13 +354,12 @@ def cosine_is_redundant(value: Any) -> bool:
 
 
 def candidate_order_key(
-    *, normalized_violation: Any, raw_violation: Any, diversity: Any,
+    *, normalized_violation: Any, diversity: Any,
     pattern_hash: str, cut_hash: str,
 ) -> tuple[Any, ...]:
     return (
         -quantized_bucket(normalized_violation, NORMALIZED_VIOLATION_QUANTUM),
         -quantized_bucket(diversity, DIVERSITY_QUANTUM),
-        -quantized_bucket(raw_violation, RAW_VIOLATION_QUANTUM),
         str(pattern_hash).upper(),
         str(cut_hash).upper(),
     )
@@ -285,6 +415,11 @@ CHECKPOINT_SELECTION_FIELDS = (
     "committed_cut_count_before_iteration", "committed_cut_count_after_iteration",
     "cut_commit_state", "canonical_cut_payloads_by_sha256", "pattern_schema_version",
     "cut_schema_version", "quantization_schema", "quantization_identity",
+    "relative_violation_schema", "relative_violation_quantum",
+    "relative_violation_threshold_bucket", "relative_violation_deadband_buckets",
+    "relative_violation_denominator_rule", "relative_violation_denominator_bucket",
+    "relative_violation_candidate_evidence", "relative_violation_status",
+    "relative_violation_eligible_count",
 )
 
 
@@ -302,6 +437,43 @@ def _validate_cut_payload_map(payloads: Any, required_hashes: set[str]) -> None:
         actual = hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
         if actual != digest or payload.get("schema") != CUT_SCHEMA:
             raise ValueError("Canonical cut payload does not match its cut SHA or schema.")
+
+
+def _validate_relative_checkpoint_evidence(payload: dict[str, Any]) -> set[str]:
+    evidence = payload["relative_violation_candidate_evidence"]
+    if not isinstance(evidence, list):
+        raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
+    candidates: list[dict[str, Any]] = []
+    for item in evidence:
+        if not isinstance(item, dict) or not isinstance(item.get("sources"), list):
+            raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
+        for source in item["sources"]:
+            candidates.append(
+                {
+                    "source": source,
+                    "certified_current_point": True,
+                    "strictly_violating": True,
+                    "canonical_cut_identity_valid": True,
+                    "cut_sha256": item.get("cut_sha256"),
+                    "pattern_sha256": item.get("pattern_sha256"),
+                    "normalized_violation_bucket": item.get("normalized_violation_bucket"),
+                }
+            )
+    expected = relative_normalized_violation_evidence(
+        candidates, schema=payload["relative_violation_schema"]
+    )
+    fields = (
+        "relative_violation_schema", "relative_violation_quantum",
+        "relative_violation_threshold_bucket", "relative_violation_deadband_buckets",
+        "relative_violation_denominator_rule", "relative_violation_denominator_bucket",
+        "relative_violation_candidate_evidence", "relative_violation_status",
+        "relative_violation_eligible_count",
+    )
+    if any(payload[field] != expected[field] for field in fields):
+        raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
+    return {
+        item["cut_sha256"] for item in evidence if item["relative_violation_eligible"]
+    }
 
 
 def validate_checkpoint_state(state: dict[str, Any]) -> dict[str, Any]:
@@ -350,6 +522,9 @@ def validate_checkpoint_state(state: dict[str, Any]) -> dict[str, Any]:
         "quantum_numerator": 1, "quantum_denominator": 10**9, "deadband_buckets": 2,
     }:
         raise QuantizationFailClosed("quantization_schema_mismatch")
+    relative_eligible_hashes = _validate_relative_checkpoint_evidence(payload)
+    if not set(candidates).issubset(relative_eligible_hashes):
+        raise RelativeViolationFailClosed("relative_violation_identity_mismatch")
     if state_name in {"no_selection", "selection_complete_not_committed"}:
         if before != after or after != len(committed) or payload["total_committed_unique_master_cuts"] != before:
             raise ValueError("Uncommitted checkpoint counts must equal the committed list length C_k.")
@@ -378,7 +553,10 @@ def make_selection_checkpoint(
     canonical_cut_payloads_by_sha256: dict[str, Any], final_certification: bool = False,
     pattern_hashes: list[str] | None = None, quantized_lb_improvement_state: int = 0,
     stall_counter: int = 0, duplicate_and_redundancy_decisions: list[Any] | None = None,
+    relative_violation_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if relative_violation_evidence is None:
+        raise RelativeViolationFailClosed("missing_relative_violation_evidence")
     if len(eligible_ordered_hashes) != len(set(eligible_ordered_hashes)):
         raise ValueError("Eligible cut hashes must be unique before selection.")
     if set(eligible_ordered_hashes).intersection(committed_hashes):
@@ -387,6 +565,16 @@ def make_selection_checkpoint(
     selected = eligible_ordered_hashes[:selected_cut_count(
         len(eligible_ordered_hashes), before, final_certification=final_certification
     )]
+    relative_fields = {
+        key: deepcopy(relative_violation_evidence[key])
+        for key in (
+            "relative_violation_schema", "relative_violation_quantum",
+            "relative_violation_threshold_bucket", "relative_violation_deadband_buckets",
+            "relative_violation_denominator_rule", "relative_violation_denominator_bucket",
+            "relative_violation_candidate_evidence", "relative_violation_status",
+            "relative_violation_eligible_count",
+        )
+    }
     state = {
         "iteration": iteration,
         "total_committed_unique_master_cuts": before,
@@ -407,6 +595,7 @@ def make_selection_checkpoint(
         "cut_schema_version": CUT_SCHEMA,
         "quantization_schema": QUANTIZATION_SCHEMA,
         "quantization_identity": {"quantum_numerator": 1, "quantum_denominator": 10**9, "deadband_buckets": 2},
+        **relative_fields,
     }
     validate_checkpoint_state(state)
     return state
@@ -538,9 +727,16 @@ def audit(root: Path) -> dict[str, Any]:
         "cosine_similarity_quantum", "diversity_quantum", "lb_improvement_quantum",
     )))
     check("deadband", numeric["threshold_deadband_buckets"] == 2 and numeric["violation_deadband_policy"] == "reject_or_do_not_promote" and numeric["cosine_deadband_policy"] == "redundant")
+    relative = candidate["relative_normalized_violation"]
+    check("relative violation schema and candidate union", relative["schema"] == RELATIVE_VIOLATION_SCHEMA and relative["source_union_before_denominator"] is True and set(relative["allowed_sources"]) == RELATIVE_CANDIDATE_SOURCES)
+    check("relative violation denominator", relative["denominator_rule"] == RELATIVE_VIOLATION_DENOMINATOR_RULE and relative["exact_cut_sha256_deduplication_before_denominator"] is True and relative["uncertified_candidates_in_denominator"] == "forbidden")
+    check("relative violation integer formula", relative["ratio_formula"] == "RoundHalfEven(N_i*1000000000/N_max)_with_arbitrary_precision_integers" and relative["binary64_or_decimal_context_division"] == "forbidden")
+    check("relative violation threshold identity", relative["threshold_bucket"] == RELATIVE_VIOLATION_THRESHOLD_BUCKET and relative["deadband_buckets"] == 2 and relative["eligibility_rule"] == "relative_violation_bucket_strictly_greater_than_100000002")
+    check("relative violation empty policies", relative["empty_set_status"] == "no_certified_violating_candidates" and relative["zero_denominator_status"] == "no_positive_quantized_normalized_violation" and relative["empty_or_zero_denominator_robust_certification"] == "forbidden")
+    check("relative eligibility before similarity", relative["similarity_and_diversity_filtering"] == "after_relative_eligibility_without_denominator_recomputation")
     check("stable tie break", candidate["adaptive_multicut"]["selection_order"] == [
         "quantized_normalized_violation_descending", "quantized_diversity_descending",
-        "quantized_raw_violation_descending", "pattern_sha256_ascending", "cut_sha256_ascending",
+        "pattern_sha256_ascending", "cut_sha256_ascending",
     ])
     expected_schedule = [
         {"condition": "final_certification", "maximum_batch_size": 1},
@@ -565,6 +761,11 @@ def audit(root: Path) -> dict[str, Any]:
         "committed_master_cut_sha256_values", "committed_cut_count_before_iteration",
         "committed_cut_count_after_iteration", "cut_commit_state", "canonical_cut_payloads_by_sha256",
         "pattern_schema_version", "cut_schema_version", "quantization_schema", "quantization_identity",
+        "relative_violation_schema", "relative_violation_quantum",
+        "relative_violation_threshold_bucket", "relative_violation_deadband_buckets",
+        "relative_violation_denominator_rule", "relative_violation_denominator_bucket",
+        "relative_violation_candidate_evidence", "relative_violation_status",
+        "relative_violation_eligible_count",
     }
     check("checkpointed adaptive state", set(candidate["checkpointed_adaptive_state"]) == required_checkpoint_state)
     check("selected committed state machine", candidate["cut_commit_state_machine"]["states"] == [
@@ -576,9 +777,11 @@ def audit(root: Path) -> dict[str, Any]:
         "nonfinite_numeric_identity", "invalid_quantum", "invalid_binary64_input", "quantization_schema_mismatch",
     })
     check("binary64 extremes", quantized_bucket(float.fromhex("0x1.fffffffffffffp+1023"), Decimal("1e-9")) > 0 and quantized_bucket(float.fromhex("0x0.0000000000001p-1022"), Decimal("1e-9")) == 0)
+    check("relative integer ratio reference", round_half_even_nonnegative_ratio(100_000_002, 1) == 100_000_002 and relative_violation_bucket_is_eligible(100_000_003) and not relative_violation_bucket_is_eligible(100_000_002))
     source_text = (root / "src/fairness_large_final_remediation_audit.py").read_text(encoding="utf-8")
     check("integer ratio implementation", ".as_integer_ratio()" in source_text and "divmod(scaled, divisor)" in source_text)
     check("Decimal context forbidden", "Decimal." + "from_float" not in source_text and "local" + "context" not in source_text and ".quan" + "tize(" not in source_text)
+    check("relative division is integer-only", "divmod(numerator, denominator)" in source_text and "def relative_violation_" + "is_eligible" not in source_text)
     check("canonical reference behavior", _canonical_float_hex(-0.0) == _canonical_float_hex(0.0) and adaptive_batch_size(999) == 5 and adaptive_batch_size(1000) == 3 and adaptive_batch_size(5000) == 1)
     test_text = (root / "tests/test_fairness_large_final_remediation_protocol.py").read_text(encoding="utf-8")
     check("canonical boundary tests present", all(name in test_text for name in (
@@ -586,6 +789,11 @@ def audit(root: Path) -> dict[str, Any]:
         "test_numeric_nextafter_deadbands_and_half_even", "test_batch_schedule_boundaries_and_runtime_independence",
         "test_resume_selection_state_is_discrete_and_reproducible", "test_binary64_extremes_use_exact_integer_arithmetic",
         "test_selected_committed_interrupt_recovery_state_machine", "test_batch_count_uses_only_start_committed_unique_cuts",
+        "test_relative_violation_single_multiple_and_order_independence",
+        "test_relative_violation_empty_zero_duplicate_and_uncertified",
+        "test_relative_violation_integer_boundaries_and_half_even",
+        "test_relative_violation_resume_identity_and_similarity_independence",
+        "test_relative_violation_config_identity_sha_locks",
     )))
 
     all_rows: dict[str, list[dict[str, Any]]] = {}
@@ -607,8 +815,9 @@ def audit(root: Path) -> dict[str, Any]:
         check(f"{config['stage']} adaptive identity lock", {
             "pattern_schema", "cut_schema", "canonical_json_rule", "float_encoding_rule",
             "quantization_parameters", "quantization_schema", "adaptive_batch_schedule",
-            "committed_cut_state_machine", "checkpoint_selection_state",
+            "committed_cut_state_machine", "checkpoint_selection_state", "relative_violation_identity",
         }.issubset(set(config["manifest_identity_lock"])))
+        check(f"{config['stage']} erratum SHA lock", config["required_protocol_sha256"] == sha256(root / "docs/fairness_large_final_remediation_protocol.md") and config["required_candidate_sha256"] == sha256(candidate_path))
         output = root / config["output_dir"]
         outputs_absent = outputs_absent and not output.exists()
         for item in _candidate_paths(root, config, rows):
