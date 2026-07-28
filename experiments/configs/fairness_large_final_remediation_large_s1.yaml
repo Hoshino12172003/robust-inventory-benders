@@ -1,0 +1,43 @@
+experiment_name: fairness_large_final_remediation_l1_large
+protocol_phase: fairness_large_final_remediation
+stage: L1
+authorization: protocol_only_no_formal_execution
+formal_run_authorized: false
+schema_version: 3
+execution_attempt: 3
+previous_attempt_results_reused: false
+prior_attempt_history_required: true
+prior_attempts:
+  - {attempt: 1, stage: scalability_s1_medium_large, commit: 22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c, status: execution_incomplete, results_reused: false}
+  - {attempt: 2, stage: cross_scale_s1, medium_large_commit: 29ae09e968a206b1987714317ff7528165372a46, large_commit: ec33a047ecd60f4cb473260f1b3c4078726db776, freeze_commit: d6ae40c0bbe3d9af7c67cb7e71fb8ad45e64b033, results_reused: false, role: development_evidence_only}
+base_commit: d6ae40c0bbe3d9af7c67cb7e71fb8ad45e64b033
+protocol_document: docs/fairness_large_final_remediation_protocol.md
+candidate_definition: experiments/configs/fairness_large_final_remediation_candidate.yaml
+candidate: certified_adaptive_multicut_fair_benders
+scale: large
+seeds: [160, 161, 162]
+rho: [0.0, 0.01]
+baseline_count: 3
+frontier_count: 6
+total_tasks: 9
+incremental_tasks_after_l0: 7
+l0_evidence_referenced_read_only: true
+scenario_count: 4657
+output_dir: experiments/results_fairness_large_final_remediation/attempt3_l1_large
+gate_requires: L0_certified_robust_optimal_with_valid_post_evaluation
+minimum_certified_frontier: 4
+pass_requires: {certified_frontier_at_least: 4, denominator: 6, implementation_error_count: 0, invalid_post_evaluation_count: 0, all_successful_post_evaluations_valid: true}
+failure_decision: {decision: stop_final_large_remediation, medium_large_authorized: false, holdout_authorized: false}
+algorithm_time_limit_seconds: 1800
+baseline_time_limit_seconds: 1800
+general_time_limit_seconds: 1800
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7}
+post_evaluation: {time_limit_per_scenario_seconds: 30, checkpoint_chunk_size: 25, scenario_count: 4657}
+runtime_semantics: {par2_multiplier: 2, par2_basis: algorithm_runtime}
+path_policy: {maximum_absolute_path_length: 220, run_directory_hash_hex_length: 24, atomic_suffix: .tmp}
+resume: true
+overwrite_supported: false
+run_key_policy: canonical_json_utf8_sha256_identity_locked
+run_key_fields: [scale, execution_attempt, task_type, seed, rho, candidate]
+manifest_identity_lock: [schema, execution_attempt, git, config_file_sha256, resolved_config_file_sha256, resolved_config_canonical_sha256, protocol_sha256, candidate_sha256, pattern_schema, cut_schema, canonical_json_rule, float_encoding_rule, quantization_parameters, quantization_schema, adaptive_batch_schedule, committed_cut_state_machine, checkpoint_selection_state, solver, instance, baseline, anchor]
+checkpointing: {algorithm: atomic, post_evaluation_chunks: atomic, aggregation_recovery: true}
