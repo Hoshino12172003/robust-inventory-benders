@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+from decimal import Decimal, ROUND_HALF_EVEN, localcontext
 import hashlib
 import json
+import math
 from pathlib import Path
+import re
 from typing import Any
+import unicodedata
 
 import yaml
 
@@ -21,6 +25,223 @@ CONFIGS = (
     "experiments/configs/fairness_large_final_remediation_large_s1.yaml",
     "experiments/configs/fairness_large_final_remediation_medium_large_s1.yaml",
 )
+PATTERN_SCHEMA = "fairness_deviation_pattern_v1"
+CUT_SCHEMA = "fairness_farkas_cut_v1"
+FARKAS_NORMALIZATION = "nonnegative_multipliers_sum_to_one_v1"
+RAW_VIOLATION_TOLERANCE = Decimal("1e-7")
+RAW_VIOLATION_QUANTUM = Decimal("1e-9")
+NORMALIZED_VIOLATION_QUANTUM = Decimal("1e-9")
+COSINE_SIMILARITY_QUANTUM = Decimal("1e-9")
+RELATIVE_VIOLATION_QUANTUM = Decimal("1e-9")
+DIVERSITY_QUANTUM = Decimal("1e-9")
+THRESHOLD_DEADBAND_BUCKETS = 2
+RELATIVE_VIOLATION_THRESHOLD = Decimal("0.10")
+COSINE_REDUNDANCY_THRESHOLD = Decimal("0.98")
+
+
+def canonical_json_bytes(payload: Any) -> bytes:
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _canonical_id(value: Any) -> str:
+    return unicodedata.normalize("NFC", str(value))
+
+
+def _canonical_float_hex(value: Any) -> str:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Canonical cut values must be finite IEEE-754 binary64 values.")
+    if number == 0.0:
+        number = 0.0
+    return number.hex()
+
+
+def canonical_pattern_bytes(
+    region_ids: list[Any] | tuple[Any, ...],
+    product_ids: list[Any] | tuple[Any, ...],
+    values_by_component: dict[tuple[Any, Any], Any],
+) -> bytes:
+    regions = [_canonical_id(value) for value in region_ids]
+    products = [_canonical_id(value) for value in product_ids]
+    if len(regions) != len(set(regions)) or len(products) != len(set(products)):
+        raise ValueError("Canonical instance region/product IDs must be unique after NFC normalization.")
+    normalized_values = {
+        (_canonical_id(region), _canonical_id(product)): value
+        for (region, product), value in values_by_component.items()
+    }
+    order = [(region, product) for region in regions for product in products]
+    if len(normalized_values) != len(values_by_component) or set(normalized_values) != set(order):
+        raise ValueError("Pattern components must exactly match the formal instance R-major/J-minor order.")
+    values: list[int] = []
+    for component in order:
+        value = normalized_values[component]
+        if isinstance(value, bool) or not isinstance(value, int) or value not in (0, 1):
+            raise ValueError("Pattern values must be integer 0 or 1.")
+        values.append(value)
+    payload = {
+        "schema": PATTERN_SCHEMA,
+        "component_order": [[region, product] for region, product in order],
+        "values": values,
+    }
+    return canonical_json_bytes(payload)
+
+
+def pattern_sha256(region_ids: list[Any], product_ids: list[Any], values: dict[tuple[Any, Any], Any]) -> str:
+    return hashlib.sha256(canonical_pattern_bytes(region_ids, product_ids, values)).hexdigest().upper()
+
+
+def canonical_cut_bytes(
+    variable_ids: list[Any] | tuple[Any, ...],
+    terms: dict[Any, Any] | list[tuple[Any, Any]],
+    *,
+    constant: Any,
+    rhs: Any,
+    sense: str,
+) -> bytes:
+    canonical_variables = [_canonical_id(value) for value in variable_ids]
+    if len(canonical_variables) != len(set(canonical_variables)):
+        raise ValueError("Canonical master variable IDs must be unique after NFC normalization.")
+    items = list(terms.items()) if isinstance(terms, dict) else list(terms)
+    term_map: dict[str, Any] = {}
+    for identifier, coefficient in items:
+        key = _canonical_id(identifier)
+        if key in term_map:
+            raise ValueError("Duplicate canonical master variable ID in cut terms.")
+        term_map[key] = coefficient
+    if set(term_map) != set(canonical_variables):
+        raise ValueError("Cut terms must exactly match canonical master variable IDs.")
+    if sense not in {">=", "<=", "="}:
+        raise ValueError("Unsupported cut sense.")
+    payload = {
+        "schema": CUT_SCHEMA,
+        "farkas_normalization": FARKAS_NORMALIZATION,
+        "sense": sense,
+        "terms": [[key, _canonical_float_hex(term_map[key])] for key in canonical_variables],
+        "constant": _canonical_float_hex(constant),
+        "rhs": _canonical_float_hex(rhs),
+    }
+    return canonical_json_bytes(payload)
+
+
+def cut_sha256(variable_ids: list[Any], terms: dict[Any, Any] | list[tuple[Any, Any]], **identity: Any) -> str:
+    return hashlib.sha256(canonical_cut_bytes(variable_ids, terms, **identity)).hexdigest().upper()
+
+
+def quantized_bucket(value: Any, quantum: Decimal) -> int:
+    if not isinstance(quantum, Decimal) or not quantum.is_finite() or quantum <= 0:
+        raise ValueError("Selection quantum must be a finite positive Decimal.")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Selection metrics must be finite IEEE-754 binary64 values.")
+    if number == 0.0:
+        number = 0.0
+    with localcontext() as context:
+        context.prec = 80
+        return int((Decimal.from_float(number) / quantum).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+
+
+def raw_violation_is_accepted(value: Any) -> bool:
+    bucket = quantized_bucket(value, RAW_VIOLATION_QUANTUM)
+    threshold = quantized_bucket(float(RAW_VIOLATION_TOLERANCE), RAW_VIOLATION_QUANTUM)
+    return bucket > threshold + THRESHOLD_DEADBAND_BUCKETS
+
+
+def relative_violation_is_eligible(value: Any) -> bool:
+    bucket = quantized_bucket(value, RELATIVE_VIOLATION_QUANTUM)
+    threshold = quantized_bucket(float(RELATIVE_VIOLATION_THRESHOLD), RELATIVE_VIOLATION_QUANTUM)
+    return bucket > threshold + THRESHOLD_DEADBAND_BUCKETS
+
+
+def cosine_is_redundant(value: Any) -> bool:
+    bucket = quantized_bucket(value, COSINE_SIMILARITY_QUANTUM)
+    threshold = quantized_bucket(float(COSINE_REDUNDANCY_THRESHOLD), COSINE_SIMILARITY_QUANTUM)
+    return bucket >= threshold - THRESHOLD_DEADBAND_BUCKETS
+
+
+def candidate_order_key(
+    *, normalized_violation: Any, raw_violation: Any, diversity: Any,
+    pattern_hash: str, cut_hash: str,
+) -> tuple[Any, ...]:
+    return (
+        -quantized_bucket(normalized_violation, NORMALIZED_VIOLATION_QUANTUM),
+        -quantized_bucket(diversity, DIVERSITY_QUANTUM),
+        -quantized_bucket(raw_violation, RAW_VIOLATION_QUANTUM),
+        str(pattern_hash).upper(),
+        str(cut_hash).upper(),
+    )
+
+
+def adaptive_batch_size(
+    total_certified_cuts: int,
+    *,
+    final_certification: bool = False,
+    reporting_runtime: dict[str, Any] | None = None,
+) -> int:
+    del reporting_runtime
+    if isinstance(total_certified_cuts, bool) or not isinstance(total_certified_cuts, int) or total_certified_cuts < 0:
+        raise ValueError("total_certified_cuts must be a nonnegative integer.")
+    if final_certification:
+        return 1
+    if total_certified_cuts < 1000:
+        return 5
+    if total_certified_cuts < 3000:
+        return 3
+    if total_certified_cuts < 5000:
+        return 2
+    return 1
+
+
+def adaptive_batch_segment(total_certified_cuts: int, *, final_certification: bool = False) -> str:
+    size = adaptive_batch_size(total_certified_cuts, final_certification=final_certification)
+    if final_certification:
+        return "final_certification_batch_1"
+    if total_certified_cuts < 1000:
+        return "cuts_0_999_batch_5"
+    if total_certified_cuts < 3000:
+        return "cuts_1000_2999_batch_3"
+    if total_certified_cuts < 5000:
+        return "cuts_3000_4999_batch_2"
+    assert size == 1
+    return "cuts_5000_plus_batch_1"
+
+
+CHECKPOINT_SELECTION_FIELDS = (
+    "iteration", "total_certified_cuts", "final_certification", "current_batch_schedule_segment",
+    "quantized_lb_improvement_state", "stall_counter", "pattern_sha256_values", "cut_sha256_values",
+    "candidate_ordering", "duplicate_and_redundancy_decisions", "pattern_schema_version",
+    "cut_schema_version", "quantization_schema",
+)
+
+
+def checkpoint_selection_signature(state: dict[str, Any]) -> str:
+    if any(field not in state for field in CHECKPOINT_SELECTION_FIELDS):
+        raise ValueError("Checkpoint is missing frozen adaptive-selection state.")
+    payload = {field: state[field] for field in CHECKPOINT_SELECTION_FIELDS}
+    expected_segment = adaptive_batch_segment(
+        payload["total_certified_cuts"], final_certification=payload["final_certification"]
+    )
+    if payload["current_batch_schedule_segment"] != expected_segment:
+        raise ValueError("Checkpoint batch schedule segment is inconsistent with discrete state.")
+    if payload["pattern_schema_version"] != PATTERN_SCHEMA or payload["cut_schema_version"] != CUT_SCHEMA:
+        raise ValueError("Checkpoint canonicalization schema mismatch.")
+    for field in ("iteration", "total_certified_cuts", "quantized_lb_improvement_state", "stall_counter"):
+        value = payload[field]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"Checkpoint {field} must be a nonnegative integer.")
+    if not isinstance(payload["final_certification"], bool):
+        raise ValueError("Checkpoint final_certification must be boolean.")
+    for field in ("pattern_sha256_values", "cut_sha256_values"):
+        if not isinstance(payload[field], list) or not all(re.fullmatch(r"[0-9A-F]{64}", str(value)) for value in payload[field]):
+            raise ValueError(f"Checkpoint {field} must contain uppercase SHA256 values.")
+    if payload["quantization_schema"] != "decimal_bucket_round_half_even_v1":
+        raise ValueError("Checkpoint quantization schema mismatch.")
+    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
 
 
 def sha256(path: Path) -> str:
@@ -99,6 +320,49 @@ def audit(root: Path) -> dict[str, Any]:
     check("current point recertification", candidate["certification"]["fixed_scenario_recertification_at_current_point"] is True)
     check("complete separation bound", candidate["certification"]["full_separation_objective_bound_required"] is True)
     check("adaptive cut bounds", candidate["adaptive_multicut"]["minimum_cuts_when_a_certified_violation_exists"] == 1 and candidate["adaptive_multicut"]["maximum_certified_cuts_per_iteration"] == 5)
+    canonical = candidate["canonical_identity"]
+    check("canonical pattern schema", canonical["pattern"]["schema"] == PATTERN_SCHEMA)
+    check("canonical cut schema", canonical["cut"]["schema"] == CUT_SCHEMA)
+    check("canonical JSON", canonical["json_serialization"] == {
+        "sort_keys": True, "separators": [",", ":"], "ensure_ascii": False,
+        "allow_nan": False, "encoding": "utf-8", "trailing_newline": False,
+    })
+    check("float hex and signed zero", canonical["cut"]["coefficient_encoding"] == "python_float_hex_binary64" and canonical["cut"]["signed_zero"] == "canonical_positive_zero")
+    check("nonfinite fails closed", canonical["cut"]["nonfinite"] == "fail_closed" and candidate["numeric_selection"]["nonfinite"] == "fail_closed")
+    numeric = candidate["numeric_selection"]
+    check("quantization", numeric["decimal_rounding_mode"] == "ROUND_HALF_EVEN" and all(float(numeric[name]) == 1e-9 for name in (
+        "raw_violation_quantum", "normalized_violation_quantum", "relative_violation_quantum",
+        "cosine_similarity_quantum", "diversity_quantum", "lb_improvement_quantum",
+    )))
+    check("deadband", numeric["threshold_deadband_buckets"] == 2 and numeric["violation_deadband_policy"] == "reject_or_do_not_promote" and numeric["cosine_deadband_policy"] == "redundant")
+    check("stable tie break", candidate["adaptive_multicut"]["selection_order"] == [
+        "quantized_normalized_violation_descending", "quantized_diversity_descending",
+        "quantized_raw_violation_descending", "pattern_sha256_ascending", "cut_sha256_ascending",
+    ])
+    expected_schedule = [
+        {"condition": "final_certification", "maximum_batch_size": 1},
+        {"if_total_certified_cuts_lt": 1000, "maximum_batch_size": 5},
+        {"if_total_certified_cuts_lt": 3000, "maximum_batch_size": 3},
+        {"if_total_certified_cuts_lt": 5000, "maximum_batch_size": 2},
+        {"otherwise": True, "maximum_batch_size": 1},
+    ]
+    multicut = candidate["adaptive_multicut"]
+    check("discrete batch schedule", multicut["adaptive_batch_schedule"] == expected_schedule)
+    check("runtime branching forbidden", multicut["runtime_fields_role"] == "reporting_only_never_scientific_branching" and not any("runtime" in json.dumps(row).lower() for row in multicut["adaptive_batch_schedule"]))
+    required_checkpoint_state = {
+        "iteration", "total_certified_cuts", "final_certification", "current_batch_schedule_segment",
+        "quantized_lb_improvement_state", "stall_counter", "pattern_sha256_values",
+        "cut_sha256_values", "candidate_ordering", "duplicate_and_redundancy_decisions",
+        "pattern_schema_version", "cut_schema_version", "quantization_schema",
+    }
+    check("checkpointed adaptive state", set(candidate["checkpointed_adaptive_state"]) == required_checkpoint_state)
+    check("canonical reference behavior", _canonical_float_hex(-0.0) == _canonical_float_hex(0.0) and adaptive_batch_size(999) == 5 and adaptive_batch_size(1000) == 3 and adaptive_batch_size(5000) == 1)
+    test_text = (root / "tests/test_fairness_large_final_remediation_protocol.py").read_text(encoding="utf-8")
+    check("canonical boundary tests present", all(name in test_text for name in (
+        "test_pattern_hash_canonicalization_and_validation", "test_cut_hash_canonicalization_and_binary64_validation",
+        "test_numeric_nextafter_deadbands_and_half_even", "test_batch_schedule_boundaries_and_runtime_independence",
+        "test_resume_selection_state_is_discrete_and_reproducible",
+    )))
 
     all_rows: dict[str, list[dict[str, Any]]] = {}
     longest = Path()
@@ -116,6 +380,10 @@ def audit(root: Path) -> dict[str, Any]:
         check(f"{config['stage']} solver identity", config["solver_identity"] == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7})
         check(f"{config['stage']} time identity", config["algorithm_time_limit_seconds"] == config["baseline_time_limit_seconds"] == config["general_time_limit_seconds"] == 1800)
         check(f"{config['stage']} resume no overwrite", config["resume"] is True and config["overwrite_supported"] is False)
+        check(f"{config['stage']} adaptive identity lock", {
+            "pattern_schema", "cut_schema", "canonical_json_rule", "float_encoding_rule",
+            "quantization_parameters", "adaptive_batch_schedule",
+        }.issubset(set(config["manifest_identity_lock"])))
         output = root / config["output_dir"]
         outputs_absent = outputs_absent and not output.exists()
         for item in _candidate_paths(root, config, rows):

@@ -15,24 +15,80 @@ certification:
   success_status: certified_robust_optimal
   fixed_scenario_recertification_at_current_point: true
   full_separation_objective_bound_required: true
+canonical_identity:
+  unicode_normalization: NFC
+  json_serialization: {sort_keys: true, separators: [",", ":"], ensure_ascii: false, allow_nan: false, encoding: utf-8, trailing_newline: false}
+  sha256_hex_case: upper
+  pattern:
+    schema: fairness_deviation_pattern_v1
+    component_order: instance_R_major_then_instance_J_minor
+    allowed_values: [0, 1]
+    invalid_length_or_value: fail_closed
+  cut:
+    schema: fairness_farkas_cut_v1
+    variable_order: [y_by_instance_I, x_by_instance_I_then_J, T]
+    coefficient_encoding: python_float_hex_binary64
+    signed_zero: canonical_positive_zero
+    nonfinite: fail_closed
+    includes: [schema, farkas_normalization, sense, canonical_variable_ids, coefficients, constant, rhs]
+    farkas_normalization: nonnegative_multipliers_sum_to_one_v1
+numeric_selection:
+  decimal_rounding_mode: ROUND_HALF_EVEN
+  raw_violation_acceptance_tolerance: 1.0e-7
+  raw_violation_quantum: 1.0e-9
+  normalized_violation_quantum: 1.0e-9
+  relative_violation_quantum: 1.0e-9
+  cosine_similarity_quantum: 1.0e-9
+  diversity_quantum: 1.0e-9
+  lb_improvement_quantum: 1.0e-9
+  threshold_deadband_buckets: 2
+  relative_violation_threshold: 0.10
+  cosine_redundancy_threshold: 0.98
+  violation_deadband_policy: reject_or_do_not_promote
+  cosine_deadband_policy: redundant
+  signed_zero: canonical_positive_zero
+  nonfinite: fail_closed
+  lb_improvement_state: quantized_max_0_current_LB_minus_previous_LB
+  stall_counter: consecutive_zero_lb_improvement_buckets_reporting_only
 adaptive_multicut:
   minimum_cuts_when_a_certified_violation_exists: 1
   maximum_certified_cuts_per_iteration: 5
   coefficient_order: [y, x, T]
   normalized_violation_denominator: max(1,l1_norm_of_cut_coefficients)
   direction_similarity: cosine_of_l2_normalized_coefficient_vectors
-  maximum_similarity_for_secondary_cut: 0.98
-  minimum_secondary_relative_normalized_violation: 0.10
   selection_order:
-    - normalized_violation_descending
-    - raw_violation_descending
+    - quantized_normalized_violation_descending
+    - quantized_diversity_descending
+    - quantized_raw_violation_descending
     - pattern_sha256_ascending
     - cut_sha256_ascending
-  budget_rules:
-    - {condition: final_certification_or_active_cuts_ge_5000_or_master_share_ge_0.80_or_master_growth_ge_2.00, budget: 1}
-    - {condition: active_cuts_ge_2500_or_master_share_ge_0.60_or_master_growth_ge_1.50, budget: 2}
-    - {condition: active_cuts_ge_1000_or_master_share_ge_0.40, budget: 3}
-    - {condition: otherwise, budget: 5}
-  master_share_denominator_floor_seconds: 1.0e-9
-  master_growth_reference: median_of_up_to_three_preceding_positive_master_runtimes
-  missing_history_master_growth: 1.0
+  adaptive_batch_schedule:
+    - {condition: final_certification, maximum_batch_size: 1}
+    - {if_total_certified_cuts_lt: 1000, maximum_batch_size: 5}
+    - {if_total_certified_cuts_lt: 3000, maximum_batch_size: 3}
+    - {if_total_certified_cuts_lt: 5000, maximum_batch_size: 2}
+    - {otherwise: true, maximum_batch_size: 1}
+  runtime_fields_role: reporting_only_never_scientific_branching
+  schedule_must_not_be_retuned_from_L0_L1_M1_or_holdout: true
+checkpointed_adaptive_state:
+  - iteration
+  - total_certified_cuts
+  - final_certification
+  - current_batch_schedule_segment
+  - quantized_lb_improvement_state
+  - stall_counter
+  - pattern_sha256_values
+  - cut_sha256_values
+  - candidate_ordering
+  - duplicate_and_redundancy_decisions
+  - pattern_schema_version
+  - cut_schema_version
+  - quantization_schema
+manifest_identity_includes:
+  - candidate_file_sha256
+  - pattern_schema
+  - cut_schema
+  - canonical_json_rule
+  - float_encoding_rule
+  - quantization_parameters
+  - adaptive_batch_schedule
