@@ -1,0 +1,9 @@
+{
+  "additional_large_runs_authorized": false,
+  "decision": "stop_final_large_remediation",
+  "l0_passed": false,
+  "l1_authorized": false,
+  "large_frontier_certified": false,
+  "large_incumbent_usable_as_optimal_result": false,
+  "m1_authorized": false
+}

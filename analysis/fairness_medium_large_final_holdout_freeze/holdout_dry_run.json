@@ -1,0 +1,41 @@
+{
+  "baseline_count": 10,
+  "candidates": [
+    "single_cut",
+    "persistent_certified_cache_batch5"
+  ],
+  "duplicate_run_keys": 0,
+  "formal_run_authorized_in_config": true,
+  "frontier_count": 100,
+  "holdout_seeds": [
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179
+  ],
+  "instances_generated": false,
+  "longest_path": "C:\\Users\\Hu Jiaxin\\Documents\\Codex\\mfh\\experiments\\results_fairness_medium_large_final_holdout\\attempt1_final_holdout\\runs\\r_329135b2beb691d60a4fedf5\\post_evaluation\\checkpoint\\.chunk_00073.json.tmp",
+  "max_absolute_path_length": 198,
+  "output_dir": "experiments\\results_fairness_medium_large_final_holdout\\attempt1_final_holdout",
+  "output_dir_exists": false,
+  "rhos": [
+    0.0,
+    0.01,
+    0.025,
+    0.05,
+    0.1
+  ],
+  "scale": "medium_large",
+  "scenario_count": 1831,
+  "solver_called": false,
+  "stage": "medium_large_final_holdout",
+  "total": 110,
+  "unique_run_keys": 110,
+  "windows_portability_check": true
+}

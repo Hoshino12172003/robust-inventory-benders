@@ -1,0 +1,7 @@
+{
+  "audit_mode": "read_only",
+  "formal_run_artifacts_committed": false,
+  "original_archive_committed": false,
+  "source_archive": "fairness_large_final_remediation_l0_attempt5_results.zip",
+  "source_archive_sha256": "09B41862A5BFED724EDBEC1E64996B54AA878119F5C0DEDFE5B10126B2525A98"
+}
