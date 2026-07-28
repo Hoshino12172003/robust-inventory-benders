@@ -57,7 +57,7 @@ from .instance import InventoryInstance, generate_instance
 STAGES = {"L0", "L1", "M1"}
 PROHIBITED_STAGES = {"holdout", "S2", "s2", "full-grid", "full_grid", "Attempt4", "attempt4"}
 EXPECTED_FILE_SHA256 = {
-    "L0": "C18AE2CA1BEA5D222197268462D6BE342553FA88CB06CB060A2D7CED28F24B2E",
+    "L0": "48F11927C6709AE8925FBACA4AD1FC7B7C613618D2671A4C53727552A340725F",
     "L1": "08F77E62DCB0252AAA7E5C23B8234A2DCF40D46CC2290E6FB6851F202CE1DE53",
     "M1": "D8AAEAD792369032A47BE230954D0D5CB5EFE3A562FE50BF40D9FA6E10815C19",
 }
@@ -87,6 +87,20 @@ class RemediationDependencies:
 
 _TEST_AUTHORIZATION = object()
 SOLVER_PARAMETERS = {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7}
+FROZEN_REMEDIATION_PRECISION_POLICY = {
+    "precision_policy": "joint_error_budget",
+    "adaptive_master_precision_enabled": True,
+    "adaptive_subproblem_precision_enabled": True,
+    "master_gap_max": 0.02,
+    "master_gap_min": 0.0001,
+    "subproblem_gap_max": 0.05,
+    "subproblem_gap_min": 0.0001,
+    "fixed_master_mip_gap": 0.02,
+    "fixed_subproblem_mip_gap": 0.05,
+    "master_error_budget_ratio": 0.25,
+    "subproblem_error_budget_ratio": 0.50,
+    "monotone_precision_tightening": True,
+}
 RESULT_FIELDS = [
     "run_key", "run_directory_id", "stage", "scale", "task_type", "seed", "rho",
     "candidate", "state", "scientific_status", "algorithm_status", "certified_solved",
@@ -158,7 +172,7 @@ def validate_frozen_config(path: str | Path, config: dict[str, Any], *, stage: s
         raise RemediationGateError("frozen candidate SHA256 mismatch")
     if config.get("candidate") != CANDIDATE:
         raise RemediationGateError("a second remediation candidate is forbidden")
-    expected_attempt = 4 if stage == "L0" else 3
+    expected_attempt = 5 if stage == "L0" else 3
     if int(config.get("execution_attempt", -1)) != expected_attempt:
         raise RemediationGateError("remediation execution attempt identity mismatch")
     if config.get("previous_attempt_results_reused") is not False:
@@ -452,6 +466,7 @@ def _production_solve_frontier(
         instance, baseline_record=baseline_record, anchor=anchor,
         expected_identity=expected_identity, solver_parameters=solver_parameters,
         rho=float(row["rho"]), gamma=2, max_iterations=10000,
+        algorithm_config=deepcopy(FROZEN_REMEDIATION_PRECISION_POLICY),
         time_limit=float(config["algorithm_time_limit_seconds"]), tol=1.0e-4,
         feasibility_tolerance=float(solver_parameters["FeasibilityTol"]), output_flag=False,
         checkpoint_path=checkpoint_path, checkpoint_identity={

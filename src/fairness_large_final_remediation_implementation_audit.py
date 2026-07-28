@@ -107,10 +107,17 @@ def audit(root: str | Path) -> dict[str, Any]:
         "test_initial_ub_rejects_current_instance_drift",
         "test_production_baseline_summary_schema_is_accepted",
         "test_production_baseline_solution_schema_drift_fails_closed",
+        "test_production_frontier_adapter_passes_complete_frozen_precision",
+        "test_production_frontier_adapter_builds_and_solves_tiny_model",
         "test_initial_ub_rejects_each_run_identity_drift",
         "test_duplicate_cut_identity_drift_fails_closed",
         "test_fake_authorized_pipeline_is_identity_locked_classified_and_resumable",
         "test_scientific_status_never_promotes_uncertified_or_invalid",
+    )))
+    check("production precision adapter", all(token in runner for token in (
+        "FROZEN_REMEDIATION_PRECISION_POLICY",
+        "algorithm_config=deepcopy(FROZEN_REMEDIATION_PRECISION_POLICY)",
+        '"precision_policy": "joint_error_budget"',
     )))
     check("fault injection tests", all(token in tests for token in (
         "test_s0_selection_checkpoint_interrupt_resumes_to_clean_result",

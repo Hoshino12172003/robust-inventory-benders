@@ -21,6 +21,7 @@ from src.fairness_large_final_remediation_audit import (
     relative_normalized_violation_evidence,
 )
 from src.fairness_large_final_remediation_runner import (
+    FROZEN_REMEDIATION_PRECISION_POLICY,
     RECOVERABLE_PHASES,
     EXPECTED_FILE_SHA256,
     RemediationGateError,
@@ -30,6 +31,7 @@ from src.fairness_large_final_remediation_runner import (
     validate_stage_gate,
     RemediationDependencies,
     _TEST_AUTHORIZATION,
+    _production_solve_frontier,
 )
 from src.robust_regional_fairness import solve_fairness_extensive_form
 from tests.test_fairness_benders_against_extensive_form import FROZEN_PRECISION
@@ -379,7 +381,47 @@ def test_recovery_ledger_faults_resume_without_replaying_committed_phases(tmp_pa
         advance_recovery_ledger(ledger, identity={"run_key": "drift"}, phase_action=lambda _phase: None)
 
 
-def test_runner_dry_runs_are_read_only_and_formal_gate_is_attempt4_l0_only(monkeypatch):
+def test_production_frontier_adapter_passes_complete_frozen_precision(monkeypatch, tmp_path):
+    captured = {}
+
+    class FakeResult:
+        def to_dict(self):
+            return {"status": "adapter_checked"}
+
+    def fake_solver(*_args, **kwargs):
+        captured.update(kwargs)
+        return FakeResult()
+
+    monkeypatch.setattr(
+        "src.fairness_large_final_remediation_runner.solve_certified_adaptive_multicut_fair_benders",
+        fake_solver,
+    )
+    config = __import__("yaml").safe_load(CONFIGS["L0"].read_text(encoding="utf-8"))
+    result = _production_solve_frontier(
+        config, tiny_instance(), {}, {}, {}, tmp_path / "algorithm_checkpoint.json",
+        {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7},
+        {"rho": 0.0, "run_key": "adapter-capture"},
+    )
+    assert result == {"status": "adapter_checked"}
+    assert captured["algorithm_config"] == FROZEN_REMEDIATION_PRECISION_POLICY == FROZEN_PRECISION
+    assert captured["algorithm_config"]["precision_policy"] == "joint_error_budget"
+
+
+def test_production_frontier_adapter_builds_and_solves_tiny_model(tmp_path):
+    instance = tiny_instance()
+    instance.demand_deviation[1][0] = 2.0
+    record, anchor = baseline_evidence(instance, gamma=2, upper=1000.0)
+    config = __import__("yaml").safe_load(CONFIGS["L0"].read_text(encoding="utf-8"))
+    result = _production_solve_frontier(
+        config, instance, record, anchor, upper_bound_identity(instance, record, anchor),
+        tmp_path / "algorithm_checkpoint.json",
+        {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7},
+        {"rho": 0.0, "run_key": "adapter-tiny-solve"},
+    )
+    assert result["status"] == "optimal"
+
+
+def test_runner_dry_runs_are_read_only_and_formal_gate_is_attempt5_l0_only(monkeypatch):
     expected = {"L0": (2, 1, 1), "L1": (9, 3, 6), "M1": (9, 3, 6)}
     executed_stages = []
 
@@ -399,7 +441,7 @@ def test_runner_dry_runs_are_read_only_and_formal_gate_is_attempt4_l0_only(monke
         assert report["output_dir_exists"] is False
         assert report["longest_windows_path_length"] <= 220
         if stage == "L0":
-            assert config["execution_attempt"] == 4
+            assert config["execution_attempt"] == 5
             assert config["authorization"] == "formal_execution_authorized"
             assert config["formal_run_authorized"] is True
             assert run_remediation_stage(path, stage=stage, resume=False, dry_run=False) == {
