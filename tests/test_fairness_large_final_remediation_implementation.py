@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from src.experiment_protocol import config_sha256
+from src.experiment_protocol import config_sha256, file_sha256
 from src.fairness_large_final_remediation import (
     CANDIDATE,
     CertifiedAdaptiveCut,
@@ -22,6 +22,7 @@ from src.fairness_large_final_remediation_audit import (
 )
 from src.fairness_large_final_remediation_runner import (
     RECOVERABLE_PHASES,
+    EXPECTED_FILE_SHA256,
     RemediationGateError,
     advance_recovery_ledger,
     dry_run_remediation,
@@ -334,20 +335,38 @@ def test_recovery_ledger_faults_resume_without_replaying_committed_phases(tmp_pa
         advance_recovery_ledger(ledger, identity={"run_key": "drift"}, phase_action=lambda _phase: None)
 
 
-def test_runner_dry_runs_are_read_only_and_formal_execution_is_refused():
+def test_runner_dry_runs_are_read_only_and_formal_gate_is_l0_only(monkeypatch):
     expected = {"L0": (2, 1, 1), "L1": (9, 3, 6), "M1": (9, 3, 6)}
+    executed_stages = []
+
+    def fake_execute(_config_path, _config, *, stage, **_kwargs):
+        executed_stages.append(stage)
+        return {"stage": stage, "authorized": True}
+
+    monkeypatch.setattr("src.fairness_large_final_remediation_runner._execute_pipeline", fake_execute)
     for stage, path in CONFIGS.items():
         config = json.loads(json.dumps(__import__("yaml").safe_load(path.read_text(encoding="utf-8"))))
         output = ROOT / config["output_dir"]
         assert not output.exists()
+        assert file_sha256(path).upper() == EXPECTED_FILE_SHA256[stage]
         report = dry_run_remediation(path, stage=stage, root=ROOT)
         assert (report["tasks"], report["baseline_count"], report["frontier_count"]) == expected[stage]
         assert report["solver_called"] is report["instances_generated"] is False
         assert report["output_dir_exists"] is False
         assert report["longest_windows_path_length"] <= 220
-        with pytest.raises(RemediationGateError, match="formal_run_not_authorized"):
-            run_remediation_stage(path, stage=stage, resume=False, dry_run=False)
+        if stage == "L0":
+            assert config["authorization"] == "formal_execution_authorized"
+            assert config["formal_run_authorized"] is True
+            assert run_remediation_stage(path, stage=stage, resume=False, dry_run=False) == {
+                "stage": "L0", "authorized": True,
+            }
+        else:
+            assert config["authorization"] == "protocol_only_no_formal_execution"
+            assert config["formal_run_authorized"] is False
+            with pytest.raises(RemediationGateError, match="formal_run_not_authorized"):
+                run_remediation_stage(path, stage=stage, resume=False, dry_run=False)
         assert not output.exists()
+    assert executed_stages == ["L0"]
 
 
 def test_stage_gates_fail_closed_and_no_holdout_is_available():

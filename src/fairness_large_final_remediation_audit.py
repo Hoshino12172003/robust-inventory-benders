@@ -805,7 +805,10 @@ def audit(root: Path) -> dict[str, Any]:
         config = yaml.safe_load(path.read_text(encoding="utf-8"))
         rows = expand_plan(config)
         all_rows[config["stage"]] = rows
-        check(f"{config['stage']} protocol-only", config["authorization"] == "protocol_only_no_formal_execution" and config["formal_run_authorized"] is False)
+        if config["stage"] == "L0":
+            check("L0 formal authorization", config["authorization"] == "formal_execution_authorized" and config["formal_run_authorized"] is True)
+        else:
+            check(f"{config['stage']} remains unauthorized", config["authorization"] == "protocol_only_no_formal_execution" and config["formal_run_authorized"] is False)
         check(f"{config['stage']} identity", config["base_commit"] == BASE and config["schema_version"] == 3 and config["execution_attempt"] == 3 and config["previous_attempt_results_reused"] is False)
         check(f"{config['stage']} unique plan", len({r["run_key"] for r in rows}) == len(rows))
         check(f"{config['stage']} arithmetic", len(rows) == config["total_tasks"] and sum(r["task_type"] == "baseline" for r in rows) == config["baseline_count"] and sum(r["task_type"] == "frontier" for r in rows) == config["frontier_count"])
@@ -846,7 +849,7 @@ def audit(root: Path) -> dict[str, Any]:
     result = {
         "decision": "approve_for_implementation" if all(c["passed"] for c in checks) else "mathematical_or_protocol_blocker",
         "next_authorized_stage": "fairness_large_final_remediation_implementation_only" if all(c["passed"] for c in checks) else "stop_and_report",
-        "formal_run_authorized": False,
+        "formal_run_authorized": {"L0": True, "L1": False, "M1": False},
         "initial_T1_UB_proved": True,
         "checks_passed": sum(c["passed"] for c in checks),
         "checks_total": len(checks),
