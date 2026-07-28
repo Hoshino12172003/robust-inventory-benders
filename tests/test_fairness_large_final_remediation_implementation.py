@@ -67,8 +67,11 @@ def baseline_evidence(instance, *, gamma: int, upper: float | None = None):
             "valid_UB": True,
             "gap": 0.0,
             "upper_bound": value,
-            "y_values": [1.0],
-            "x_values": [[inventory for _ in instance.J]],
+            "best_y_values": [1.0 for _ in instance.I],
+            "best_x_values": [
+                [inventory for _ in instance.J]
+                for _ in instance.I
+            ],
         },
     }
     anchor = {
@@ -136,6 +139,47 @@ def test_initial_t1_upper_bound_has_complete_auditable_evidence():
     assert all(evidence["initial_robust_ub_assumption_checks"].values())
     assert len(evidence["initial_robust_ub_x_sha256"]) == 64
     assert len(evidence["initial_robust_ub_y_sha256"]) == 64
+
+
+def test_production_baseline_summary_schema_is_accepted():
+    instance = tiny_instance()
+    record, anchor = baseline_evidence(instance, gamma=0)
+    assert "best_y_values" in record["result"] and "best_x_values" in record["result"]
+    assert "y_values" not in record["result"] and "x_values" not in record["result"]
+    initial = construct_initial_t1_upper_bound(
+        instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-7,
+        expected_identity=upper_bound_identity(instance, record, anchor),
+    )
+    assert initial.y_values == [1.0]
+    assert initial.x_values == [[5.0]]
+
+
+@pytest.mark.parametrize(
+    "mutation,expected_status",
+    [
+        (lambda result: result["best_y_values"].pop(), "invalid_baseline_y_shape"),
+        (lambda result: result["best_y_values"].append(1.0), "invalid_baseline_y_shape"),
+        (lambda result: result.__setitem__("best_y_values", {}), "invalid_baseline_y_shape"),
+        (lambda result: result.__setitem__("best_y_values", {"0": 1.0, "1": 1.0}), "invalid_baseline_y_shape"),
+        (lambda result: result["best_y_values"].__setitem__(0, "1.0"), "invalid_baseline_y_value"),
+        (lambda result: result["best_y_values"].__setitem__(0, float("nan")), "nonfinite_baseline_y"),
+        (lambda result: result["best_x_values"].pop(), "invalid_baseline_x_shape"),
+        (lambda result: result["best_x_values"].append([5.0]), "invalid_baseline_x_shape"),
+        (lambda result: result["best_x_values"][0].pop(), "invalid_baseline_x_shape"),
+        (lambda result: result["best_x_values"][0].append(5.0), "invalid_baseline_x_shape"),
+        (lambda result: result["best_x_values"][0].__setitem__(0, "5.0"), "invalid_baseline_x_value"),
+        (lambda result: result["best_x_values"][0].__setitem__(0, float("inf")), "nonfinite_baseline_x"),
+    ],
+)
+def test_production_baseline_solution_schema_drift_fails_closed(mutation, expected_status):
+    instance = tiny_instance()
+    record, anchor = baseline_evidence(instance, gamma=0)
+    mutation(record["result"])
+    with pytest.raises(InitialUpperBoundAssumptionFailure, match=expected_status):
+        construct_initial_t1_upper_bound(
+            instance, baseline_record=record, anchor=anchor, rho=0.0, tolerance=1e-7,
+            expected_identity=upper_bound_identity(instance, record, anchor),
+        )
 
 
 @pytest.mark.parametrize(
@@ -335,7 +379,7 @@ def test_recovery_ledger_faults_resume_without_replaying_committed_phases(tmp_pa
         advance_recovery_ledger(ledger, identity={"run_key": "drift"}, phase_action=lambda _phase: None)
 
 
-def test_runner_dry_runs_are_read_only_and_formal_gate_is_l0_only(monkeypatch):
+def test_runner_dry_runs_are_read_only_and_hotfix_is_not_formally_authorized(monkeypatch):
     expected = {"L0": (2, 1, 1), "L1": (9, 3, 6), "M1": (9, 3, 6)}
     executed_stages = []
 
@@ -354,19 +398,12 @@ def test_runner_dry_runs_are_read_only_and_formal_gate_is_l0_only(monkeypatch):
         assert report["solver_called"] is report["instances_generated"] is False
         assert report["output_dir_exists"] is False
         assert report["longest_windows_path_length"] <= 220
-        if stage == "L0":
-            assert config["authorization"] == "formal_execution_authorized"
-            assert config["formal_run_authorized"] is True
-            assert run_remediation_stage(path, stage=stage, resume=False, dry_run=False) == {
-                "stage": "L0", "authorized": True,
-            }
-        else:
-            assert config["authorization"] == "protocol_only_no_formal_execution"
-            assert config["formal_run_authorized"] is False
-            with pytest.raises(RemediationGateError, match="formal_run_not_authorized"):
-                run_remediation_stage(path, stage=stage, resume=False, dry_run=False)
+        assert config["authorization"] == "protocol_only_no_formal_execution"
+        assert config["formal_run_authorized"] is False
+        with pytest.raises(RemediationGateError, match="formal_run_not_authorized"):
+            run_remediation_stage(path, stage=stage, resume=False, dry_run=False)
         assert not output.exists()
-    assert executed_stages == ["L0"]
+    assert executed_stages == []
 
 
 def test_stage_gates_fail_closed_and_no_holdout_is_available():

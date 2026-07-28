@@ -57,7 +57,7 @@ from .instance import InventoryInstance, generate_instance
 STAGES = {"L0", "L1", "M1"}
 PROHIBITED_STAGES = {"holdout", "S2", "s2", "full-grid", "full_grid", "Attempt4", "attempt4"}
 EXPECTED_FILE_SHA256 = {
-    "L0": "3716F496481C65B3442A61252EE880A7922074505E65C212A77530DE457A7F52",
+    "L0": "9234318911A86E5129429CE53EC962F9F0B0659B69DF43D9BA564A7E3F91D0A7",
     "L1": "08F77E62DCB0252AAA7E5C23B8234A2DCF40D46CC2290E6FB6851F202CE1DE53",
     "M1": "D8AAEAD792369032A47BE230954D0D5CB5EFE3A562FE50BF40D9FA6E10815C19",
 }
@@ -158,7 +158,8 @@ def validate_frozen_config(path: str | Path, config: dict[str, Any], *, stage: s
         raise RemediationGateError("frozen candidate SHA256 mismatch")
     if config.get("candidate") != CANDIDATE:
         raise RemediationGateError("a second remediation candidate is forbidden")
-    if int(config.get("execution_attempt", -1)) != 3:
+    expected_attempt = 4 if stage == "L0" else 3
+    if int(config.get("execution_attempt", -1)) != expected_attempt:
         raise RemediationGateError("remediation execution attempt identity mismatch")
     if config.get("previous_attempt_results_reused") is not False:
         raise RemediationGateError("previous formal results may not be reused")
@@ -235,7 +236,7 @@ def execution_identity(
     resolved_bytes = yaml.safe_dump(config, sort_keys=False, allow_unicode=True).encode("utf-8")
     return {
         "schema": "fairness_large_final_remediation_manifest_v1",
-        "execution_attempt": 3,
+        "execution_attempt": int(config["execution_attempt"]),
         "stage": stage,
         "git_commit": git_commit(root),
         "config_file_sha256": file_sha256(config_path).upper(),

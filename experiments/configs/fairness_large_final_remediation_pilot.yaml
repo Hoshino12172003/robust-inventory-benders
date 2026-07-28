@@ -1,15 +1,16 @@
-experiment_name: fairness_large_final_remediation_l0_pilot
+experiment_name: fairness_large_final_remediation_l0_pilot_baseline_schema_hotfix
 protocol_phase: fairness_large_final_remediation
 stage: L0
-authorization: formal_execution_authorized
-formal_run_authorized: true
+authorization: protocol_only_no_formal_execution
+formal_run_authorized: false
 schema_version: 3
-execution_attempt: 3
+execution_attempt: 4
 previous_attempt_results_reused: false
 prior_attempt_history_required: true
 prior_attempts:
   - {attempt: 1, stage: scalability_s1_medium_large, commit: 22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c, status: execution_incomplete, results_reused: false}
   - {attempt: 2, stage: cross_scale_s1, medium_large_commit: 29ae09e968a206b1987714317ff7528165372a46, large_commit: ec33a047ecd60f4cb473260f1b3c4078726db776, freeze_commit: d6ae40c0bbe3d9af7c67cb7e71fb8ad45e64b033, results_reused: false, role: development_evidence_only}
+  - {attempt: 3, stage: fairness_large_final_remediation_l0_pilot, commit: 3e00ed7e7c250e3649931c1cc807072e5aa098b1, status: execution_incomplete, failure: invalid_baseline_y_shape, output_dir: experiments/results_fairness_large_final_remediation/attempt3_l0_large_pilot, results_reused: false}
 base_commit: d6ae40c0bbe3d9af7c67cb7e71fb8ad45e64b033
 protocol_document: docs/fairness_large_final_remediation_protocol.md
 candidate_definition: experiments/configs/fairness_large_final_remediation_candidate.yaml
@@ -23,7 +24,7 @@ baseline_count: 1
 frontier_count: 1
 total_tasks: 2
 scenario_count: 4657
-output_dir: experiments/results_fairness_large_final_remediation/attempt3_l0_large_pilot
+output_dir: experiments/results_fairness_large_final_remediation/attempt4_l0_large_pilot_baseline_schema_hotfix
 gate_requires: implementation_and_pre_run_audit_approved
 pass_requires: {scientific_status: certified_robust_optimal, implementation_error: false, invalid_post_evaluation: false, post_evaluation_valid: true, scenario_count: 4657, valid_upper_bound: true, valid_lower_bound: true, algorithm_runtime_at_most_seconds: 1800}
 failure_decision: {decision: stop_final_large_remediation, additional_large_runs_authorized: false}

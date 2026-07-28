@@ -805,11 +805,9 @@ def audit(root: Path) -> dict[str, Any]:
         config = yaml.safe_load(path.read_text(encoding="utf-8"))
         rows = expand_plan(config)
         all_rows[config["stage"]] = rows
-        if config["stage"] == "L0":
-            check("L0 formal authorization", config["authorization"] == "formal_execution_authorized" and config["formal_run_authorized"] is True)
-        else:
-            check(f"{config['stage']} remains unauthorized", config["authorization"] == "protocol_only_no_formal_execution" and config["formal_run_authorized"] is False)
-        check(f"{config['stage']} identity", config["base_commit"] == BASE and config["schema_version"] == 3 and config["execution_attempt"] == 3 and config["previous_attempt_results_reused"] is False)
+        check(f"{config['stage']} remains unauthorized", config["authorization"] == "protocol_only_no_formal_execution" and config["formal_run_authorized"] is False)
+        expected_attempt = 4 if config["stage"] == "L0" else 3
+        check(f"{config['stage']} identity", config["base_commit"] == BASE and config["schema_version"] == 3 and config["execution_attempt"] == expected_attempt and config["previous_attempt_results_reused"] is False)
         check(f"{config['stage']} unique plan", len({r["run_key"] for r in rows}) == len(rows))
         check(f"{config['stage']} arithmetic", len(rows) == config["total_tasks"] and sum(r["task_type"] == "baseline" for r in rows) == config["baseline_count"] and sum(r["task_type"] == "frontier" for r in rows) == config["frontier_count"])
         check(f"{config['stage']} solver identity", config["solver_identity"] == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7})
@@ -831,8 +829,8 @@ def audit(root: Path) -> dict[str, Any]:
     check("L1 cumulative plan", len(all_rows["L1"]) == 9)
     l0_keys = {row["run_key"] for row in all_rows["L0"]}
     l1_keys = {row["run_key"] for row in all_rows["L1"]}
-    check("L0 identities are an L1 subset", l0_keys < l1_keys)
-    check("L1 adds seven tasks after L0", len(l1_keys - l0_keys) == 7)
+    check("L0 attempt-4 identities isolated from L1 attempt-3", l0_keys.isdisjoint(l1_keys))
+    check("L1 remains its frozen nine-task plan", len(l1_keys) == 9)
     check("M1 plan", len(all_rows["M1"]) == 9)
     check("cross-scale maximum", len(all_rows["L1"]) + len(all_rows["M1"]) == 18)
     accessed_seeds = {row["seed"] for rows in all_rows.values() for row in rows}
@@ -849,7 +847,7 @@ def audit(root: Path) -> dict[str, Any]:
     result = {
         "decision": "approve_for_implementation" if all(c["passed"] for c in checks) else "mathematical_or_protocol_blocker",
         "next_authorized_stage": "fairness_large_final_remediation_implementation_only" if all(c["passed"] for c in checks) else "stop_and_report",
-        "formal_run_authorized": {"L0": True, "L1": False, "M1": False},
+        "formal_run_authorized": {"L0": False, "L1": False, "M1": False},
         "initial_T1_UB_proved": True,
         "checks_passed": sum(c["passed"] for c in checks),
         "checks_total": len(checks),

@@ -70,11 +70,16 @@ def audit(root: str | Path) -> dict[str, Any]:
         "post-runtime metadata": "runtime_driven_scientific_branching",
         "mandatory expected run identity": "incomplete_expected_run_identity",
         "current instance identity": "current_instance_identity_mismatch",
+        "production baseline solution schema": "_baseline_first_stage_solution",
         "duplicate identity fail closed": "relative_violation_identity_mismatch",
         "frozen solver propagation": 'gp.setParam("Threads", 1)',
     }
     for name, token in required_implementation_tokens.items():
         check(name, token in implementation)
+    check(
+        "production baseline solution keys",
+        "best_y_values" in implementation and "best_x_values" in implementation,
+    )
     check("no Decimal context", "localcontext" not in implementation and ".quantize(" not in implementation)
     check("no runtime batch branch", "reporting_runtime" not in implementation and "runtime share" not in implementation.lower())
     check("production files protected", all(
@@ -100,6 +105,8 @@ def audit(root: str | Path) -> dict[str, Any]:
     check("formal authorization precedes pipeline", runner.index("formal_run_not_authorized") < runner.index("return _execute_pipeline"))
     check("direct blocker regression tests", all(token in tests for token in (
         "test_initial_ub_rejects_current_instance_drift",
+        "test_production_baseline_summary_schema_is_accepted",
+        "test_production_baseline_solution_schema_drift_fails_closed",
         "test_initial_ub_rejects_each_run_identity_drift",
         "test_duplicate_cut_identity_drift_fails_closed",
         "test_fake_authorized_pipeline_is_identity_locked_classified_and_resumable",
@@ -118,9 +125,8 @@ def audit(root: str | Path) -> dict[str, Any]:
         config = load_remediation_config(config_path)
         report = dry_run_remediation(config_path, stage=stage, root=root)
         dry_runs[stage] = report
-        expected_authorization = "formal_execution_authorized" if stage == "L0" else "protocol_only_no_formal_execution"
-        check(f"{stage} authorization", config["authorization"] == expected_authorization)
-        check(f"{stage} formal flag", config["formal_run_authorized"] is (stage == "L0"))
+        check(f"{stage} authorization", config["authorization"] == "protocol_only_no_formal_execution")
+        check(f"{stage} formal flag", config["formal_run_authorized"] is False)
         check(f"{stage} task arithmetic", report["tasks"] == expected[stage], report["tasks"])
         check(f"{stage} no solver", report["solver_called"] is False)
         check(f"{stage} no instances", report["instances_generated"] is False)
@@ -134,7 +140,7 @@ def audit(root: str | Path) -> dict[str, Any]:
         "checks_passed": passed,
         "checks_total": len(checks),
         "passed": passed == len(checks),
-        "formal_run_authorized": {"L0": True, "L1": False, "M1": False},
+        "formal_run_authorized": {"L0": False, "L1": False, "M1": False},
         "dry_run": dry_runs,
         "checks": checks,
     }

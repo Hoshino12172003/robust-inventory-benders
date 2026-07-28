@@ -132,12 +132,13 @@ def test_gate_state_machine_and_seed_isolation():
     assert not accessed.intersection(range(170, 180))
 
 
-def test_l0_is_a_stable_identity_subset_of_cumulative_l1():
+def test_l0_hotfix_attempt_is_identity_isolated_from_frozen_l1():
     l0, l1 = (load(rel) for rel in CONFIGS[:2])
     l0_keys = {row["run_key"] for row in expand_plan(l0)}
     l1_keys = {row["run_key"] for row in expand_plan(l1)}
-    assert l0_keys < l1_keys
-    assert len(l1_keys - l0_keys) == 7
+    assert l0_keys.isdisjoint(l1_keys)
+    assert len(l0_keys) == 2
+    assert len(l1_keys) == 9
     assert l1["incremental_tasks_after_l0"] == 7
     assert l1["l0_evidence_referenced_read_only"] is True
 
