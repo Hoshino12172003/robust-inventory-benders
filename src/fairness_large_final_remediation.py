@@ -120,27 +120,70 @@ def _finite_nonnegative(values: Any) -> bool:
     return math.isfinite(number) and number >= 0.0
 
 
-def _float_matrix(value: Any, rows: int, columns: int) -> list[list[float]]:
-    if not isinstance(value, list) or len(value) != rows:
+def _finite_float(value: Any, *, invalid_status: str, nonfinite_status: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise InitialUpperBoundAssumptionFailure(invalid_status)
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise InitialUpperBoundAssumptionFailure(nonfinite_status)
+    return converted
+
+
+def _float_matrix(
+    value: Any,
+    row_indices: range,
+    column_indices: range,
+) -> list[list[float]]:
+    expected_rows = list(row_indices)
+    expected_columns = list(column_indices)
+    if expected_rows != list(range(len(expected_rows))) or expected_columns != list(range(len(expected_columns))):
+        raise InitialUpperBoundAssumptionFailure("noncanonical_baseline_x_indices")
+    if type(value) is not list or len(value) != len(expected_rows):
         raise InitialUpperBoundAssumptionFailure("invalid_baseline_x_shape")
     result: list[list[float]] = []
     for row in value:
-        if not isinstance(row, list) or len(row) != columns:
+        if type(row) is not list or len(row) != len(expected_columns):
             raise InitialUpperBoundAssumptionFailure("invalid_baseline_x_shape")
-        converted = [float(item) for item in row]
-        if not all(math.isfinite(item) for item in converted):
-            raise InitialUpperBoundAssumptionFailure("nonfinite_baseline_x")
+        converted = [
+            _finite_float(
+                item,
+                invalid_status="invalid_baseline_x_value",
+                nonfinite_status="nonfinite_baseline_x",
+            )
+            for item in row
+        ]
         result.append(converted)
     return result
 
 
-def _float_vector(value: Any, length: int) -> list[float]:
-    if not isinstance(value, list) or len(value) != length:
+def _float_vector(value: Any, indices: range) -> list[float]:
+    expected_indices = list(indices)
+    if expected_indices != list(range(len(expected_indices))):
+        raise InitialUpperBoundAssumptionFailure("noncanonical_baseline_y_indices")
+    if type(value) is not list or len(value) != len(expected_indices):
         raise InitialUpperBoundAssumptionFailure("invalid_baseline_y_shape")
-    converted = [float(item) for item in value]
-    if not all(math.isfinite(item) for item in converted):
-        raise InitialUpperBoundAssumptionFailure("nonfinite_baseline_y")
-    return converted
+    return [
+        _finite_float(
+            item,
+            invalid_status="invalid_baseline_y_value",
+            nonfinite_status="nonfinite_baseline_y",
+        )
+        for item in value
+    ]
+
+
+def _baseline_first_stage_solution(
+    result: dict[str, Any],
+    instance: InventoryInstance,
+) -> tuple[list[float], list[list[float]]]:
+    """Read the frozen ``SolveResult.summary_dict`` first-stage schema."""
+    if "y_values" in result or "x_values" in result:
+        raise InitialUpperBoundAssumptionFailure("ambiguous_baseline_solution_schema")
+    if "best_y_values" not in result or "best_x_values" not in result:
+        raise InitialUpperBoundAssumptionFailure("missing_baseline_solution_schema")
+    y_values = _float_vector(result["best_y_values"], instance.I)
+    x_values = _float_matrix(result["best_x_values"], instance.I, instance.J)
+    return y_values, x_values
 
 
 def _solution_sha256(values: Any) -> str:
@@ -268,8 +311,7 @@ def construct_initial_t1_upper_bound(
         failed = sorted(name for name, passed in checks.items() if not passed)
         raise InitialUpperBoundAssumptionFailure(",".join(failed))
 
-    y_values = _float_vector(result.get("y_values"), instance.num_warehouses)
-    x_values = _float_matrix(result.get("x_values"), instance.num_warehouses, instance.num_products)
+    y_values, x_values = _baseline_first_stage_solution(result, instance)
     eps = float(tolerance)
     checks["y_binary"] = all(abs(value - round(value)) <= eps and -eps <= value <= 1.0 + eps for value in y_values)
     checks["x_nonnegative"] = all(value >= -eps for row in x_values for value in row)
