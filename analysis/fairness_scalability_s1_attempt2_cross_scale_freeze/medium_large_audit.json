@@ -1,0 +1,1915 @@
+{
+  "algorithm_checkpoints": {
+    "algorithm_checkpoint_count": 24,
+    "failure_count": 0,
+    "failures": [],
+    "identity_and_result_match": true
+  },
+  "archive": {
+    "access_mode": "read_only",
+    "bad_crc_member": null,
+    "crc_valid": true,
+    "entry_count": 1677,
+    "explicit_directory_entry_count": 70,
+    "file_count": 1607,
+    "inferred_directory_count": 69,
+    "name": "fairness_scalability_s1_attempt2_medium_large_results.zip",
+    "sha256_after_audit": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+    "sha256_before_audit": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+    "sha256_matches_expected": true,
+    "size_bytes": 37569623
+  },
+  "audit_status": "passed",
+  "baseline_and_anchor": {
+    "all_anchor_checks_passed": true,
+    "all_valid_ub": true,
+    "anchors": {
+      "160": {
+        "anchor_sha256": "199146520ed8615e6f16011bdd75e1ef59deee48a4918bed8545427679b73bf9",
+        "base_config_sha256": "89F9298A00488506C0D1416B67DC956E48A3E085AC177720BC52DD1820C28BCC",
+        "base_git_commit": "29ae09e968a206b1987714317ff7528165372a46",
+        "baseline_final_gap": 8.809376204666907e-05,
+        "baseline_run_key": "fairness_scalability_development_medium_large__scalability_s1_baseline__baseline__medium_large__seed_160__joint_v1_core_point_strengthened",
+        "baseline_status": "optimal",
+        "candidate_config_sha256": "7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6",
+        "source": "solve_result.upper_bound",
+        "valid_UB": true,
+        "value": 23010.57239584239,
+        "value_hex": "0x1.678a4a2222bdcp+14"
+      },
+      "161": {
+        "anchor_sha256": "33596c037114cc8cd58af990903e5c88564837038c381c6402f1f663b1e1f840",
+        "base_config_sha256": "89F9298A00488506C0D1416B67DC956E48A3E085AC177720BC52DD1820C28BCC",
+        "base_git_commit": "29ae09e968a206b1987714317ff7528165372a46",
+        "baseline_final_gap": 9.966526877159506e-05,
+        "baseline_run_key": "fairness_scalability_development_medium_large__scalability_s1_baseline__baseline__medium_large__seed_161__joint_v1_core_point_strengthened",
+        "baseline_status": "optimal",
+        "candidate_config_sha256": "7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6",
+        "source": "solve_result.upper_bound",
+        "valid_UB": true,
+        "value": 16687.001263864528,
+        "value_hex": "0x1.04bc014b50834p+14"
+      },
+      "162": {
+        "anchor_sha256": "1f9a152efcce469985dcb6718add2f15ba834506f3ffb317021c851b4f610190",
+        "base_config_sha256": "89F9298A00488506C0D1416B67DC956E48A3E085AC177720BC52DD1820C28BCC",
+        "base_git_commit": "29ae09e968a206b1987714317ff7528165372a46",
+        "baseline_final_gap": 5.5298241031311614e-05,
+        "baseline_run_key": "fairness_scalability_development_medium_large__scalability_s1_baseline__baseline__medium_large__seed_162__joint_v1_core_point_strengthened",
+        "baseline_status": "optimal",
+        "candidate_config_sha256": "7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6",
+        "source": "solve_result.upper_bound",
+        "valid_UB": true,
+        "value": 21143.606667762317,
+        "value_hex": "0x1.4a5e6d3a505acp+14"
+      }
+    },
+    "certified_baseline_count": 3
+  },
+  "candidate_summary": [
+    {
+      "candidate": "single_cut",
+      "certified_solved_count": 6,
+      "large_source_archive_sha256": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376",
+      "mean_algorithm_runtime": 391.6362868499321,
+      "mean_cache_candidate_count": 0.0,
+      "mean_cache_hit_count": 0.0,
+      "mean_certified_batch_cut_count": 0.0,
+      "mean_certified_cached_cut_count": 0.0,
+      "mean_cuts": 317.0,
+      "mean_cuts_per_iteration": 0.9932444948743174,
+      "mean_duplicate_pattern_count": 0.0,
+      "mean_iterations": 319.0,
+      "mean_master_runtime": 7.611172882568401,
+      "mean_penalized_runtime_par2": 391.6362868499321,
+      "mean_pool_candidate_count": 0.0,
+      "mean_post_evaluation_solver_runtime": 1.5400029420852661,
+      "mean_post_evaluation_wall_runtime": 8.40344566696634,
+      "mean_separation_runtime": 383.064242982422,
+      "mean_total_wall_runtime": 405.433893050688,
+      "medium_large_source_archive_sha256": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+      "other_uncertified_count": 0,
+      "run_count": 6,
+      "scale": "medium_large",
+      "solved_rate": 1.0,
+      "time_limit_uncertified_count": 0
+    },
+    {
+      "candidate": "persistent_separation",
+      "certified_solved_count": 6,
+      "large_source_archive_sha256": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376",
+      "mean_algorithm_runtime": 383.386736416646,
+      "mean_cache_candidate_count": 0.0,
+      "mean_cache_hit_count": 0.0,
+      "mean_certified_batch_cut_count": 0.0,
+      "mean_certified_cached_cut_count": 0.0,
+      "mean_cuts": 312.0,
+      "mean_cuts_per_iteration": 0.9931419538389217,
+      "mean_duplicate_pattern_count": 0.0,
+      "mean_iterations": 314.0,
+      "mean_master_runtime": 7.042394950481442,
+      "mean_penalized_runtime_par2": 383.386736416646,
+      "mean_pool_candidate_count": 0.0,
+      "mean_post_evaluation_solver_runtime": 1.6063364346822102,
+      "mean_post_evaluation_wall_runtime": 8.896010466696074,
+      "mean_separation_runtime": 376.1864074989765,
+      "mean_total_wall_runtime": 398.3460052337032,
+      "medium_large_source_archive_sha256": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+      "other_uncertified_count": 0,
+      "run_count": 6,
+      "scale": "medium_large",
+      "solved_rate": 1.0,
+      "time_limit_uncertified_count": 0
+    },
+    {
+      "candidate": "persistent_certified_cache",
+      "certified_solved_count": 2,
+      "large_source_archive_sha256": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376",
+      "mean_algorithm_runtime": 404.50834668326814,
+      "mean_cache_candidate_count": 2685.6666666666665,
+      "mean_cache_hit_count": 2546.0,
+      "mean_certified_batch_cut_count": 0.0,
+      "mean_certified_cached_cut_count": 2546.0,
+      "mean_cuts": 2549.5,
+      "mean_cuts_per_iteration": 0.999046003776435,
+      "mean_duplicate_pattern_count": 0.0,
+      "mean_iterations": 2550.6666666666665,
+      "mean_master_runtime": 369.59065436459304,
+      "mean_penalized_runtime_par2": 2424.1748118666387,
+      "mean_pool_candidate_count": 0.0,
+      "mean_post_evaluation_solver_runtime": 0.5449995597203573,
+      "mean_post_evaluation_wall_runtime": 2.7576127336360514,
+      "mean_separation_runtime": 33.752096501916334,
+      "mean_total_wall_runtime": 409.0802658502168,
+      "medium_large_source_archive_sha256": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+      "other_uncertified_count": 3,
+      "run_count": 6,
+      "scale": "medium_large",
+      "solved_rate": 0.3333333333333333,
+      "time_limit_uncertified_count": 1
+    },
+    {
+      "candidate": "persistent_certified_cache_batch5",
+      "certified_solved_count": 6,
+      "large_source_archive_sha256": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376",
+      "mean_algorithm_runtime": 158.80106708337553,
+      "mean_cache_candidate_count": 4007.1666666666665,
+      "mean_cache_hit_count": 2952.3333333333335,
+      "mean_certified_batch_cut_count": 2969.3333333333335,
+      "mean_certified_cached_cut_count": 2952.3333333333335,
+      "mean_cuts": 2968.6666666666665,
+      "mean_cuts_per_iteration": 4.567798012800927,
+      "mean_duplicate_pattern_count": 0.0,
+      "mean_iterations": 623.1666666666666,
+      "mean_master_runtime": 113.48138290042213,
+      "mean_penalized_runtime_par2": 158.80106708337553,
+      "mean_pool_candidate_count": 17.0,
+      "mean_post_evaluation_solver_runtime": 1.5108346541722615,
+      "mean_post_evaluation_wall_runtime": 8.364436533418484,
+      "mean_separation_runtime": 44.58032656868454,
+      "mean_total_wall_runtime": 172.76082496733093,
+      "medium_large_source_archive_sha256": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+      "other_uncertified_count": 0,
+      "run_count": 6,
+      "scale": "medium_large",
+      "solved_rate": 1.0,
+      "time_limit_uncertified_count": 0
+    }
+  ],
+  "core_equivalence": {
+    "all_zero_difference": true,
+    "files": {
+      "experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml": {
+        "large_blob": "1f807df78f1f00eb3e88ee4f7c8bdd39016d41b8",
+        "large_sha256": "7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6",
+        "medium_large_blob": "1f807df78f1f00eb3e88ee4f7c8bdd39016d41b8",
+        "medium_large_sha256": "7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6",
+        "zero_difference": true
+      },
+      "src/benders.py": {
+        "large_blob": "41f9e716a289df65a5ab05f848db42cda7bae49a",
+        "large_sha256": "37967750EE1AAD5575A9B1FE0B050F012EC21DB58FA277FBEFAA5A48CFEF1D9F",
+        "medium_large_blob": "41f9e716a289df65a5ab05f848db42cda7bae49a",
+        "medium_large_sha256": "37967750EE1AAD5575A9B1FE0B050F012EC21DB58FA277FBEFAA5A48CFEF1D9F",
+        "zero_difference": true
+      },
+      "src/fairness_benders.py": {
+        "large_blob": "a1a65bb87fdc52d7b8e09da7b7641dd7c515c37b",
+        "large_sha256": "289BEDB61939C9FF2FE2AA116209CA441745FCDE3BDD4E85309688A720DC372E",
+        "medium_large_blob": "a1a65bb87fdc52d7b8e09da7b7641dd7c515c37b",
+        "medium_large_sha256": "289BEDB61939C9FF2FE2AA116209CA441745FCDE3BDD4E85309688A720DC372E",
+        "zero_difference": true
+      },
+      "src/fairness_scalability.py": {
+        "large_blob": "d905de66ce99f22c9a077c7d1abaec863cd7f283",
+        "large_sha256": "609261BD048F355E23176CFE66B2996AD1AFF40378E27CA26EBC411EA36E5BDA",
+        "medium_large_blob": "d905de66ce99f22c9a077c7d1abaec863cd7f283",
+        "medium_large_sha256": "609261BD048F355E23176CFE66B2996AD1AFF40378E27CA26EBC411EA36E5BDA",
+        "zero_difference": true
+      },
+      "src/robust_regional_fairness.py": {
+        "large_blob": "2d265f63179ac3d37048f5ca89b5b37b6e204a50",
+        "large_sha256": "25A641F0D898E4C3113D06747CE1311FFE4E67BA339B8B4D2FDE11687A260318",
+        "medium_large_blob": "2d265f63179ac3d37048f5ca89b5b37b6e204a50",
+        "medium_large_sha256": "25A641F0D898E4C3113D06747CE1311FFE4E67BA339B8B4D2FDE11687A260318",
+        "zero_difference": true
+      },
+      "src/scenarios.py": {
+        "large_blob": "ab82c7dd67f43494116f01de26877d32777907e7",
+        "large_sha256": "7294C60DC318F7678F8A4464DAF2CBD85E540842C6C3858BB1D30A9DE7915511",
+        "medium_large_blob": "ab82c7dd67f43494116f01de26877d32777907e7",
+        "medium_large_sha256": "7294C60DC318F7678F8A4464DAF2CBD85E540842C6C3858BB1D30A9DE7915511",
+        "zero_difference": true
+      }
+    },
+    "large_commit": "ec33a047ecd60f4cb473260f1b3c4078726db776",
+    "medium_large_commit": "29ae09e968a206b1987714317ff7528165372a46"
+  },
+  "coverage": {
+    "baseline_count": 3,
+    "complete_count": 27,
+    "frontier_count": 24,
+    "mapping_rule": "r_ + sha256(canonical_run_key UTF-8).hexdigest()[:24]",
+    "pending_run_count": 0,
+    "pipeline_failed_run_count": 0,
+    "run_json_count": 27,
+    "running_count": 0,
+    "six_way_mapping_consistent": true,
+    "status_json_count": 27,
+    "unique_directory_id_count": 27,
+    "unique_run_key_count": 27
+  },
+  "evidence_kind": "derived_read_only_cross_scale_audit_not_optimization_output",
+  "failure_count": 0,
+  "failures": [],
+  "identity": {
+    "baseline_time_limit": 1800.0,
+    "candidate_config_sha256": "7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6",
+    "candidate_definitions": [
+      "single_cut",
+      "persistent_separation",
+      "persistent_certified_cache",
+      "persistent_certified_cache_batch5"
+    ],
+    "config_file_sha256": "31FED8028653E6F0D7132F61D73157188320ABA5486A0A66FEF950642D958893",
+    "execution_attempt": 2,
+    "fairness_time_limit": 1800.0,
+    "general_time_limit": 1800,
+    "git_commit": "29ae09e968a206b1987714317ff7528165372a46",
+    "gurobi_parameters": {
+      "FeasibilityTol": 1e-07,
+      "Seed": 0,
+      "Threads": 1
+    },
+    "manifest_legacy_resolved_config_sha256": "89F9298A00488506C0D1416B67DC956E48A3E085AC177720BC52DD1820C28BCC",
+    "par2": {
+      "basis": "algorithm_runtime",
+      "multiplier": 2
+    },
+    "post_evaluation": {
+      "checkpoint_chunk_size": 25,
+      "enabled": true,
+      "exact_scenarios": true,
+      "feasibility_tolerance": 1e-07,
+      "max_scenarios": 5000,
+      "time_limit_per_scenario": 30.0
+    },
+    "previous_attempt_results_reused": false,
+    "previous_attempts": [
+      {
+        "attempt": 1,
+        "failure_class": "windows_path_length_pipeline_defect",
+        "git_commit": "22ce2d63a4ad8cea021bf2b6cbe60273c0c2919c",
+        "results_reused": false,
+        "scientifically_usable_for_candidate_selection": false,
+        "seeds_accessed": [
+          160
+        ],
+        "stage": "scalability_s1_medium_large",
+        "status": "execution_incomplete"
+      }
+    ],
+    "protocol_sha256": "240A702464FF524AAECEE00F2611EFA7882A64096CFA794C4147189A73C86623",
+    "resolved_config_canonical_sha256": "89F9298A00488506C0D1416B67DC956E48A3E085AC177720BC52DD1820C28BCC",
+    "resolved_config_canonicalization": "PyYAML safe_dump(sort_keys=True, allow_unicode=True), UTF-8",
+    "resolved_config_file_sha256": "2475EE26B5EA27C4B45B41F5AB9A5326CAA6C3CBB5BF7387AFF12BB1FEEB98D8",
+    "rhos": [
+      0.0,
+      0.01
+    ],
+    "scale": "medium_large",
+    "schema_version": 2,
+    "seeds": [
+      160,
+      161,
+      162
+    ]
+  },
+  "large_bottleneck_evidence": null,
+  "parseability": {
+    "all_parseable": true,
+    "csv_data_row_counts": {
+      "results.csv": 27,
+      "summary.csv": 9
+    },
+    "csv_file_count": 2,
+    "failures": [],
+    "json_file_count": 1604,
+    "parse_failure_count": 0
+  },
+  "post_evaluation": {
+    "acceptance_evidence_count": 402840,
+    "all_valid": true,
+    "checkpoint_index_count": 20,
+    "chunk_hash_count": 1480,
+    "failure_count": 0,
+    "failures": [],
+    "post_evaluation_count": 20,
+    "scenario_key_counts": {
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation": 1831,
+      "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut": 1831
+    }
+  },
+  "reporting": {
+    "candidate_summary_group_count": 4,
+    "par2_derived_certified_baseline_count": 3,
+    "par2_mismatch_count": 0,
+    "par2_rule": "certified: algorithm_runtime; uncertified: 2 * 1800 seconds",
+    "par2_stored_frontier_count": 24,
+    "projected_rows_sha256": "BFD3882E057E6566836B27E6A6B1AD63E0E96074ED5B558F6995E7D0DD744A0C",
+    "projection_reconciliation": {
+      "all_passed": true,
+      "check_count": 216,
+      "checks": [
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.009247099980711937,
+          "metadata_value": 0.009247099980711937,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 6.669741499936208,
+          "metadata_value": 6.669741499936208,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1252.0,
+          "metadata_value": 1252.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1079.0,
+          "metadata_value": 1079.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1079.0,
+          "metadata_value": 1079.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9981566820276497,
+          "metadata_value": 0.9981566820276497,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 4.346420801943168,
+          "metadata_value": 4.346420801943168,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 416.02485449938104,
+          "metadata_value": 416.02485449938104,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.995,
+          "metadata_value": 0.995,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.0063282998744398355,
+          "metadata_value": 0.0063282998744398355,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 8.076027599629015,
+          "metadata_value": 8.076027599629015,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1523.0,
+          "metadata_value": 1523.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1066.0,
+          "metadata_value": 1066.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1066.0,
+          "metadata_value": 1066.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 10.0,
+          "metadata_value": 10.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 1076.0,
+          "metadata_value": 1076.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 4.321285140562249,
+          "metadata_value": 4.321285140562249,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.00742150004953146,
+          "metadata_value": 0.00742150004953146,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 410.4531947001815,
+          "metadata_value": 410.4531947001815,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9940828402366864,
+          "metadata_value": 0.9940828402366864,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.00933709996752441,
+          "metadata_value": 0.00933709996752441,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 14.773181499913335,
+          "metadata_value": 14.773181499913335,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 8549.0,
+          "metadata_value": 8549.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 5752.0,
+          "metadata_value": 5752.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 5752.0,
+          "metadata_value": 5752.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 30.0,
+          "metadata_value": 30.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 5782.0,
+          "metadata_value": 5782.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 4.8069883527454245,
+          "metadata_value": 4.8069883527454245,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 2.273796898778528,
+          "metadata_value": 2.273796898778528,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 304.214354300173,
+          "metadata_value": 304.214354300173,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9913419913419913,
+          "metadata_value": 0.9913419913419913,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.00756049994379282,
+          "metadata_value": 0.00756049994379282,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 8.766134899808094,
+          "metadata_value": 8.766134899808094,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1823.0,
+          "metadata_value": 1823.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1117.0,
+          "metadata_value": 1117.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1117.0,
+          "metadata_value": 1117.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 15.0,
+          "metadata_value": 15.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 1132.0,
+          "metadata_value": 1132.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 4.421875,
+          "metadata_value": 4.421875,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.007672199979424477,
+          "metadata_value": 0.007672199979424477,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 3.1556703003589064,
+          "metadata_value": 3.1556703003589064,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 7414.0,
+          "metadata_value": 7414.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 7209.0,
+          "metadata_value": 7209.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 7209.0,
+          "metadata_value": 7209.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 1.0,
+          "metadata_value": 1.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.012506400002166629,
+          "metadata_value": 0.012506400002166629,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 359.75168469757773,
+          "metadata_value": 359.75168469757773,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.995,
+          "metadata_value": 0.995,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.006790699902921915,
+          "metadata_value": 0.006790699902921915,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 251.2458083999809,
+          "metadata_value": 251.2458083999809,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9897959183673469,
+          "metadata_value": 0.9897959183673469,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.009382499847561121,
+          "metadata_value": 0.009382499847561121,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 6.977586300112307,
+          "metadata_value": 6.977586300112307,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1502.0,
+          "metadata_value": 1502.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1080.0,
+          "metadata_value": 1080.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1080.0,
+          "metadata_value": 1080.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 10.0,
+          "metadata_value": 10.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 1090.0,
+          "metadata_value": 1090.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 4.412955465587045,
+          "metadata_value": 4.412955465587045,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.010296500055119395,
+          "metadata_value": 0.010296500055119395,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 7.793678999878466,
+          "metadata_value": 7.793678999878466,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1285.0,
+          "metadata_value": 1285.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1073.0,
+          "metadata_value": 1073.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1073.0,
+          "metadata_value": 1073.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9981464318813716,
+          "metadata_value": 0.9981464318813716,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_certified_cache"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.008391200099140406,
+          "metadata_value": 0.008391200099140406,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 309.4554796998855,
+          "metadata_value": 309.4554796998855,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9913419913419913,
+          "metadata_value": 0.9913419913419913,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_separation"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.00979599985294044,
+          "metadata_value": 0.00979599985294044,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 3.0029775998555124,
+          "metadata_value": 3.0029775998555124,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1332.0,
+          "metadata_value": 1332.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1218.0,
+          "metadata_value": 1218.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1218.0,
+          "metadata_value": 1218.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9991809991809992,
+          "metadata_value": 0.9991809991809992,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.01068499987013638,
+          "metadata_value": 0.01068499987013638,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 9.835102399811149,
+          "metadata_value": 9.835102399811149,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1540.0,
+          "metadata_value": 1540.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1000.0,
+          "metadata_value": 1000.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1000.0,
+          "metadata_value": 1000.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 15.0,
+          "metadata_value": 15.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 1015.0,
+          "metadata_value": 1015.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 4.491150442477876,
+          "metadata_value": 4.491150442477876,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 3.173358599888161,
+          "metadata_value": 3.173358599888161,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 413.2654861048795,
+          "metadata_value": 413.2654861048795,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9942857142857143,
+          "metadata_value": 0.9942857142857143,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.008276599925011396,
+          "metadata_value": 0.008276599925011396,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 3.996543699875474,
+          "metadata_value": 3.996543699875474,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 3711.0,
+          "metadata_value": 3711.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 3627.0,
+          "metadata_value": 3627.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 3627.0,
+          "metadata_value": 3627.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9997247453894853,
+          "metadata_value": 0.9997247453894853,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.007387599907815456,
+          "metadata_value": 0.007387599907815456,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 12.970894999802113,
+          "metadata_value": 12.970894999802113,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 9106.0,
+          "metadata_value": 9106.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 7699.0,
+          "metadata_value": 7699.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 7699.0,
+          "metadata_value": 7699.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 22.0,
+          "metadata_value": 22.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 7721.0,
+          "metadata_value": 7721.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 4.95253367543297,
+          "metadata_value": 4.95253367543297,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__persistent_certified_cache_batch5"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 1.888768597971648,
+          "metadata_value": 1.888768597971648,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 245.6022887993604,
+          "metadata_value": 245.6022887993604,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9900497512437811,
+          "metadata_value": 0.9900497512437811,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_162__single_cut"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.007390700047835708,
+          "metadata_value": 0.007390700047835708,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 467.44242520211264,
+          "metadata_value": 467.44242520211264,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.993485342019544,
+          "metadata_value": 0.993485342019544,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__persistent_separation"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.007535399869084358,
+          "metadata_value": 0.007535399869084358,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 434.52844450226985,
+          "metadata_value": 434.52844450226985,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9951456310679612,
+          "metadata_value": 0.9951456310679612,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0__medium_large__seed_161__persistent_separation"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 3.981735502835363,
+          "metadata_value": 3.981735502835363,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 488.76105420081876,
+          "metadata_value": 488.76105420081876,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9935064935064936,
+          "metadata_value": 0.9935064935064936,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_160__single_cut"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 0.007021500030532479,
+          "metadata_value": 0.007021500030532479,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 1.5545997000299394,
+          "metadata_value": 1.5545997000299394,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 1120.0,
+          "metadata_value": 1120.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 1070.0,
+          "metadata_value": 1070.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 1070.0,
+          "metadata_value": 1070.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9990671641791045,
+          "metadata_value": 0.9990671641791045,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_162__persistent_certified_cache"
+        },
+        {
+          "field": "separation_model_build_runtime",
+          "iteration_log_recomputed_value": 4.405123698757961,
+          "metadata_value": 4.405123698757961,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "separation_optimize_runtime",
+          "iteration_log_recomputed_value": 387.0124855977483,
+          "metadata_value": 387.0124855977483,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "cache_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "cache_hit_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "certified_cached_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "pool_candidate_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "certified_batch_cut_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "duplicate_pattern_count",
+          "iteration_log_recomputed_value": 0.0,
+          "metadata_value": 0.0,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        },
+        {
+          "field": "cuts_per_iteration",
+          "iteration_log_recomputed_value": 0.9952830188679245,
+          "metadata_value": 0.9952830188679245,
+          "passed": true,
+          "run_key": "fairness_scalability_development_medium_large__scalability_s1_frontier__rho_0_01__medium_large__seed_161__single_cut"
+        }
+      ],
+      "passed_count": 216
+    },
+    "results_row_count": 27,
+    "source_csv": {
+      "freeze_metrics_rebuilt_from_run_json": true,
+      "reporting_schema": "legacy_pre_hotfix_incomplete_not_used_for_freeze",
+      "results_row_count": 27,
+      "status_identity_failures": [],
+      "status_identity_matches_rebuild": true,
+      "summary_row_count": 9
+    }
+  },
+  "scale": "medium_large",
+  "scientific_status": {
+    "algorithm_status_counts": {
+      "optimal": 23,
+      "separation_stalled_duplicate": 3,
+      "time_limit": 1
+    },
+    "baseline_certified_solved_count": 3,
+    "candidate_certified_counts": {
+      "persistent_certified_cache": 2,
+      "persistent_certified_cache_batch5": 6,
+      "persistent_separation": 6,
+      "single_cut": 6
+    },
+    "frontier_certified_solved_count": 20,
+    "frontier_run_count": 24,
+    "pipeline_failed_run_count": 0,
+    "scientific_status_counts": {
+      "certified_robust_optimal": 23,
+      "time_limit_uncertified": 1,
+      "unknown_uncertified": 3
+    },
+    "uncertified_values_excluded_from_candidate_selection": true
+  },
+  "source_archives": {
+    "large": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376",
+    "medium_large": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751"
+  }
+}

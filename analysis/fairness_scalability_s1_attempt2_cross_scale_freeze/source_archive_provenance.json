@@ -1,0 +1,47 @@
+{
+  "derived_artifacts_are_formal_optimization_outputs": false,
+  "evidence_kind": "derived_read_only_cross_scale_freeze_not_optimization_output",
+  "frozen_experiment_matrix": {
+    "all_passed": true,
+    "candidate_cross_scale_run_count": {
+      "persistent_certified_cache": 12,
+      "persistent_certified_cache_batch5": 12,
+      "persistent_separation": 12,
+      "single_cut": 12
+    },
+    "cross_scale": {
+      "baseline": 6,
+      "frontier": 48,
+      "total": 54
+    },
+    "large": {
+      "baseline": 3,
+      "frontier": 24,
+      "total": 27
+    },
+    "medium_large": {
+      "baseline": 3,
+      "frontier": 24,
+      "total": 27
+    },
+    "row_count": 54,
+    "unique_run_key_count": 54,
+    "unique_scientific_identity_count": 54
+  },
+  "source_archives": {
+    "large": {
+      "access_mode": "read_only",
+      "name": "fairness_scalability_s1_attempt2_large_results.zip",
+      "sha256": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376",
+      "sha256_unchanged": true,
+      "size_bytes": 30079440
+    },
+    "medium_large": {
+      "access_mode": "read_only",
+      "name": "fairness_scalability_s1_attempt2_medium_large_results.zip",
+      "sha256": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751",
+      "sha256_unchanged": true,
+      "size_bytes": 37569623
+    }
+  }
+}
