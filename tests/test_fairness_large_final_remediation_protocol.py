@@ -16,6 +16,7 @@ from src.fairness_large_final_remediation_audit import (
     CheckpointWriteFailure,
     CommitInterrupted,
     QuantizationFailClosed,
+    RelativeViolationFailClosed,
     PATTERN_SCHEMA,
     adaptive_batch_segment,
     adaptive_batch_size,
@@ -32,7 +33,9 @@ from src.fairness_large_final_remediation_audit import (
     pattern_sha256,
     quantized_bucket,
     raw_violation_is_accepted,
-    relative_violation_is_eligible,
+    relative_normalized_violation_evidence,
+    relative_violation_bucket_is_eligible,
+    round_half_even_nonnegative_ratio,
     make_selection_checkpoint,
     resume_action,
     selected_cut_count,
@@ -53,6 +56,22 @@ def cut_payloads(count: int, *, offset: int = 0):
         digest = hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
         result[digest] = payload
     return result
+
+
+def relative_evidence_for_hashes(hashes, buckets=None):
+    bucket_values = list(buckets or [10**9] * len(hashes))
+    return relative_normalized_violation_evidence([
+        {
+            "source": "primary_full_separation_incumbent",
+            "certified_current_point": True,
+            "strictly_violating": True,
+            "canonical_cut_identity_valid": True,
+            "cut_sha256": digest,
+            "pattern_sha256": hashlib.sha256(f"pattern-{index}".encode()).hexdigest().upper(),
+            "normalized_violation_bucket": bucket_values[index],
+        }
+        for index, digest in enumerate(hashes)
+    ])
 
 
 def load(rel: str):
@@ -189,12 +208,9 @@ def test_cut_hash_canonicalization_and_binary64_validation():
 
 
 def test_numeric_nextafter_deadbands_and_half_even():
-    relative = 0.10
-    assert not relative_violation_is_eligible(math.nextafter(relative, -math.inf))
-    assert not relative_violation_is_eligible(relative)
-    assert not relative_violation_is_eligible(math.nextafter(relative, math.inf))
-    assert not relative_violation_is_eligible(relative + 2.0e-9)
-    assert relative_violation_is_eligible(relative + 3.1e-9)
+    assert not relative_violation_bucket_is_eligible(100_000_000)
+    assert not relative_violation_bucket_is_eligible(100_000_002)
+    assert relative_violation_bucket_is_eligible(100_000_003)
     cosine = 0.98
     assert cosine_is_redundant(math.nextafter(cosine, -math.inf))
     assert cosine_is_redundant(cosine)
@@ -253,17 +269,133 @@ def test_binary64_extremes_use_exact_integer_arithmetic():
 
 
 def test_quantized_tie_break_is_hash_stable():
-    common = {"normalized_violation": 0.2, "raw_violation": 0.3, "diversity": 0.5}
+    common = {"normalized_violation": 0.2, "diversity": 0.5}
     first = candidate_order_key(**common, pattern_hash="A" * 64, cut_hash="F" * 64)
     second = candidate_order_key(**common, pattern_hash="B" * 64, cut_hash="0" * 64)
     assert first < second
     same_pattern_first = candidate_order_key(**common, pattern_hash="A" * 64, cut_hash="0" * 64)
     assert same_pattern_first < first
     same_bucket = candidate_order_key(
-        normalized_violation=0.2 + math.ulp(0.2), raw_violation=0.3,
+        normalized_violation=0.2 + math.ulp(0.2),
         diversity=0.5, pattern_hash="A" * 64, cut_hash="F" * 64,
     )
     assert same_bucket == first
+
+
+def _relative_candidate(cut_digit, pattern_digit, bucket, *, source="solution_pool", certified=True, violating=True):
+    return {
+        "source": source,
+        "certified_current_point": certified,
+        "strictly_violating": violating,
+        "canonical_cut_identity_valid": True,
+        "cut_sha256": cut_digit * 64,
+        "pattern_sha256": pattern_digit * 64,
+        "normalized_violation_bucket": bucket,
+    }
+
+
+def test_relative_violation_single_multiple_and_order_independence():
+    single = relative_normalized_violation_evidence([_relative_candidate("A", "1", 7)])
+    assert single["relative_violation_denominator_bucket"] == 7
+    assert single["relative_violation_candidate_evidence"][0]["relative_violation_bucket"] == 10**9
+    assert single["relative_violation_eligible_count"] == 1
+    candidates = [
+        _relative_candidate("A", "1", 10),
+        _relative_candidate("B", "2", 5, source="pattern_cache"),
+        _relative_candidate("C", "3", 1, source="primary_full_separation_incumbent"),
+    ]
+    forward = relative_normalized_violation_evidence(candidates)
+    reverse = relative_normalized_violation_evidence(list(reversed(candidates)))
+    assert forward == reverse
+    assert forward["relative_violation_denominator_bucket"] == 10
+    assert [item["relative_violation_bucket"] for item in forward["relative_violation_candidate_evidence"]] == [10**9, 500_000_000, 100_000_000]
+    assert forward["relative_violation_eligible_count"] == 2
+
+
+def test_relative_violation_empty_zero_duplicate_and_uncertified():
+    empty = relative_normalized_violation_evidence([])
+    assert empty["relative_violation_status"] == "no_certified_violating_candidates"
+    assert empty["relative_violation_denominator_bucket"] is None
+    assert empty["relative_violation_eligible_count"] == 0
+    zero = relative_normalized_violation_evidence([_relative_candidate("A", "1", 0)])
+    assert zero["relative_violation_status"] == "no_positive_quantized_normalized_violation"
+    assert zero["relative_violation_denominator_bucket"] == 0
+    assert zero["relative_violation_candidate_evidence"][0]["relative_violation_bucket"] is None
+    duplicate = _relative_candidate("B", "2", 11, source="pattern_cache")
+    duplicate_pool = {**duplicate, "source": "solution_pool"}
+    uncertified = _relative_candidate("C", "3", 10**100, certified=False)
+    evidence = relative_normalized_violation_evidence([duplicate, uncertified, duplicate_pool])
+    assert evidence["relative_violation_denominator_bucket"] == 11
+    assert len(evidence["relative_violation_candidate_evidence"]) == 1
+    assert evidence["relative_violation_candidate_evidence"][0]["sources"] == ["pattern_cache", "solution_pool"]
+    with pytest.raises(RelativeViolationFailClosed, match="relative_violation_identity_mismatch"):
+        relative_normalized_violation_evidence([duplicate, {**duplicate_pool, "normalized_violation_bucket": 12}])
+
+
+def test_relative_violation_integer_boundaries_and_half_even():
+    assert round_half_even_nonnegative_ratio(1, 2) == 0
+    assert round_half_even_nonnegative_ratio(3, 2) == 2
+    assert round_half_even_nonnegative_ratio(5, 2) == 2
+    assert round_half_even_nonnegative_ratio(7, 2) == 4
+    huge = 10**500 + 1
+    assert round_half_even_nonnegative_ratio(huge * 10**200, 10**200) == huge
+    candidates = [
+        _relative_candidate("A", "1", 10**9),
+        _relative_candidate("B", "2", 100_000_000),
+        _relative_candidate("C", "3", 100_000_002),
+        _relative_candidate("D", "4", 100_000_003),
+    ]
+    evidence = relative_normalized_violation_evidence(candidates)
+    by_hash = {item["cut_sha256"]: item for item in evidence["relative_violation_candidate_evidence"]}
+    assert by_hash["B" * 64]["relative_violation_bucket"] == 100_000_000
+    assert by_hash["C" * 64]["relative_violation_bucket"] == 100_000_002
+    assert by_hash["D" * 64]["relative_violation_bucket"] == 100_000_003
+    assert not relative_violation_bucket_is_eligible(100_000_000)
+    assert not relative_violation_bucket_is_eligible(100_000_002)
+    assert relative_violation_bucket_is_eligible(100_000_003)
+    denominator_one = relative_normalized_violation_evidence([_relative_candidate("E", "5", 1)])
+    assert denominator_one["relative_violation_candidate_evidence"][0]["relative_violation_bucket"] == 10**9
+
+
+def test_relative_violation_resume_identity_and_similarity_independence():
+    payloads = cut_payloads(3, offset=3000)
+    hashes = list(payloads)
+    candidates = [
+        _relative_candidate(digest[0], str(index + 1), bucket)
+        for index, (digest, bucket) in enumerate(zip(hashes, (10**9, 500_000_000, 100_000_003)))
+    ]
+    # Preserve the actual canonical cut hashes rather than the helper's repeated digit.
+    for candidate, digest in zip(candidates, hashes):
+        candidate["cut_sha256"] = digest
+    relative = relative_normalized_violation_evidence(candidates)
+    eligible = [item["cut_sha256"] for item in relative["relative_violation_candidate_evidence"] if item["relative_violation_eligible"]]
+    similarity_filtered = eligible[::2]
+    state = make_selection_checkpoint(
+        iteration=22, committed_hashes=[], eligible_ordered_hashes=similarity_filtered,
+        canonical_cut_payloads_by_sha256=payloads,
+        relative_violation_evidence=relative,
+    )
+    assert state["relative_violation_denominator_bucket"] == 10**9
+    assert checkpoint_selection_signature(state) == checkpoint_selection_signature({**state, "runtime": 999})
+    assert checkpoint_selection_signature(state) == checkpoint_selection_signature(state.copy())
+    corrupted = json.loads(json.dumps(state))
+    corrupted["relative_violation_candidate_evidence"][0]["relative_violation_bucket"] += 1
+    with pytest.raises(RelativeViolationFailClosed, match="relative_violation_identity_mismatch"):
+        validate_checkpoint_state(corrupted)
+    with pytest.raises(RelativeViolationFailClosed, match="relative_violation_identity_mismatch"):
+        validate_checkpoint_state({**state, "relative_violation_schema": "drift"})
+
+
+def test_relative_violation_config_identity_sha_locks():
+    protocol_hash = hashlib.sha256((ROOT / "docs/fairness_large_final_remediation_protocol.md").read_bytes()).hexdigest().upper()
+    candidate_hash = hashlib.sha256((ROOT / "experiments/configs/fairness_large_final_remediation_candidate.yaml").read_bytes()).hexdigest().upper()
+    for rel in CONFIGS:
+        config = load(rel)
+        assert config["required_protocol_sha256"] == protocol_hash
+        assert config["required_candidate_sha256"] == candidate_hash
+        assert "relative_violation_identity" in config["manifest_identity_lock"]
+    with pytest.raises(RelativeViolationFailClosed, match="invalid_normalized_violation_bucket"):
+        relative_normalized_violation_evidence([_relative_candidate("A", "1", math.nan)])
 
 
 def test_batch_schedule_boundaries_and_runtime_independence():
@@ -292,6 +424,7 @@ def test_batch_count_uses_only_start_committed_unique_cuts():
             {"source": "redundancy_rejection", "counted": False}, {"source": "pool_candidate", "counted": False},
             {"source": "cache_candidate", "counted": False},
         ],
+        relative_violation_evidence=relative_evidence_for_hashes(list(eligible_payload)),
     )
     assert state["total_committed_unique_master_cuts"] == 999
     assert adaptive_batch_size(state["committed_cut_count_before_iteration"]) == 5
@@ -302,6 +435,7 @@ def test_batch_count_uses_only_start_committed_unique_cuts():
     empty = make_selection_checkpoint(
         iteration=6, committed_hashes=list(committed_payloads), eligible_ordered_hashes=[],
         canonical_cut_payloads_by_sha256=committed_payloads,
+        relative_violation_evidence=relative_normalized_violation_evidence([]),
     )
     assert empty["cut_commit_state"] == "no_selection"
     assert empty["selected_cut_sha256_values"] == []
@@ -314,6 +448,7 @@ def test_resume_selection_state_is_discrete_and_reproducible():
         iteration=17, committed_hashes=list(payloads)[:1], eligible_ordered_hashes=list(payloads)[1:],
         canonical_cut_payloads_by_sha256=payloads, pattern_hashes=["A" * 64],
         quantized_lb_improvement_state=12, stall_counter=3,
+        relative_violation_evidence=relative_evidence_for_hashes(list(payloads)[1:]),
     )
     before = checkpoint_selection_signature({**state, "runtime": {"master": 1.0}, "machine": "A"})
     after = checkpoint_selection_signature({**state, "runtime": {"master": 999.0}, "machine": "B"})
@@ -333,6 +468,7 @@ def test_selected_committed_interrupt_recovery_state_machine():
     selection = make_selection_checkpoint(
         iteration=9, committed_hashes=hashes[:2], eligible_ordered_hashes=hashes[2:],
         canonical_cut_payloads_by_sha256=payloads,
+        relative_violation_evidence=relative_evidence_for_hashes(hashes[2:]),
     )
     assert selection["cut_commit_state"] == "selection_complete_not_committed"
     assert resume_action(selection) == "rebuild_committed_master_then_recommit_same_selected_hashes_once"
@@ -342,6 +478,7 @@ def test_selected_committed_interrupt_recovery_state_machine():
     rerun = make_selection_checkpoint(
         iteration=9, committed_hashes=hashes[:2], eligible_ordered_hashes=hashes[2:],
         canonical_cut_payloads_by_sha256=payloads,
+        relative_violation_evidence=relative_evidence_for_hashes(hashes[2:]),
     )
     assert checkpoint_selection_signature(rerun) == selection_signature
 
