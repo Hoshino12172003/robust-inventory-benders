@@ -2,7 +2,7 @@
   "access_evidence": [],
   "audit_passed": true,
   "declaration_only_is_not_access": true,
-  "formal_run_authorized": false,
+  "formal_run_authorized": true,
   "pre_run_reaudit_required": true,
   "reserved_seeds": [
     170,

@@ -34,6 +34,7 @@ def audit(root: Path) -> dict[str, object]:
     plan = expand_plan()
     report = dry_run(config_path)
     protocol = protocol_path.read_text(encoding="utf-8")
+    delivery = (root / "docs/fairness_hybrid_final_cross_scale_holdout_delivery.md").read_text(encoding="utf-8")
     runner = (root / "src/fairness_hybrid_final_holdout_runner.py").read_text(encoding="utf-8")
     checks = {
         "config_sha": file_sha256(config_path).upper() == EXPECTED_CONFIG_SHA256,
@@ -51,8 +52,10 @@ def audit(root: Path) -> dict[str, object]:
         "time_limits": config["baseline_time_limit_seconds"] == config["algorithm_time_limit_seconds"] == 1800,
         "post_parameters": config["post_evaluation"] == {"time_limit_per_scenario_seconds": 30, "checkpoint_chunk_size": 25},
         "scenario_counts": report["by_scale"]["medium_large"]["scenario_count"] == 1831 and report["by_scale"]["large"]["scenario_count"] == 4657,
-        "formal_disabled": config["formal_run_authorized"] is False and "formal_run_not_authorized" in runner,
-        "gate_before_writes": "raise RemediationGateError(\"formal_run_not_authorized" in runner.split("def run_holdout", 1)[1].split("def main", 1)[0] and "mkdir(" not in runner.split("def run_holdout", 1)[1].split("def main", 1)[0],
+        "formal_authorized_after_merge": config["authorization"] == "formal_execution_authorized_after_merge" and config["formal_run_authorized"] is True,
+        "production_pipeline_connected": all(token in runner for token in ("def _run_scale", "solve_certified_hybrid_scenario_benders_fairness", "checkpointed_fairness_post_evaluation", "_aggregate_records")),
+        "gate_before_solver_and_writes": runner.index("_formal_git_gate(root)", runner.index("def run_holdout")) < runner.index("deps.configure_solver", runner.index("def run_holdout")) < runner.index("_run_scale(", runner.index("def run_holdout")),
+        "detached_clean_main_gate": all(token in runner for token in ("worktree is not clean", "HEAD is not current origin/main", "worktree must be detached")),
         "dry_no_side_effect": report["instances_generated"] is False and report["solver_called"] is False and report["output_dirs_exist"] is False,
         "path_portable": report["windows_path_check"] is True and report["longest_path_length"] < 220,
         "seed_access_clear": report["reserved_seed_access_audit_passed"] is True,
@@ -64,6 +67,9 @@ def audit(root: Path) -> dict[str, object]:
         "development_closed": "closes algorithm development and tuning" in (root / "docs/fairness_hybrid_ccg_benders_d2_final_decision.md").read_text(encoding="utf-8"),
         "d1_d2_development_only": "D1 and D2 remain development evidence only" in (root / "docs/fairness_hybrid_ccg_benders_d2_final_decision.md").read_text(encoding="utf-8"),
         "no_overwrite": 'add_argument("--overwrite"' not in runner and config["overwrite_supported"] is False,
+        "strict_resume": "FINAL_HOLDOUT requires --resume" in runner,
+        "cross_scale_outputs": all(scale in config["scales"] for scale in ("medium_large", "large")),
+        "delivery_uses_only_frozen_entrypoint": "--stage FINAL_HOLDOUT --resume" in delivery and "--overwrite" not in delivery,
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:

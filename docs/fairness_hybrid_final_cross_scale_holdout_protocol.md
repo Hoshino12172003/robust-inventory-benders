@@ -52,4 +52,4 @@ No post-hoc pass threshold, selective rerun, seed substitution, rho deletion or 
 
 ## Authorization boundary
 
-This protocol and its dry-run implementation do not authorize formal execution. `formal_run_authorized=false`. Formal mode must fail before output creation, instance generation, Gurobi configuration or any write. The only next stage is `fairness_hybrid_final_cross_scale_holdout_review_only`; after independent review, a separate pre-run authorization must re-audit seed non-access, the merged Git tree, paths and identities.
+The independently reviewed and merged delivery authorizes exactly this frozen `FINAL_HOLDOUT` matrix. `formal_run_authorized=true` is valid only from a clean detached worktree whose `HEAD` equals the fetched `origin/main`, after the D2 decision, protocol, candidate and config byte identities and the reserved-seed non-access audit pass. All gates run before output creation, instance generation or Gurobi configuration. No other stage, scale, seed, rho, candidate or output directory may borrow this authorization.
