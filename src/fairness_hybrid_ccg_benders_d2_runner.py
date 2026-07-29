@@ -22,6 +22,7 @@ from .experiment_protocol import (
 from .fairness_hybrid_ccg_benders import (
     CANDIDATE,
     CANDIDATE_SHA256,
+    initial_upper_bound_expected_identity,
     initial_scenario_plan_identity,
     solve_certified_hybrid_scenario_benders_fairness,
 )
@@ -55,12 +56,12 @@ from .instance import InventoryInstance
 
 STAGE = "D2"
 SCHEMA = "fairness_hybrid_ccg_benders_manifest_v2"
-EXECUTION_ATTEMPT = 2
-EXPECTED_CONFIG_SHA256 = "AE449C3E1551532AA772E1E51F4348860FC16A7CFE9970D6E2A9477F2E2DBFF1"
-PROTOCOL_SHA256 = "D1DD2DC7417204CDB0B9A70986B975EC621D400CF8384E6EC026ED1A90D9367B"
+EXECUTION_ATTEMPT = 3
+EXPECTED_CONFIG_SHA256 = "ED8F145A9ACAA1AC799DBBDE2BAEBF1A35F2F614FE41B0F73EF8F278690EF63A"
+PROTOCOL_SHA256 = "A1D1655F4D66B79ADB9AF28E69F8E04D50F0EAEFB8577F645080D5713D1426BC"
 D1_DECISION_SHA256 = "1F7101CB722C4A4E6974C2D8597F4ED37BF89C2072FA039502EC69E834C7F17E"
 D1_ARCHIVE_SHA256 = "7E89115E3BE325C9A37C31D28D32EA80EEA95F09528DBC8AEDA833EF0129A4A9"
-OUTPUT_RELATIVE = "experiments/results_fairness_hybrid_ccg_benders/controlled_d2_large_seeds160_162_rhos0_001_010"
+OUTPUT_RELATIVE = "experiments/results_fairness_hybrid_ccg_benders/controlled_d2_a3_large_s160_162_r0_001_010"
 SEEDS = [160, 161, 162]
 RHOS = [0.0, 0.01, 0.10]
 RESOLVED_CONFIG_CANONICALIZATION = "PyYAML safe_dump(sort_keys=True, allow_unicode=True), UTF-8"
@@ -505,11 +506,7 @@ def run_d2(
                     raise RemediationGateError("D2 frontier resume identity mismatch")
                 records_by_key[record["run_key"]] = record
                 continue
-            expected = {
-                **{key: common[key] for key in common},
-                "anchor_value_hex": anchor["value_hex"],
-                "anchor_sha256": anchor["anchor_sha256"],
-            }
+            expected = initial_upper_bound_expected_identity(common, anchor)
             _write_status(run_root, state="running", scientific="pending", algorithm="running")
             started = time.perf_counter()
             try:
