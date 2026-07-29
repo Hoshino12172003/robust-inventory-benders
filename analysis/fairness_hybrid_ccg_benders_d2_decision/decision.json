@@ -1,0 +1,16 @@
+{
+  "algorithm_development_closed": true,
+  "candidate_frozen": "certified_hybrid_scenario_benders_fairness",
+  "complete_scenario_blocks_frozen": true,
+  "d1_d2_role": "development_evidence_only",
+  "d2_baseline_certified": "3/3",
+  "d2_frontier_certified": "9/9",
+  "decision": "approve_final_cross_scale_holdout_protocol",
+  "farkas_certification_frozen": true,
+  "final_exact_separation_frozen": true,
+  "final_holdout_formal_run_authorized": false,
+  "next_authorized_stage": "fairness_hybrid_final_cross_scale_holdout_review_only",
+  "source_archive_sha256": "07746988F93B2CD6E6BDE7B08EB661FCB330B3CA7A3A874A772BE9ED24258271",
+  "time_limits_and_tolerances_frozen": true,
+  "tuning_closed": true
+}

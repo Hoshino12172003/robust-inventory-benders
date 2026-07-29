@@ -1,0 +1,55 @@
+experiment_name: fairness_hybrid_final_cross_scale_holdout
+stage: FINAL_HOLDOUT
+authorization: protocol_review_only
+formal_run_authorized: false
+schema_version: 1
+execution_attempt: 1
+previous_attempt_results_reused: false
+d2_decision: approve_final_cross_scale_holdout_protocol
+d2_decision_file: analysis/fairness_hybrid_ccg_benders_d2_decision/decision.json
+required_d2_decision_sha256: E73B01404908BCC49E30A85B5795B30DF9AC927BDFA5F685FA95EF4B5DE607E1
+protocol_document: docs/fairness_hybrid_final_cross_scale_holdout_protocol.md
+required_protocol_sha256: F4B2556575CFB397F0FED75E59773EEC96855EFD3F7604BED6B288AA90AC909D
+candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
+required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
+candidate: certified_hybrid_scenario_benders_fairness
+scales:
+  medium_large:
+    num_regions: 10
+    num_products: 6
+    scenario_count: 1831
+    baseline_count: 10
+    frontier_count: 50
+    total_tasks: 60
+    output_dir: experiments/results_fairness_hybrid_final_holdout/ml_a1
+  large:
+    num_regions: 12
+    num_products: 8
+    scenario_count: 4657
+    baseline_count: 10
+    frontier_count: 50
+    total_tasks: 60
+    output_dir: experiments/results_fairness_hybrid_final_holdout/lg_a1
+seeds: [170, 171, 172, 173, 174, 175, 176, 177, 178, 179]
+rho: [0.0, 0.01, 0.025, 0.05, 0.10]
+baseline_count: 20
+frontier_count: 100
+total_tasks: 120
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7}
+gamma: 2
+tol: 1.0e-4
+baseline_time_limit_seconds: 1800
+algorithm_time_limit_seconds: 1800
+general_time_limit_seconds: 1800
+post_evaluation: {time_limit_per_scenario_seconds: 30, checkpoint_chunk_size: 25}
+runtime_semantics: {par2_multiplier: 2, par2_basis: algorithm_runtime}
+statistics:
+  independent_unit: seed
+  cluster_members: [scale, rho]
+  cluster_bootstrap_resamples_seed: true
+  per_rho_cross_scale_pair_count: 10
+  overall_comparison: aggregate_rho_within_seed_then_pair_scales
+  multiple_testing: Holm_if_five_rho_tests
+  prohibit_seed_rho_independence: true
+resume: true
+overwrite_supported: false
