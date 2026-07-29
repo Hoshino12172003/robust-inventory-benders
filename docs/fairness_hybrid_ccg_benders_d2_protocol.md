@@ -2,7 +2,7 @@
 
 ## Frozen scope
 
-D2 uses only `certified_hybrid_scenario_benders_fairness`, scale `large`, seeds 160--162, and rho values 0, 0.01, and 0.10. Each seed has one independently generated instance and one independently solved baseline; its three frontier runs share that seed's certified baseline anchor. The plan is exactly 3 baseline plus 9 frontier tasks. Execution attempt is 2, previous results are not reused, and the output directory is new.
+D2 uses only `certified_hybrid_scenario_benders_fairness`, scale `large`, seeds 160--162, and rho values 0, 0.01, and 0.10. Each seed has one independently generated instance and one independently solved baseline; its three frontier runs share that seed's certified baseline anchor. The plan is exactly 3 baseline plus 9 frontier tasks. Execution attempt is 3, previous results are not reused, and the output directory is new. Attempt 2 is frozen as an execution-incomplete identity-interface incident and must not be resumed or imported.
 
 No D1 instance, baseline, anchor, scenario, cut, checkpoint, manifest, result, or summary may be imported. D1 is read-only development evidence only. D1 configuration accepts only stage D1 and D2 configuration accepts only stage D2.
 

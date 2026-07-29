@@ -3,7 +3,7 @@ stage: D2
 authorization: formal_execution_authorized_after_merge
 formal_run_authorized: true
 schema_version: 2
-execution_attempt: 2
+execution_attempt: 3
 previous_attempt_results_reused: false
 d1_decision: approve_for_d2_controlled_large_expansion
 d1_decision_file: analysis/fairness_hybrid_ccg_benders_d1_decision/decision.json
@@ -11,7 +11,7 @@ required_d1_decision_sha256: 1F7101CB722C4A4E6974C2D8597F4ED37BF89C2072FA039502E
 prior_d1_archive_sha256: 7E89115E3BE325C9A37C31D28D32EA80EEA95F09528DBC8AEDA833EF0129A4A9
 protocol_document: docs/fairness_hybrid_ccg_benders_d2_protocol.md
 candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
-required_protocol_sha256: D1DD2DC7417204CDB0B9A70986B975EC621D400CF8384E6EC026ED1A90D9367B
+required_protocol_sha256: A1D1655F4D66B79ADB9AF28E69F8E04D50F0EAEFB8577F645080D5713D1426BC
 required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
 candidate: certified_hybrid_scenario_benders_fairness
 scale: large
@@ -21,7 +21,7 @@ baseline_count: 3
 frontier_count: 9
 total_tasks: 12
 scenario_count: 4657
-output_dir: experiments/results_fairness_hybrid_ccg_benders/controlled_d2_large_seeds160_162_rhos0_001_010
+output_dir: experiments/results_fairness_hybrid_ccg_benders/controlled_d2_a3_large_s160_162_r0_001_010
 baseline_time_limit_seconds: 1800
 algorithm_time_limit_seconds: 1800
 general_time_limit_seconds: 1800

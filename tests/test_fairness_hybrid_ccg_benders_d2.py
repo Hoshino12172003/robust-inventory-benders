@@ -99,6 +99,8 @@ def _dependencies(calls: dict[str, int], *, certified: bool = True) -> HybridDep
 def test_d2_plan_and_dry_run_are_exact_and_side_effect_free() -> None:
     output = ROOT / runner.OUTPUT_RELATIVE
     assert not output.exists()
+    assert runner.EXECUTION_ATTEMPT == 3
+    assert "controlled_d2_a3" in runner.OUTPUT_RELATIVE
     rows = runner.expand_d2_plan()
     report = runner.dry_run(CONFIG)
     assert len(rows) == len({row["run_key"] for row in rows}) == 12
@@ -109,6 +111,12 @@ def test_d2_plan_and_dry_run_are_exact_and_side_effect_free() -> None:
     assert report["output_dir_exists"] is False and report["windows_path_check"] is True
     assert report["longest_path_length"] < 220
     assert not output.exists()
+
+
+def test_attempt2_failure_output_cannot_be_reused_as_attempt3() -> None:
+    old_output = "experiments/results_fairness_hybrid_ccg_benders/controlled_d2_large_seeds160_162_rhos0_001_010"
+    assert runner.OUTPUT_RELATIVE != old_output
+    assert all(json.loads(row["run_key"])["execution_attempt"] == 3 for row in runner.expand_d2_plan())
 
 
 @pytest.mark.parametrize("stage", ["D1", "L0", "L1", "M1", "S2", "full-grid"])
@@ -190,7 +198,7 @@ def test_d2_post_evaluation_uses_unambiguous_attempt_fields(monkeypatch: pytest.
         yaml.safe_load(CONFIG.read_text(encoding="utf-8")), tiny_instance(), result,
         anchor, identity, tmp_path, row,
     )
-    assert captured["run_execution_attempt"] == 2
+    assert captured["run_execution_attempt"] == 3
     assert captured["post_evaluation_pipeline_generation"] == 4
 
 
@@ -214,7 +222,7 @@ def test_d2_expected_identity_matches_d1_contract_and_constructs_t1() -> None:
             "candidate_sha256", "baseline_run_key",
         )},
         "stage": "D2",
-        "execution_attempt": 2,
+        "execution_attempt": 3,
         "resolved_config_canonical_sha256": "4" * 64,
         "protocol_sha256": runner.PROTOCOL_SHA256,
     }
@@ -230,6 +238,39 @@ def test_d2_expected_identity_matches_d1_contract_and_constructs_t1() -> None:
         expected_candidate_sha256=CANDIDATE_SHA256,
     )
     assert initial.value == initial.t_value == 1.0
+
+
+def test_d2_production_frontier_reaches_hybrid_solver_with_t1_identity(tmp_path: Path) -> None:
+    from tests.test_fairness_large_final_remediation_implementation import baseline_evidence
+
+    instance = tiny_instance()
+    record, anchor = baseline_evidence(instance, gamma=0)
+    record["candidate_sha256"] = CANDIDATE_SHA256
+    anchor["candidate_sha256"] = CANDIDATE_SHA256
+    anchor["anchor_sha256"] = config_sha256(
+        {key: value for key, value in anchor.items() if key != "anchor_sha256"}
+    ).upper()
+    common = {
+        field: record[field]
+        for field in INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS
+        if field not in {"anchor_value_hex", "anchor_sha256"}
+    }
+    expected = initial_upper_bound_expected_identity(common, anchor)
+    config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    config["max_iterations"] = 20
+    config["algorithm_time_limit_seconds"] = 30
+    result = runner._production_frontier(
+        config,
+        instance,
+        record,
+        anchor,
+        expected,
+        tmp_path / "algorithm_checkpoint.json",
+        deepcopy(runner.SOLVER_PARAMETERS),
+        {"run_key": "tiny-d2-production-frontier", "rho": "0.00"},
+    )
+    assert result["status"] != "exception"
+    assert result["metadata"]["initial_robust_upper_bound"]["initial_robust_ub_valid"] is True
 
 
 def test_d2_expected_identity_missing_required_field_fails_closed() -> None:

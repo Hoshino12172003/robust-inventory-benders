@@ -39,6 +39,7 @@ def audit(root: Path) -> dict[str, object]:
         "three_baselines": sum(row["task_type"] == "baseline" for row in plan) == 3,
         "nine_frontiers": sum(row["task_type"] == "frontier" for row in plan) == 9,
         "no_old_reuse": config["previous_attempt_results_reused"] is False,
+        "attempt3_isolation": config["execution_attempt"] == 3 and "controlled_d2_a3" in config["output_dir"],
         "new_output": "controlled_d2" in config["output_dir"] and "development_d1" not in config["output_dir"],
         "solver_identity": config["solver_identity"] == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7},
         "time_limits": config["baseline_time_limit_seconds"] == config["algorithm_time_limit_seconds"] == 1800,
