@@ -1,0 +1,16 @@
+{
+  "archive_filename": "fairness_hybrid_ccg_benders_d1_large_seed160_rho0_results.zip",
+  "archive_sha256": "7E89115E3BE325C9A37C31D28D32EA80EEA95F09528DBC8AEDA833EF0129A4A9",
+  "audit_mode": "read_only_zip",
+  "crc_valid": true,
+  "directories": 0,
+  "entries": 201,
+  "files": 201,
+  "nested_review_archive": {
+    "classification": "non_authoritative_review_convenience_copy_excluded_from_scientific_identity",
+    "entries": 7,
+    "path": "D1_review.zip",
+    "sha256": "6BD61236C041027A52B4498274FC0FA1C83222C65674A664B5BDC9BE27A911B1"
+  },
+  "sha256_after_audit": "7E89115E3BE325C9A37C31D28D32EA80EEA95F09528DBC8AEDA833EF0129A4A9"
+}

@@ -230,8 +230,14 @@ def solve_certified_hybrid_scenario_benders_fairness(
     output_flag: bool = False,
     checkpoint_path: str | Path | None = None,
     checkpoint_identity: dict[str, Any] | None = None,
+    execution_protocol_sha256: str = PROTOCOL_SHA256,
     failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> FairnessBendersResult:
+    execution_protocol = str(execution_protocol_sha256).upper()
+    if len(execution_protocol) != 64 or any(
+        character not in "0123456789ABCDEF" for character in execution_protocol
+    ):
+        raise RemediationIdentityError("execution protocol SHA256 identity is invalid")
     start = time.perf_counter()
     initial = construct_initial_t1_upper_bound(
         instance, baseline_record=baseline_record, anchor=anchor, rho=rho,
@@ -253,7 +259,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
     identity = {
         "candidate": CANDIDATE,
         "candidate_sha256": CANDIDATE_SHA256,
-        "protocol_sha256": PROTOCOL_SHA256,
+        "protocol_sha256": execution_protocol,
         "scenario_schema": SCENARIO_SCHEMA,
         "rho_hex": float(rho).hex(),
         "anchor_sha256": str(anchor["anchor_sha256"]).upper(),
@@ -448,7 +454,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
         iteration_log=log,
         metadata={
             "candidate": CANDIDATE,
-            "protocol_sha256": PROTOCOL_SHA256,
+            "protocol_sha256": execution_protocol,
             "candidate_sha256": CANDIDATE_SHA256,
             "initial_robust_upper_bound": initial.evidence,
             "initial_scenario_count": len(initial_set),

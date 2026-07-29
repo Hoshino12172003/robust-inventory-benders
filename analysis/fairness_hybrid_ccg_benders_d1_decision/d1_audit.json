@@ -1,0 +1,40 @@
+{
+  "audit_status": "pass",
+  "checks_passed": 38,
+  "checks_total": 38,
+  "identity": {
+    "candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
+    "config_file_sha256": "95514DD43167583CCE8D09A2C9491FF8892A0ACE4B800DC9B0F8CD879B5C7156",
+    "execution_attempt": 1,
+    "git_commit": "25c5bf5cb69754c696b8b7c0e44d3e0e22b5f658",
+    "protocol_sha256": "C1F608E6ABD1D0EE27A106BD28EE098A26FF262F987033C1BD9DDFB53E3EF750",
+    "resolved_config_canonical_sha256": "481CB5DEE0FB3C84F4D4BF0FF879C1BE64C5E996BE58746B9CDF630737DD29EE",
+    "resolved_config_file_sha256": "714BD354B76BED179624670D0087B78B3ADC446FD4EB65649E08A8A174492ADB",
+    "stage": "D1"
+  },
+  "metrics": {
+    "actual_robust_cost": 23991.29104311914,
+    "baseline_algorithm_runtime": 722.7178315999918,
+    "baseline_cost": 23991.291043119134,
+    "certified_farkas_cut_count": 8,
+    "cost_budget": 23991.291043119134,
+    "final_scenario_count": 21,
+    "frontier_algorithm_runtime": 109.36750799999572,
+    "frontier_checkpoint_io_runtime": 36.45022829947993,
+    "frontier_master_runtime": 13.246873799478635,
+    "frontier_penalized_runtime_par2": 109.36750799999572,
+    "frontier_post_evaluation_solver_runtime": 8.734002351760864,
+    "frontier_post_evaluation_wall_runtime": 61.325600400567055,
+    "frontier_separation_runtime": 95.52863549953327,
+    "frontier_total_wall_runtime": 207.18595419987105,
+    "gap": 0.0,
+    "initial_scenario_count": 13,
+    "iterations": 9,
+    "lower_bound": 0.0750160357508425,
+    "objective_t": 0.0750160357508425,
+    "post_evaluation_max_residual": 7.275957614183426e-12,
+    "post_evaluation_scenario_count": 4657,
+    "robust_minimum_fill_rate": 0.9249839642491575,
+    "upper_bound": 0.0750160357508425
+  }
+}
