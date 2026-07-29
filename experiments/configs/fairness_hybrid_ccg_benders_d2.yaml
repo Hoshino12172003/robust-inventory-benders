@@ -1,0 +1,45 @@
+experiment_name: fairness_hybrid_ccg_benders_d2
+stage: D2
+authorization: formal_execution_authorized_after_merge
+formal_run_authorized: true
+schema_version: 2
+execution_attempt: 2
+previous_attempt_results_reused: false
+d1_decision: approve_for_d2_controlled_large_expansion
+d1_decision_file: analysis/fairness_hybrid_ccg_benders_d1_decision/decision.json
+required_d1_decision_sha256: 1F7101CB722C4A4E6974C2D8597F4ED37BF89C2072FA039502EC69E834C7F17E
+prior_d1_archive_sha256: 7E89115E3BE325C9A37C31D28D32EA80EEA95F09528DBC8AEDA833EF0129A4A9
+protocol_document: docs/fairness_hybrid_ccg_benders_d2_protocol.md
+candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
+required_protocol_sha256: D1DD2DC7417204CDB0B9A70986B975EC621D400CF8384E6EC026ED1A90D9367B
+required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
+candidate: certified_hybrid_scenario_benders_fairness
+scale: large
+seeds: [160, 161, 162]
+rho: [0.0, 0.01, 0.10]
+baseline_count: 3
+frontier_count: 9
+total_tasks: 12
+scenario_count: 4657
+output_dir: experiments/results_fairness_hybrid_ccg_benders/controlled_d2_large_seeds160_162_rhos0_001_010
+baseline_time_limit_seconds: 1800
+algorithm_time_limit_seconds: 1800
+general_time_limit_seconds: 1800
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7}
+gamma: 2
+tol: 1.0e-4
+max_iterations: 10000
+post_evaluation: {time_limit_per_scenario_seconds: 30, checkpoint_chunk_size: 25, scenario_count: 4657, pipeline_generation: 4}
+runtime_semantics: {par2_multiplier: 2, par2_basis: algorithm_runtime}
+pass_gate:
+  baseline_certified: 3
+  frontier_certified: 9
+  implementation_error_count: 0
+  invalid_post_evaluation_count: 0
+  identity_checkpoint_hash_drift_count: 0
+  require_final_exact_separation: true
+  require_post_evaluation_valid: true
+  post_evaluation_scenario_count: 4657
+path_policy: {maximum_absolute_path_length: 220, run_directory_hash_hex_length: 24, atomic_suffix: .tmp}
+resume: true
+overwrite_supported: false

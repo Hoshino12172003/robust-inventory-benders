@@ -369,6 +369,8 @@ def checkpointed_fairness_post_evaluation(
     scenario_enumerator: Callable[..., Any] = enumerate_budget_scenarios_with_metadata,
     scenario_solver: Callable[..., FairnessScenarioPolicy] = solve_scenario_policy_with_shared_caps,
     output_flag: bool = False,
+    run_execution_attempt: int | None = None,
+    post_evaluation_pipeline_generation: int = 4,
 ) -> tuple[FairnessSolutionEvaluation, PostEvaluationTiming]:
     if chunk_size <= 0:
         raise ValueError("post-evaluation checkpoint chunk size must be positive.")
@@ -390,7 +392,6 @@ def checkpointed_fairness_post_evaluation(
     }
     identity = {
         "schema_version": POST_EVALUATION_SCHEMA_VERSION,
-        "execution_attempt": 4,
         "run_key": run_key,
         "config_sha256": config_sha256_value,
         "git_commit": git_commit,
@@ -401,6 +402,17 @@ def checkpointed_fairness_post_evaluation(
         "chunk_size": int(chunk_size),
         "per_scenario_time_limit": float(per_scenario_time_limit),
     }
+    if run_execution_attempt is None:
+        # Backward-compatible identity for pre-D2 archives.  This legacy field
+        # named the post-evaluation pipeline generation, not the run attempt.
+        identity["execution_attempt"] = int(post_evaluation_pipeline_generation)
+    else:
+        if isinstance(run_execution_attempt, bool) or run_execution_attempt < 1:
+            raise ValueError("run_execution_attempt must be a positive integer")
+        identity["run_execution_attempt"] = int(run_execution_attempt)
+        identity["post_evaluation_pipeline_generation"] = int(
+            post_evaluation_pipeline_generation
+        )
     # Create every checkpoint layer explicitly. Atomic writers still create
     # parents defensively, but the recovery contract must not depend on that
     # side effect and path preflight covers the temporary names separately.

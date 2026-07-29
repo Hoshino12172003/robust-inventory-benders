@@ -13,4 +13,5 @@ experiments/results_cut_v3/
 experiments/results_fairness_diagnostic/
 experiments/results_regional_fairness_model/
 experiments/results_fairness_scalability/
+experiments/results_fairness_hybrid_ccg_benders/
 .idea/
