@@ -322,7 +322,11 @@ def audit_d2_archive(
 
 
 def _write_json(path: Path, value: Any) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def write_freeze_evidence(audit: dict[str, Any], output_dir: str | Path) -> dict[str, str]:

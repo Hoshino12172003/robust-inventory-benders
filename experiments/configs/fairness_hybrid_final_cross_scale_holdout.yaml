@@ -1,15 +1,15 @@
 experiment_name: fairness_hybrid_final_cross_scale_holdout
 stage: FINAL_HOLDOUT
-authorization: protocol_review_only
-formal_run_authorized: false
+authorization: formal_execution_authorized_after_merge
+formal_run_authorized: true
 schema_version: 1
 execution_attempt: 1
 previous_attempt_results_reused: false
 d2_decision: approve_final_cross_scale_holdout_protocol
 d2_decision_file: analysis/fairness_hybrid_ccg_benders_d2_decision/decision.json
-required_d2_decision_sha256: E73B01404908BCC49E30A85B5795B30DF9AC927BDFA5F685FA95EF4B5DE607E1
+required_d2_decision_sha256: A43D3A6E9B74C19996AD6C8F3CFF3543462AFAA99A691C79781E1EABFEFC666D
 protocol_document: docs/fairness_hybrid_final_cross_scale_holdout_protocol.md
-required_protocol_sha256: F4B2556575CFB397F0FED75E59773EEC96855EFD3F7604BED6B288AA90AC909D
+required_protocol_sha256: BC01396163EE9E9CD7AB2F6CBCD682B33BE107DDAED5FADEB0CE96290B1AA931
 candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
 required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
 candidate: certified_hybrid_scenario_benders_fairness
@@ -41,6 +41,7 @@ tol: 1.0e-4
 baseline_time_limit_seconds: 1800
 algorithm_time_limit_seconds: 1800
 general_time_limit_seconds: 1800
+max_iterations: 10000
 post_evaluation: {time_limit_per_scenario_seconds: 30, checkpoint_chunk_size: 25}
 runtime_semantics: {par2_multiplier: 2, par2_basis: algorithm_runtime}
 statistics:
