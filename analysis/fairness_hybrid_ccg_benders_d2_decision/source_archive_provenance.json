@@ -1,0 +1,10 @@
+{
+  "archive_sha256": "07746988F93B2CD6E6BDE7B08EB661FCB330B3CA7A3A874A772BE9ED24258271",
+  "archive_sha256_after_audit": "07746988F93B2CD6E6BDE7B08EB661FCB330B3CA7A3A874A772BE9ED24258271",
+  "crc_valid": true,
+  "directory_count": 33,
+  "entry_count": 1777,
+  "file_count": 1744,
+  "original_archive_committed_to_git": false,
+  "read_only_audit": true
+}

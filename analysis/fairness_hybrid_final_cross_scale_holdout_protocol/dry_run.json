@@ -1,0 +1,60 @@
+{
+  "baseline": 20,
+  "by_scale": {
+    "large": {
+      "baseline": 10,
+      "frontier": 50,
+      "initial_scenario_count": 13,
+      "initial_scenario_plan_sha256": "D88E40367EC3F28E35D1E88F9F2CAD2F55D942CAB842DD920C0218188033F1F5",
+      "output_dir_exists": false,
+      "scenario_count": 4657,
+      "total": 60
+    },
+    "medium_large": {
+      "baseline": 10,
+      "frontier": 50,
+      "initial_scenario_count": 11,
+      "initial_scenario_plan_sha256": "C226FDD83E254DB840A65F7C15D14CC9E1892D9E9CD6F7EF12EB6F2526DB04DD",
+      "output_dir_exists": false,
+      "scenario_count": 1831,
+      "total": 60
+    }
+  },
+  "candidate": "certified_hybrid_scenario_benders_fairness",
+  "duplicate_run_keys": 0,
+  "formal_run_authorized": false,
+  "frontier": 100,
+  "independent_unit": "seed",
+  "instances_generated": false,
+  "longest_path": "experiments/results_fairness_hybrid_final_holdout/ml_a1/runs/r_b57817a9c57b143bf473e3d2/post_evaluation/checkpoint/.chunk_00073.json.tmp",
+  "longest_path_length": 178,
+  "longest_path_type": "medium_large_post_chunk_tmp",
+  "output_dirs_exist": false,
+  "reserved_seed_access_audit_passed": true,
+  "reserved_seed_access_evidence": [],
+  "rho": [
+    0.0,
+    0.01,
+    0.025,
+    0.05,
+    0.1
+  ],
+  "seed_cluster_count": 10,
+  "seeds": [
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179
+  ],
+  "solver_called": false,
+  "stage": "FINAL_HOLDOUT",
+  "total": 120,
+  "unique_run_keys": 120,
+  "windows_path_check": true
+}
