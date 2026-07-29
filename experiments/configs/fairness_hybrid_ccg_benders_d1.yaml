@@ -1,0 +1,34 @@
+experiment_name: fairness_hybrid_ccg_benders_d1
+stage: D1
+authorization: formal_execution_authorized
+formal_run_authorized: true
+schema_version: 1
+execution_attempt: 1
+previous_attempt_results_reused: false
+prior_large_attempt5_archive_sha256: 09B41862A5BFED724EDBEC1E64996B54AA878119F5C0DEDFE5B10126B2525A98
+prior_large_attempt5_decision: stop_final_large_remediation
+protocol_document: docs/fairness_hybrid_ccg_benders_d1_protocol.md
+candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
+required_protocol_sha256: C1F608E6ABD1D0EE27A106BD28EE098A26FF262F987033C1BD9DDFB53E3EF750
+required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
+candidate: certified_hybrid_scenario_benders_fairness
+scale: large
+seeds: [160]
+rho: [0.0]
+baseline_count: 1
+frontier_count: 1
+total_tasks: 2
+scenario_count: 4657
+output_dir: experiments/results_fairness_hybrid_ccg_benders/development_d1_large_seed160_rho0
+baseline_time_limit_seconds: 1800
+algorithm_time_limit_seconds: 1800
+general_time_limit_seconds: 1800
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7}
+gamma: 2
+tol: 1.0e-4
+max_iterations: 10000
+post_evaluation: {time_limit_per_scenario_seconds: 30, checkpoint_chunk_size: 25, scenario_count: 4657}
+runtime_semantics: {par2_multiplier: 2, par2_basis: algorithm_runtime}
+path_policy: {maximum_absolute_path_length: 220, run_directory_hash_hex_length: 24, atomic_suffix: .tmp}
+resume: true
+overwrite_supported: false

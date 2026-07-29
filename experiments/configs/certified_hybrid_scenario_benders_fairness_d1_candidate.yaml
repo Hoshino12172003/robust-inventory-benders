@@ -1,0 +1,26 @@
+candidate: certified_hybrid_scenario_benders_fairness
+candidate_schema: fairness_hybrid_ccg_benders_candidate_v1
+protocol_sha256: C1F608E6ABD1D0EE27A106BD28EE098A26FF262F987033C1BD9DDFB53E3EF750
+scenario_schema: fairness_hybrid_scenario_v1
+scenario_master:
+  complete_production_recourse_block: true
+  keep_certified_farkas_cuts: true
+  delete_scenarios: false
+  delete_cuts: false
+initial_scenarios:
+  nominal: true
+  regional_stress: descending_demand_deviation_then_canonical_component
+  maximum_active_components_per_region: Gamma
+scenario_addition:
+  maximum_per_iteration: 1
+  order: [normalized_violation_descending, scenario_sha256_ascending, cut_sha256_ascending]
+  runtime_driven_branching: false
+certification:
+  current_point_fixed_scenario_primal_or_farkas_required: true
+  complete_exact_separation_objective_bound_required: true
+  heuristic_candidate_may_certify: false
+bounds:
+  lower: monotone_max_of_scenario_master_solver_best_bound
+  upper: monotone_min_of_complete_exact_separation_certified_T
+  initial_upper: certified_baseline_T1_theorem
+  gap: (UB-LB)/max(1,abs(UB))
