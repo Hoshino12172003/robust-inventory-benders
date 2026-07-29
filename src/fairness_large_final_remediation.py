@@ -206,6 +206,7 @@ def construct_initial_t1_upper_bound(
     rho: float,
     tolerance: float,
     expected_identity: dict[str, Any],
+    expected_candidate_sha256: str = CANDIDATE_SHA256,
 ) -> InitialRobustUpperBound:
     """Apply the frozen theorem, or fail closed before creating a MIP start."""
     required_identity = {
@@ -230,7 +231,7 @@ def construct_initial_t1_upper_bound(
         for field in expected_hash_fields
     ):
         raise InitialUpperBoundAssumptionFailure("invalid_expected_identity_sha256")
-    if expected_identity["candidate_sha256"].upper() != CANDIDATE_SHA256:
+    if expected_identity["candidate_sha256"].upper() != str(expected_candidate_sha256).upper():
         raise InitialUpperBoundAssumptionFailure("candidate_identity_mismatch")
     current_instance_sha256 = config_sha256(instance.to_dict()).upper()
     if expected_identity["instance_sha256"].upper() != current_instance_sha256:

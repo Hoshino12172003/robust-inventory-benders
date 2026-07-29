@@ -1,0 +1,19 @@
+{
+  "archive_crc_valid": true,
+  "archive_entries": 16,
+  "archive_files": 11,
+  "archive_sha256": "09B41862A5BFED724EDBEC1E64996B54AA878119F5C0DEDFE5B10126B2525A98",
+  "archive_inventory_sha256": "6B5CE363FC2649D7DBC4249BF98AABEEE05F3C196E7E069A6F31799AB951BF6D",
+  "audit_mode": "read_only",
+  "candidate_sha256": "DAC7A01941215624DBC5D8831814B71FDDDCC2CFEA54D1FE15FA5EAEA7C6F305",
+  "config_file_sha256": "48F11927C6709AE8925FBACA4AD1FC7B7C613618D2671A4C53727552A340725F",
+  "execution_attempt": 5,
+  "git_commit": "0866e4ed20a367af52f28bffc9bab8e621ac514c",
+  "protocol_sha256": "79A3F87EBE7BFB00951E255D61E9FCA109D1F1CCA09DF7ED6A6042547BCB3742",
+  "resolved_config_canonical_sha256": "686937133AE9706FFEAF721854A43109A0ED0C801E03E7CF32B5F538F8CC4F6E",
+  "resolved_config_file_sha256": "40339DEEF1FA1D669C5C2BFEAE95BB23D35BCF1D29D50295662B0AD76C095591",
+  "original_archive_committed": false,
+  "original_directory_modified": false,
+  "source_archive": "fairness_large_final_remediation_l0_attempt5_results.zip",
+  "source_directory": "E:\\rfl0a5"
+}
