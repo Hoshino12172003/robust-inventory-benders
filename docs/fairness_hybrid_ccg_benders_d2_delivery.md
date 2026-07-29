@@ -25,7 +25,7 @@ Set-Location 'E:\rfhd2'
 View completed/running task records without modifying them:
 
 ```powershell
-Get-ChildItem 'E:\rfhd2\experiments\results_fairness_hybrid_ccg_benders\controlled_d2_large_seeds160_162_rhos0_001_010\runs' -Recurse -Filter status.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Select-Object @{n='path';e={$_.PSPath}},state,scientific_status,algorithm_status }
+Get-ChildItem 'E:\rfhd2\experiments\results_fairness_hybrid_ccg_benders\controlled_d2_large_seeds160_162_rhos0_001_010\runs' -Recurse -Filter status.json | ForEach-Object { $path=$_.FullName; $status=Get-Content -Raw $path | ConvertFrom-Json; [pscustomobject]@{path=$path; state=$status.state; scientific_status=$status.scientific_status; algorithm_status=$status.algorithm_status} }
 ```
 
 Use `Ctrl+C` once for a safe interruption. Resume from the same detached worktree with the same command:
