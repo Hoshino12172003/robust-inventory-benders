@@ -43,6 +43,7 @@ def audit(root: Path) -> dict[str, object]:
         "solver_identity": config["solver_identity"] == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7},
         "time_limits": config["baseline_time_limit_seconds"] == config["algorithm_time_limit_seconds"] == 1800,
         "post_identity_unambiguous": "run_execution_attempt=EXECUTION_ATTEMPT" in runner and "post_evaluation_pipeline_generation=4" in runner,
+        "initial_ub_identity_projection": "initial_upper_bound_expected_identity(common, anchor)" in runner,
         "formal_gate_before_output": runner.index("_formal_git_gate(root)") < runner.index("output = root / str(config[\"output_dir\"])", runner.index("def run_d2")),
         "clean_detached_main_gate": all(text in runner for text in ('"status", "--porcelain"', "origin/main", "symbolic-ref")),
         "d2_only_gate": 'args.stage != STAGE' in runner and "only D2 is authorized" in runner,

@@ -18,6 +18,7 @@ from .fairness_large_final_remediation import (
     CUT_SCHEMA,
     CertifiedAdaptiveCut,
     CertifiedAdaptiveSeparator,
+    InitialUpperBoundAssumptionFailure,
     RemediationIdentityError,
     _master_variables,
     add_canonical_cut_payload,
@@ -41,6 +42,35 @@ SCENARIO_SCHEMA = "fairness_hybrid_scenario_v1"
 CHECKPOINT_SCHEMA = "fairness_hybrid_ccg_benders_checkpoint_v1"
 PROTOCOL_SHA256 = "C1F608E6ABD1D0EE27A106BD28EE098A26FF262F987033C1BD9DDFB53E3EF750"
 CANDIDATE_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
+INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS = (
+    "instance_sha256",
+    "seed",
+    "scale",
+    "git_commit",
+    "config_file_sha256",
+    "resolved_config_file_sha256",
+    "candidate_sha256",
+    "baseline_run_key",
+    "anchor_value_hex",
+    "anchor_sha256",
+)
+
+
+def initial_upper_bound_expected_identity(
+    run_identity: Mapping[str, Any], anchor: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Project a full run identity onto the frozen D1 T=1 UB contract."""
+    source = {
+        **dict(run_identity),
+        "anchor_value_hex": anchor.get("value_hex"),
+        "anchor_sha256": anchor.get("anchor_sha256"),
+    }
+    if any(field not in source for field in INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS):
+        raise InitialUpperBoundAssumptionFailure("incomplete_expected_run_identity")
+    return {
+        field: deepcopy(source[field])
+        for field in INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS
+    }
 
 
 def _finite_float(value: Any, label: str) -> float:

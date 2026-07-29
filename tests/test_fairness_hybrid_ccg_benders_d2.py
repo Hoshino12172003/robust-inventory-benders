@@ -8,9 +8,16 @@ import pytest
 import yaml
 
 from src.experiment_protocol import file_sha256
+from src.experiment_protocol import config_sha256
+from src.fairness_hybrid_ccg_benders import (
+    CANDIDATE_SHA256,
+    INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS,
+    initial_upper_bound_expected_identity,
+)
 from src.fairness_hybrid_ccg_benders_d2_audit import audit
 import src.fairness_hybrid_ccg_benders_d2_runner as runner
 from src.fairness_hybrid_ccg_benders_runner import HybridDependencies
+from src.fairness_large_final_remediation import construct_initial_t1_upper_bound
 from tests.test_robust_regional_fairness import tiny_instance
 
 
@@ -48,8 +55,9 @@ def _dependencies(calls: dict[str, int], *, certified: bool = True) -> HybridDep
         calls["frontier"] += 1
         assert expected["baseline_run_key"] == baseline_record["run_key"]
         assert expected["anchor_sha256"] == anchor["anchor_sha256"]
-        assert expected["stage"] == "D2" and expected["execution_attempt"] == 2
-        assert expected["protocol_sha256"] == runner.PROTOCOL_SHA256
+        assert tuple(expected) == INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS
+        assert "stage" not in expected and "execution_attempt" not in expected
+        assert "protocol_sha256" not in expected
         assert params == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7}
         if not certified:
             return {
@@ -184,6 +192,52 @@ def test_d2_post_evaluation_uses_unambiguous_attempt_fields(monkeypatch: pytest.
     )
     assert captured["run_execution_attempt"] == 2
     assert captured["post_evaluation_pipeline_generation"] == 4
+
+
+def test_d2_expected_identity_matches_d1_contract_and_constructs_t1() -> None:
+    from tests.test_fairness_large_final_remediation_implementation import (
+        baseline_evidence,
+        upper_bound_identity,
+    )
+
+    instance = tiny_instance()
+    record, anchor = baseline_evidence(instance, gamma=0)
+    record["candidate_sha256"] = CANDIDATE_SHA256
+    anchor["candidate_sha256"] = CANDIDATE_SHA256
+    anchor["anchor_sha256"] = config_sha256(
+        {key: value for key, value in anchor.items() if key != "anchor_sha256"}
+    ).upper()
+    full_d2_identity = {
+        **{field: record[field] for field in (
+            "instance_sha256", "seed", "scale", "git_commit",
+            "config_file_sha256", "resolved_config_file_sha256",
+            "candidate_sha256", "baseline_run_key",
+        )},
+        "stage": "D2",
+        "execution_attempt": 2,
+        "resolved_config_canonical_sha256": "4" * 64,
+        "protocol_sha256": runner.PROTOCOL_SHA256,
+    }
+    expected = initial_upper_bound_expected_identity(full_d2_identity, anchor)
+    assert expected == upper_bound_identity(instance, record, anchor)
+    initial = construct_initial_t1_upper_bound(
+        instance,
+        baseline_record=record,
+        anchor=anchor,
+        rho=0.0,
+        tolerance=1e-7,
+        expected_identity=expected,
+        expected_candidate_sha256=CANDIDATE_SHA256,
+    )
+    assert initial.value == initial.t_value == 1.0
+
+
+def test_d2_expected_identity_missing_required_field_fails_closed() -> None:
+    with pytest.raises(Exception, match="incomplete_expected_run_identity"):
+        initial_upper_bound_expected_identity(
+            {"instance_sha256": "A" * 64},
+            {"value_hex": "0x1.0p+0", "anchor_sha256": "B" * 64},
+        )
 
 
 def test_static_audit_passes() -> None:

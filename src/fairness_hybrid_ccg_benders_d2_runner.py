@@ -22,6 +22,7 @@ from .experiment_protocol import (
 from .fairness_hybrid_ccg_benders import (
     CANDIDATE,
     CANDIDATE_SHA256,
+    initial_upper_bound_expected_identity,
     initial_scenario_plan_identity,
     solve_certified_hybrid_scenario_benders_fairness,
 )
@@ -505,11 +506,7 @@ def run_d2(
                     raise RemediationGateError("D2 frontier resume identity mismatch")
                 records_by_key[record["run_key"]] = record
                 continue
-            expected = {
-                **{key: common[key] for key in common},
-                "anchor_value_hex": anchor["value_hex"],
-                "anchor_sha256": anchor["anchor_sha256"],
-            }
+            expected = initial_upper_bound_expected_identity(common, anchor)
             _write_status(run_root, state="running", scientific="pending", algorithm="running")
             started = time.perf_counter()
             try:
