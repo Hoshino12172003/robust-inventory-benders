@@ -1,0 +1,11 @@
+{
+  "bound_crossing_within_tolerance": "True only for a positive crossing no larger than 1e-4.",
+  "final_exact_separation_objective_bound": "Last complete exact-separation objective bound.",
+  "final_master_solver_best_bound": "Last iteration master_solver_best_bound from the original run.",
+  "historical_recorded_lower_bound": "Original result.lower_bound; historical max ledger, preserved verbatim.",
+  "raw_bound_crossing": "historical_recorded_lower_bound - upper_bound; never hidden by gap clipping.",
+  "reported_certification_lower_bound": "Final current master solver best bound used only in derived reporting.",
+  "reported_gap": "Recomputed from reported_certification_lower_bound using the frozen denominator.",
+  "source_fields_immutable": true,
+  "upper_bound": "Original certified robust incumbent/objective T."
+}

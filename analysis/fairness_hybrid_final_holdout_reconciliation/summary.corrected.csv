@@ -1,0 +1,13 @@
+scale,task_type,candidate,rho,run_count,certified_solved_count,mean_algorithm_runtime,mean_penalized_runtime_par2
+large,baseline,baseline,NOT_APPLICABLE,10,10,458.34171235000247,458.34171235000247
+large,frontier,certified_hybrid_scenario_benders_fairness,0.0,10,10,76.5302649500547,76.5302649500547
+large,frontier,certified_hybrid_scenario_benders_fairness,0.01,10,10,75.28985698001925,75.28985698001925
+large,frontier,certified_hybrid_scenario_benders_fairness,0.025,10,10,66.36796710998752,66.36796710998752
+large,frontier,certified_hybrid_scenario_benders_fairness,0.05,10,10,61.666705459984954,61.666705459984954
+large,frontier,certified_hybrid_scenario_benders_fairness,0.1,10,10,54.85905923997052,54.85905923997052
+medium_large,baseline,baseline,NOT_APPLICABLE,10,10,49.93875853996724,49.93875853996724
+medium_large,frontier,certified_hybrid_scenario_benders_fairness,0.0,10,10,20.2018087499775,20.2018087499775
+medium_large,frontier,certified_hybrid_scenario_benders_fairness,0.01,10,10,20.998314279969783,20.998314279969783
+medium_large,frontier,certified_hybrid_scenario_benders_fairness,0.025,10,10,20.545270840008744,20.545270840008744
+medium_large,frontier,certified_hybrid_scenario_benders_fairness,0.05,10,10,19.890980649972335,19.890980649972335
+medium_large,frontier,certified_hybrid_scenario_benders_fairness,0.1,10,10,16.03681068001315,16.03681068001315

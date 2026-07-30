@@ -1,0 +1,11 @@
+{
+  "certified_runs": "120/120",
+  "decision": "approve_final_holdout_after_reporting_reconciliation",
+  "exact_frontier_certificates": "100/100",
+  "formal_results_modified": false,
+  "gurobi_called": false,
+  "optimization_rerun_required": false,
+  "post_evaluation_chunks": "13050/13050",
+  "scientific_solution_valid": true,
+  "source_archive_modified": false
+}
