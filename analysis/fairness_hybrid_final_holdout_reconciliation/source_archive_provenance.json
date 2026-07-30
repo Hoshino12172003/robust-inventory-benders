@@ -1,0 +1,12 @@
+{
+  "archive_filename": "fairness_hybrid_final_holdout_results.zip",
+  "archive_sha256": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "archive_sha256_after_audit": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "crc_valid": true,
+  "directory_count": 2,
+  "entry_count": 13640,
+  "file_count": 13638,
+  "original_archive_committed_to_git": false,
+  "read_only_audit": true,
+  "run_commit": "3e4d5dcda0fda9e616af99f1cd6ba5bb70d5465a"
+}

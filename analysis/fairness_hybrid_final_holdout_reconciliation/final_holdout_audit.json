@@ -1,0 +1,90 @@
+{
+  "archive_sha256_after": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "archive_sha256_before": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "baseline_count": 20,
+  "bound_crossing_count": 1,
+  "chunk_sha_error_count": 0,
+  "crc_valid": true,
+  "csv_file_count": 4,
+  "directory_count": 2,
+  "entry_count": 13640,
+  "exact_certification_count": 100,
+  "file_count": 13638,
+  "frontier_count": 100,
+  "gurobi_called": false,
+  "json_file_count": 13632,
+  "post_evaluation_acceptance_evidence_count": 4034100,
+  "post_evaluation_chunk_count": 13050,
+  "post_evaluation_index_count": 100,
+  "post_evaluation_scenario_record_count": 324400,
+  "read_only": true,
+  "run_count": 120,
+  "scales": {
+    "large": {
+      "baselines": 10,
+      "bound_crossings": 1,
+      "frontiers": 50,
+      "runs": 60
+    },
+    "medium_large": {
+      "baselines": 10,
+      "bound_crossings": 0,
+      "frontiers": 50,
+      "runs": 60
+    }
+  },
+  "source_code_evidence": {
+    "algorithm_source_sha256": "216CD3A5EF9FB599F625FF5A13F56E93F6F3865981605DFD8F67E27AC3CE5C81",
+    "evidence": {
+      "certified_cut_append": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 408
+      },
+      "complete_scenario_cost_block": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 185
+      },
+      "complete_scenario_fairness_block": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 190
+      },
+      "gap_function_call": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 413
+      },
+      "gap_negative_truncation": {
+        "file": "src/fairness_benders.py",
+        "line": 121
+      },
+      "historical_max_update": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 363
+      },
+      "master_created_once_before_loop": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 283
+      },
+      "master_optimized_in_loop": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 357
+      },
+      "scenario_append": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 333
+      },
+      "solver_bound_read": {
+        "file": "src/fairness_hybrid_ccg_benders.py",
+        "line": 362
+      }
+    },
+    "master_is_persistent_and_not_rebuilt_per_iteration": true,
+    "run_commit": "3e4d5dcda0fda9e616af99f1cd6ba5bb70d5465a",
+    "verified_source_files": {
+      "analysis/fairness_hybrid_ccg_benders_d2_decision/decision.json": "A43D3A6E9B74C19996AD6C8F3CFF3543462AFAA99A691C79781E1EABFEFC666D",
+      "docs/fairness_hybrid_final_cross_scale_holdout_protocol.md": "BC01396163EE9E9CD7AB2F6CBCD682B33BE107DDAED5FADEB0CE96290B1AA931",
+      "experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
+      "experiments/configs/fairness_hybrid_final_cross_scale_holdout.yaml": "E0C3A5312520BA7220D3D61675D1794422AA4CAD2AB4866016CA0DF515A96E16"
+    }
+  },
+  "status": "pass"
+}
