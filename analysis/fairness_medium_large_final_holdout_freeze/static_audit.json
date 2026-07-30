@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "baseline_10": true,
+    "candidate_sha": true,
+    "candidates_exact": true,
+    "cluster_bootstrap_seed": true,
+    "dry_run_no_instance": true,
+    "dry_run_no_solver": true,
+    "formal_authorization": true,
+    "frontier_100": true,
+    "holm_correction": true,
+    "independent_unit_seed": true,
+    "matrix_110": true,
+    "one_baseline_per_seed": true,
+    "output_absent": true,
+    "rhos_exact": true,
+    "scenario_count_1831": true,
+    "seed_rho_not_independent": true,
+    "seeds_exact": true,
+    "ten_frontier_per_seed": true,
+    "unique_run_keys": true,
+    "windows_portable": true
+  },
+  "passed": 20,
+  "status": "pass",
+  "total": 20
+}

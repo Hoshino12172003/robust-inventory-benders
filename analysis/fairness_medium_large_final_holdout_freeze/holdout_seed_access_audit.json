@@ -1,0 +1,612 @@
+{
+  "actual_access_evidence": [],
+  "archives": [
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\cut_strengthened_joint_v3_final_large_results.zip",
+      "seeds": [
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109
+      ],
+      "sha256": "6641DCD67F8BFD6FA15F7580459AD31148BFF7DF64034E16C1A36F98B78985F4"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\cut_strengthened_joint_v3_final_medium_large_results.zip",
+      "seeds": [
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99
+      ],
+      "sha256": "1388446BC75E44E8E8AFC9E7973F011B14B7172AEBC8BB400749C6FE7C1D1E7A"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\cut_strengthened_joint_v3_validation_large_results.zip",
+      "seeds": [
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89
+      ],
+      "sha256": "91D459DE451A99245BBE672D06AB4A0AB00787E576A7B1B5CB7E4973B926C780"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\cut_strengthened_joint_v3_validation_medium_large_results.zip",
+      "seeds": [
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89
+      ],
+      "sha256": "2C54F54E8FC0EB78326228BB1C3069EBDAE6530DDAB7E332E8BB24F5CC3D5BCD"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\fairness_attempt3_completed_large_audit.zip",
+      "seeds": [
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129
+      ],
+      "sha256": "AA4ADD377333D73D5EF2E845F758CBBFD45EA3260BDCF9F7DD8C1F421F906F99"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\fairness_attempt3_completed_medium_large_audit.zip",
+      "seeds": [
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129
+      ],
+      "sha256": "45E8344C7C431C3D6E09317614D0B64FA38F3598C8586265631D6E8DF0A48E7E"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\fairness_large_final_remediation_l0_attempt5_results.zip",
+      "seeds": [
+        160
+      ],
+      "sha256": "09B41862A5BFED724EDBEC1E64996B54AA878119F5C0DEDFE5B10126B2525A98"
+    },
+    {
+      "entries_checked": 3,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\fairness_scalability_s1_attempt2_large_results.zip",
+      "seeds": [
+        160,
+        161,
+        162
+      ],
+      "sha256": "7A3C7BF75B0D6D3228B6AA9AC0E8B8E6799A4B4925949C89DBBCBF311C2D2376"
+    },
+    {
+      "entries_checked": 3,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\fairness_scalability_s1_attempt2_medium_large_results.zip",
+      "seeds": [
+        160,
+        161,
+        162
+      ],
+      "sha256": "3919E271C40BDC86F5EE7FFA582A06DDD325D5BB4EAD453550ED17A6C62DB751"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\regional_fairness_diagnostic_large_results.zip",
+      "seeds": [
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119
+      ],
+      "sha256": "2D64325B0C40330F54DA8644CB90E2BC0607983E79D98810988198B1EBB96AD7"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\regional_fairness_diagnostic_medium_large_results.zip",
+      "seeds": [
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119
+      ],
+      "sha256": "A8011C1B4DF7ECAE317F7FDCECCF9CB0E042DB97174CCE6A32E96C6FD0070AE8"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\confirm_final_certification_tuning_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "E32C46ABA0323BF268E933D19E39F641CACD41CC7FFAAF60C6D1B4EA52223924"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\confirm_joint_error_budget_medium_large_v1_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "6DB7226D585502A96DBDF133A42954BB378B45DB5BE263FB685E88EB8715E542"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\confirm_scaleup_modules_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "34976AE260403A01A3180B9A3E9EEAD8853E6146F5B9E8E9F7743155AD2A2811"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\cut_strengthened_joint_v3_development_large_results.zip",
+      "seeds": [
+        75,
+        76,
+        77,
+        78,
+        79
+      ],
+      "sha256": "8516D345BDB752F946CB5643B10A560C14B6B7DBF8109F2BCE5F2A78521826E4"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\cut_strengthened_joint_v3_development_medium_large_results.zip",
+      "seeds": [
+        75,
+        76,
+        77,
+        78,
+        79
+      ],
+      "sha256": "D778D9B988BB360BBFF898A7A80887D8E68103E525512617EBC924C9DC76C492"
+    },
+    {
+      "entries_checked": 0,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\final_evaluation_joint_v1_analysis.zip",
+      "seeds": [],
+      "sha256": "BFBC42A8DDC630854976ECDD2D2A5F4461E8257BAFAB69E18BF57A86E0CA38FC"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\final_evaluation_joint_v1_results.zip",
+      "seeds": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "sha256": "9BE6B798C6A42C854B4730130F83A62C7F4AD2EC5B1D19860C56C05311AAF5B5"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\large_scale_evaluation_joint_v1_results.zip",
+      "seeds": [
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "sha256": "6FA72F91CCEB65041BDE4210BF695BD294CF4C6AB5DC54697B1C83A6C720E2C9"
+    },
+    {
+      "entries_checked": 4,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\pr9_diagnostic_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "C82C07F46D50F74226D3F99F1705D685091633B507D5F49AB4A5D3B913DA800D"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\screen_adaptive_secondary_generation_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "4E49D647D361B61D3941813A75FB396CC000F58FBE814EBA7EDA711AEE9021D7"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\screen_joint_error_budget_v1_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "574EE3590A0635A89E33E504E129BAE387375F6CC0312D0D1901F2169C3F2E0B"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\screen_master_gamma_v2_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "4B8F2DCCE3C56629A91906DC35FB4DC4B44C3BD58030C048BB3C15DC968DE526"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\screen_relative_cut_wide_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "6F3D54773A61122B3C552455FFDCB5B4A9BDE62C95F9646690A9E8DC05CD1500"
+    },
+    {
+      "entries_checked": 1,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\screen_secondary_cut_selection_results.zip",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "sha256": "8747E8EB4AC89E0BDBD30B3F45CD2A9D4A083BBCABF18F49F594175E614125E0"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\workload_aware_joint_v2_development_large_results.zip",
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44
+      ],
+      "sha256": "B097960C95E0D2EF06DA1B292F88792A60D24EA16A6285D607DEB6BC0326CFBA"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\workload_aware_joint_v2_development_medium_large_results.zip",
+      "seeds": [
+        40,
+        41,
+        42,
+        43,
+        44
+      ],
+      "sha256": "35991A1BD1141FE81CD6E1D01612F64DB04982B5428C540E2B131B9025FD3332"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\workload_aware_joint_v2_validation_large_results.zip",
+      "seeds": [
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54
+      ],
+      "sha256": "048FDFD9FD6CF92F29A887DB352AE5AA39CAE68BC27B86CC9804E9B4FFF076EC"
+    },
+    {
+      "entries_checked": 2,
+      "holdout_seed_overlap": [],
+      "path": "E:\\论文代码\\robust-inventory-benders\\workload_aware_joint_v2_validation_medium_large_results.zip",
+      "seeds": [
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54
+      ],
+      "sha256": "0327C7C2BAD65072460FD8B14AAF1761197EDAB49F78CC549C980109FCF6362B"
+    }
+  ],
+  "audit_schema": "fairness_medium_large_final_holdout_seed_nonaccess_v1",
+  "decision": "holdout_seed_set_pristine",
+  "holdout_seed_accessed": false,
+  "holdout_seeds": [
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179
+  ],
+  "prohibited_seeds": [
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159
+  ],
+  "result_roots": [
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 3,
+      "path": "E:\\rf\\experiments\\results_regional_fairness_model",
+      "seeds": [
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 3,
+      "path": "E:\\rf2\\experiments\\results_regional_fairness_model",
+      "seeds": [
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 6,
+      "path": "E:\\rf3\\experiments\\results_regional_fairness_model",
+      "seeds": [
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 2,
+      "path": "E:\\rfs1\\experiments\\results_fairness_scalability",
+      "seeds": [
+        160,
+        161,
+        162
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 4,
+      "path": "E:\\rfs2\\experiments\\results_fairness_scalability",
+      "seeds": [
+        160,
+        161,
+        162
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 4,
+      "path": "E:\\rfsl1\\experiments\\results_fairness_scalability",
+      "seeds": [
+        160,
+        161,
+        162
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 3,
+      "path": "E:\\rfl0\\experiments\\results_fairness_large_final_remediation",
+      "seeds": [
+        160
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 3,
+      "path": "E:\\rfl0a4\\experiments\\results_fairness_large_final_remediation",
+      "seeds": [
+        160
+      ]
+    },
+    {
+      "exists": true,
+      "holdout_seed_overlap": [],
+      "identity_files_checked": 3,
+      "path": "E:\\rfl0a5\\experiments\\results_fairness_large_final_remediation",
+      "seeds": [
+        160
+      ]
+    }
+  ],
+  "tracked_reservation_declarations": [
+    "analysis/fairness_medium_large_final_holdout_freeze/frozen_run_plan.csv",
+    "analysis/fairness_medium_large_final_holdout_freeze/holdout_dry_run.json",
+    "analysis/fairness_medium_large_final_holdout_freeze/holdout_seed_access_audit.json",
+    "docs/audits/fairness_development_attempt2_post_evaluation_incident.md",
+    "docs/audits/fairness_development_attempt3_runtime_incident.md",
+    "docs/audits/fairness_development_execution_incident.md",
+    "docs/audits/fairness_large_l0_attempt3_baseline_schema_incident.md",
+    "docs/audits/fairness_large_l0_attempt4_precision_adapter_incident.md",
+    "docs/audits/fairness_scalability_s1_attempt1_windows_path_incident.md",
+    "docs/audits/fairness_scalability_s1_attempt2_cross_scale_decision.md",
+    "docs/audits/pr31_math_acceptance.md",
+    "docs/cut_strengthened_joint_v3_final_decision.md",
+    "docs/cut_strengthened_joint_v3_validation_decision.md",
+    "docs/fairness_large_final_remediation_protocol.md",
+    "docs/fairness_medium_large_final_holdout_protocol.md",
+    "docs/handoffs/2026-07-08-exact-scenario-mode.md",
+    "docs/handoffs/2026-07-08-initial-robust-inventory-benders.md",
+    "docs/handoffs/2026-07-08-model-implementation-audit.md",
+    "docs/handoffs/2026-07-08-robust-dual-subproblem.md",
+    "docs/handoffs/2026-07-09-cut-selection-strategy.md",
+    "docs/regional_fairness_development_protocol.md",
+    "docs/regional_fairness_diagnostic_decision.md",
+    "docs/regional_fairness_diagnostic_protocol.md",
+    "experiments/configs/fairness_medium_large_final_holdout.yaml",
+    "src/cut_strengthened_v3_final_audit.py",
+    "src/cut_v3_final_results_audit.py",
+    "src/fairness_benders.py",
+    "src/fairness_development_audit.py",
+    "src/fairness_large_final_remediation.py",
+    "src/fairness_large_final_remediation_audit.py",
+    "src/fairness_large_final_remediation_runner.py",
+    "src/fairness_medium_large_final_holdout_runner.py",
+    "src/fairness_scalability_audit.py",
+    "src/fairness_scalability_runner.py",
+    "src/regional_fairness_diagnostic_audit.py",
+    "src/regional_fairness_results_audit.py",
+    "tests/test_cut_v3_validation_results_audit.py",
+    "tests/test_fairness_large_final_remediation_protocol.py",
+    "tests/test_fairness_medium_large_final_holdout.py"
+  ],
+  "tracked_reservations_count_as_access": false
+}

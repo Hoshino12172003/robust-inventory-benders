@@ -1,0 +1,124 @@
+experiment_name: fairness_medium_large_final_holdout
+protocol_phase: final_holdout
+authorization: formal_execution_authorized
+formal_run_authorized: true
+execution_attempt: 1
+previous_attempt_results_reused: false
+prior_attempts:
+  - stage: fairness_scalability_s1_attempt2
+    role: development_evidence_only
+    results_reused: false
+  - stage: fairness_large_final_remediation_l0_attempt5
+    decision: stop_final_large_remediation
+    results_reused: false
+prerequisite_evidence:
+  large_attempt5_audit:
+    path: analysis/fairness_medium_large_final_holdout_freeze/large_attempt5_audit.json
+    sha256: 3A3BEC3BE024972DB93EE60BAB2A7BD7C1D4BB4C7CDD4C64033DAC43A05D734B
+    required_decision: stop_final_large_remediation
+  holdout_seed_access_audit:
+    path: analysis/fairness_medium_large_final_holdout_freeze/holdout_seed_access_audit.json
+    sha256: BF6060E8974C9F8E8D6C2C64A6592E433316CF49DD848073F30F05013602F6A3
+    required_decision: holdout_seed_set_pristine
+output_dir: experiments/results_fairness_medium_large_final_holdout/attempt1_final_holdout
+instance_sizes: [medium_large]
+holdout_seeds: [170, 171, 172, 173, 174, 175, 176, 177, 178, 179]
+prohibited_seeds: [130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159]
+rho_grid: [0.00, 0.01, 0.025, 0.05, 0.10]
+candidates: [single_cut, persistent_certified_cache_batch5]
+candidate_settings:
+  single_cut:
+    fairness_scalability_strategy: single_cut
+    persistent_separation_enabled: false
+    certified_scenario_cache_enabled: false
+    separation_solution_pool_enabled: false
+    max_cuts_per_iteration: 1
+  persistent_certified_cache_batch5:
+    fairness_scalability_strategy: persistent_certified_cache_batch5
+    persistent_separation_enabled: true
+    certified_scenario_cache_enabled: true
+    cache_payload: deviation_pattern_only
+    current_point_fixed_scenario_recertification_required: true
+    separation_solution_pool_enabled: true
+    max_cuts_per_iteration: 5
+candidate_parameters_must_be_fixed_from: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+candidate_config_sha256: 7E8AAF39DE8C100B4CE9B46256A074FBD324B07DDC347D256494ED070D4E0EB6
+protocol_document: docs/fairness_medium_large_final_holdout_protocol.md
+protocol_sha256: 6406975DFA9B637C99E322772EBFF3521444EA33F0F1E7028941FD66CF86FC27
+baseline_method: joint_v1_core_point_strengthened
+baseline_time_limit: 1800
+fairness_time_limit: 1800
+time_limit: 1800
+max_iterations: 10000
+tol: 1.0e-4
+gurobi_parameters:
+  Threads: 1
+  Seed: 0
+  FeasibilityTol: 1.0e-7
+gamma_target: 2
+gamma_schedule: [2]
+gamma_continuation_enabled: false
+exact_scenarios: true
+max_scenarios: 5000
+precision_policy: joint_error_budget
+master_error_budget_ratio: 0.25
+subproblem_error_budget_ratio: 0.50
+master_gap_max: 0.02
+master_gap_min: 0.0001
+subproblem_gap_max: 0.05
+subproblem_gap_min: 0.0001
+fixed_master_mip_gap: 0.02
+fixed_subproblem_mip_gap: 0.05
+monotone_precision_tightening: true
+cut_strengthening_policy: core_point
+core_point_update_weight: 0.50
+core_point_min_distance: 1.0e-9
+core_point_stage1_time_limit: 2.0
+core_point_stage2_time_limit: 2.0
+core_point_min_remaining_time: 10.0
+core_point_min_global_gap: 5.0e-4
+core_point_current_abs_tol: 1.0e-7
+core_point_current_rel_tol: 1.0e-8
+core_point_min_normalized_improvement: 1.0e-7
+cut_selection_enabled: false
+adaptive_secondary_cut_selection_enabled: false
+adaptive_secondary_generation_enabled: false
+adaptive_subproblem_gap_enabled: false
+adaptive_gap_enabled: false
+final_certification_enabled: true
+final_certification_no_cut_patience: 2
+certification:
+  success_status: certified_robust_optimal
+  current_point_fixed_scenario_certification_required: true
+  complete_separation_objective_bound_required_for_robust_feasibility: true
+  old_ray_reuse_allowed: false
+  old_cut_reuse_allowed: false
+  feasibility_tolerance: 1.0e-7
+post_evaluation:
+  enabled: true
+  exact_scenarios: true
+  scenario_count: 1831
+  max_scenarios: 5000
+  time_limit_per_scenario: 30.0
+  checkpoint_chunk_size: 25
+  feasibility_tolerance: 1.0e-7
+runtime_semantics:
+  par2_multiplier: 2
+  par2_basis: algorithm_runtime
+  algorithm_runtime_excludes_post_evaluation: true
+  total_wall_runtime_includes: [algorithm, post_evaluation, aggregation, checkpoint_io]
+statistical_analysis:
+  independent_unit: seed
+  paired_unit_per_rho: seed
+  pairs_per_rho: 10
+  cluster_bootstrap_unit: seed
+  cluster_contents: all_rhos_and_both_candidates
+  bootstrap_replicates: 10000
+  bootstrap_seed: 20260728
+  confidence_level: 0.95
+  overall_rule: mean_within_seed_over_rho_then_seed_cluster_bootstrap
+  wilcoxon_per_rho: true
+  wilcoxon_minimum_nonzero_pairs: 6
+  multiple_testing_correction: Holm
+  failed_run_par2_seconds: 3600.0
+  seed_rho_tasks_are_independent: false
