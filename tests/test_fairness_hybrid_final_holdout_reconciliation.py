@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -77,6 +78,18 @@ def test_formal_archive_full_audit_and_deterministic_reports(tmp_path: Path) -> 
     assert {path.name for path in first.iterdir()} == {path.name for path in second.iterdir()}
     for path in first.iterdir():
         assert path.read_bytes() == (second / path.name).read_bytes()
+
+    paper = json.loads((first / "paper_metrics.json").read_text(encoding="utf-8"))
+    summarized_metrics = set(paper["scale_rho_summaries"][0]["metrics"])
+    assert summarized_metrics == set(paper["metric_definitions"])
+    assert len(paper["scale_rho_summaries"]) == 10
+    assert len(paper["complete_seed_results"]) == 100
+    for row in paper["complete_seed_results"]:
+        assert row["robust_minimum_fill_rate"] == pytest.approx(1.0 - row["objective_t"])
+        assert row["wminfr"] <= row["minimum_weighted_mean_fill_rate"] + TOLERANCE
+        assert 1.0 - row["wminfr"] <= row["objective_t"] + TOLERANCE
+    assert "not a demand-weighted mean" in paper["metric_definitions"]["robust_minimum_fill_rate"]["definition"]
+    assert "not the minimum regional fill rate" in paper["metric_definitions"]["minimum_weighted_mean_fill_rate"]["definition"]
 
     results_header = (first / "results.corrected.csv").read_text(encoding="utf-8").splitlines()[0]
     for field in (

@@ -2213,6 +2213,98 @@
   ],
   "frontier_count": 100,
   "independent_unit": "seed",
+  "metric_definitions": {
+    "actual_price_of_fairness": {
+      "definition": "actual_robust_cost / baseline_cost - 1, recomputed by exact post-evaluation.",
+      "direction": "lower_is_better",
+      "label": "Actual price of fairness",
+      "unit": "fraction_of_baseline_cost"
+    },
+    "actual_robust_cost": {
+      "definition": "First-stage cost plus the maximum recourse cost over all exact post-evaluation scenarios.",
+      "direction": "lower_is_better",
+      "label": "Post-evaluation robust cost",
+      "unit": "model_cost_units"
+    },
+    "algorithm_runtime": {
+      "definition": "Optimization algorithm runtime only; excludes post-evaluation.",
+      "direction": "lower_is_better",
+      "label": "Algorithm runtime",
+      "unit": "seconds"
+    },
+    "cut_count": {
+      "definition": "Final number of append-only certified Farkas cuts.",
+      "direction": "descriptive",
+      "label": "Certified Farkas cuts",
+      "unit": "count"
+    },
+    "iterations": {
+      "definition": "Number of recorded master/separation iterations.",
+      "direction": "lower_is_better",
+      "label": "Algorithm iterations",
+      "unit": "count"
+    },
+    "minimum_weighted_mean_fill_rate": {
+      "definition": "Post-evaluation min_s [1 - total_shortage_s / total_demand_s]; a system-wide demand-weighted mean within each scenario, not the minimum regional fill rate.",
+      "direction": "higher_is_better",
+      "label": "Worst-scenario demand-weighted mean regional fill rate",
+      "unit": "fraction"
+    },
+    "objective_t": {
+      "definition": "Final certified objective T; an upper bound on shortage/demand for every applicable region under every scenario in the exact uncertainty set.",
+      "direction": "lower_is_better",
+      "label": "Certified robust worst-region shortage rate (T)",
+      "unit": "fraction"
+    },
+    "penalized_runtime_par2": {
+      "definition": "Algorithm runtime for certified tasks; 3600 seconds for an uncertified task under the frozen PAR-2 rule.",
+      "direction": "lower_is_better",
+      "label": "PAR-2 algorithm runtime",
+      "unit": "seconds"
+    },
+    "post_evaluation_wall_runtime": {
+      "definition": "Exact post-evaluation pipeline wall time only.",
+      "direction": "lower_is_better",
+      "label": "Post-evaluation wall time",
+      "unit": "seconds"
+    },
+    "robust_minimum_fill_rate": {
+      "definition": "Algorithm certificate 1 - objective_t; a guaranteed lower bound for every applicable region under every scenario, not a demand-weighted mean.",
+      "direction": "higher_is_better",
+      "label": "Certified robust minimum regional fill-rate guarantee (1 - T)",
+      "unit": "fraction"
+    },
+    "scenario_count": {
+      "definition": "Final number of complete scenario recourse blocks committed to the master.",
+      "direction": "descriptive",
+      "label": "Committed master scenario blocks",
+      "unit": "count"
+    },
+    "total_wall_runtime": {
+      "definition": "Recorded end-to-end wall time, reported separately from algorithm and post-evaluation runtimes.",
+      "direction": "lower_is_better",
+      "label": "Total wall time",
+      "unit": "seconds"
+    },
+    "wgap": {
+      "definition": "Post-evaluation max_s [max_r fill_rate_(s,r) - min_r fill_rate_(s,r)] over applicable regions.",
+      "direction": "lower_is_better",
+      "label": "Post-evaluation worst fill-rate range",
+      "unit": "fraction"
+    },
+    "wminfr": {
+      "definition": "Post-evaluation min_s min_r fill_rate_(s,r) over applicable regions and all exact scenarios.",
+      "direction": "higher_is_better",
+      "label": "Post-evaluation worst-scenario minimum regional fill rate",
+      "unit": "fraction"
+    },
+    "wwd": {
+      "definition": "Post-evaluation max_s max_r [weighted_mean_fill_rate_s - fill_rate_(s,r)] over applicable regions.",
+      "direction": "lower_is_better",
+      "label": "Post-evaluation worst regional deviation below weighted mean",
+      "unit": "fraction"
+    }
+  },
   "par2_rule": {
     "basis": "algorithm_runtime",
     "unsolved_seconds": 3600.0
@@ -2226,6 +2318,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 4.440892098500626e-16,
+          "max": 1.7763568394002505e-14,
+          "mean": 1.9761969838327787e-15,
+          "median": 2.220446049250313e-16,
+          "min": 0.0,
+          "standard_deviation": 5.553039176257044e-15
+        },
         "actual_robust_cost": {
           "iqr": 1775.7196739052451,
           "max": 23452.358669221598,
@@ -2274,6 +2374,14 @@
           "min": 0.11578383303007776,
           "standard_deviation": 0.11980513378406421
         },
+        "penalized_runtime_par2": {
+          "iqr": 7.880087949917652,
+          "max": 34.97526019997895,
+          "mean": 20.2018087499775,
+          "median": 19.250864249886945,
+          "min": 11.218934800010175,
+          "standard_deviation": 7.307663058518808
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.5336083003203385,
           "max": 8.62827320001088,
@@ -2305,6 +2413,30 @@
           "median": 30.547749150544405,
           "min": 23.296786698279902,
           "standard_deviation": 7.85189508647179
+        },
+        "wgap": {
+          "iqr": 0.17465469001851186,
+          "max": 0.4809712476263176,
+          "mean": 0.28404254026222714,
+          "median": 0.30123624221673195,
+          "min": 0.11578383303007778,
+          "standard_deviation": 0.11980513378406422
+        },
+        "wminfr": {
+          "iqr": 0.17465469001851197,
+          "max": 0.8842161669699222,
+          "mean": 0.7159574597377729,
+          "median": 0.698763757783268,
+          "min": 0.5190287523736824,
+          "standard_deviation": 0.11980513378406422
+        },
+        "wwd": {
+          "iqr": 0.12251316863382078,
+          "max": 0.40742169880854484,
+          "mean": 0.23436567458749105,
+          "median": 0.2355444185674504,
+          "min": 0.10602746946682773,
+          "standard_deviation": 0.09417184709084797
         }
       },
       "rho": 0.0,
@@ -2314,6 +2446,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 3.885780586188048e-16,
+          "max": 0.010000000000012665,
+          "mean": 0.010000000000002052,
+          "median": 0.010000000000000564,
+          "min": 0.010000000000000009,
+          "standard_deviation": 3.8754399909289205e-15
+        },
         "actual_robust_cost": {
           "iqr": 1793.4768706443137,
           "max": 23686.88225591383,
@@ -2362,6 +2502,14 @@
           "min": 0.01457770760011039,
           "standard_deviation": 0.0546774936501414
         },
+        "penalized_runtime_par2": {
+          "iqr": 8.101662274973933,
+          "max": 30.545171099947765,
+          "mean": 20.998314279969783,
+          "median": 21.021270249970257,
+          "min": 13.754997200099751,
+          "standard_deviation": 5.65394845051453
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.7253761483007111,
           "max": 7.7027455002535135,
@@ -2393,6 +2541,30 @@
           "median": 32.765129950479604,
           "min": 24.45132199721411,
           "standard_deviation": 5.667720137717235
+        },
+        "wgap": {
+          "iqr": 0.08031865980855857,
+          "max": 0.17585739240277998,
+          "mean": 0.07449084572732352,
+          "median": 0.06027711395582647,
+          "min": 0.014577707600110346,
+          "standard_deviation": 0.054100419653410246
+        },
+        "wminfr": {
+          "iqr": 0.08031865980855857,
+          "max": 0.9854222923998897,
+          "mean": 0.922853966178185,
+          "median": 0.9264469455717159,
+          "min": 0.82414260759722,
+          "standard_deviation": 0.054677493650142815
+        },
+        "wwd": {
+          "iqr": 0.031020334231469465,
+          "max": 0.06955103365386084,
+          "mean": 0.03525786374028629,
+          "median": 0.026375370032962864,
+          "min": 0.013272924458881286,
+          "standard_deviation": 0.020566656018509655
         }
       },
       "rho": 0.01,
@@ -2402,6 +2574,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 2.220446049250313e-16,
+          "max": 0.0250000000000008,
+          "mean": 0.02461534975101647,
+          "median": 0.025000000000000022,
+          "min": 0.022636602181644427,
+          "standard_deviation": 0.0008370378043995253
+        },
         "actual_robust_cost": {
           "iqr": 1830.955803366338,
           "max": 24038.667635952137,
@@ -2450,6 +2630,14 @@
           "min": 0.0041983945434766546,
           "standard_deviation": 0.041869399786410216
         },
+        "penalized_runtime_par2": {
+          "iqr": 5.535708875104319,
+          "max": 35.7355950998608,
+          "mean": 20.545270840008744,
+          "median": 17.983524449984543,
+          "min": 14.109506900189444,
+          "standard_deviation": 6.2511113521835835
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.5329300731536932,
           "max": 10.940083300229162,
@@ -2481,6 +2669,30 @@
           "median": 29.20000245142728,
           "min": 26.666787899797782,
           "standard_deviation": 6.728014744986228
+        },
+        "wgap": {
+          "iqr": 0.057311297085867935,
+          "max": 0.10827142327818595,
+          "mean": 0.05069263234883028,
+          "median": 0.048065941672553625,
+          "min": 0.004198394543476702,
+          "standard_deviation": 0.03616732589662484
+        },
+        "wminfr": {
+          "iqr": 0.06686664666366637,
+          "max": 0.9958016054565232,
+          "mean": 0.9452607269331648,
+          "median": 0.9519340583274464,
+          "min": 0.8688132380027697,
+          "standard_deviation": 0.04186939978641019
+        },
+        "wwd": {
+          "iqr": 0.0040345135578285785,
+          "max": 0.024978903136618547,
+          "mean": 0.015861872992922365,
+          "median": 0.016893902222186064,
+          "min": 0.003778409163183283,
+          "standard_deviation": 0.005590471000571078
         }
       },
       "rho": 0.025,
@@ -2490,6 +2702,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 0.002979637950617675,
+          "max": 0.05000000000000315,
+          "mean": 0.04527882381812487,
+          "median": 0.04998130937032286,
+          "min": 0.027921262151440196,
+          "standard_deviation": 0.008972716751364284
+        },
         "actual_robust_cost": {
           "iqr": 2016.069208640889,
           "max": 24624.9766026827,
@@ -2538,6 +2758,14 @@
           "min": 0.004198394543476652,
           "standard_deviation": 0.04004215062920584
         },
+        "penalized_runtime_par2": {
+          "iqr": 5.710285999986809,
+          "max": 32.1587238998618,
+          "mean": 19.890980649972335,
+          "median": 18.694711199961603,
+          "min": 12.327032800065354,
+          "standard_deviation": 5.800317289144799
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.3176397753995843,
           "max": 10.363337600370869,
@@ -2569,6 +2797,30 @@
           "median": 30.949233699939214,
           "min": 24.200027901446447,
           "standard_deviation": 6.4109112680072595
+        },
+        "wgap": {
+          "iqr": 0.056248659110906735,
+          "max": 0.12365797987547889,
+          "mean": 0.04990515681162074,
+          "median": 0.04317681224789838,
+          "min": 0.004198394543476702,
+          "standard_deviation": 0.03835464887166696
+        },
+        "wminfr": {
+          "iqr": 0.06427712602203184,
+          "max": 0.9958016054565233,
+          "mean": 0.9479492709252089,
+          "median": 0.9568231877521016,
+          "min": 0.87406845318999,
+          "standard_deviation": 0.04004215062920606
+        },
+        "wwd": {
+          "iqr": 0.003538671745537042,
+          "max": 0.01994372095188901,
+          "mean": 0.014964619003876412,
+          "median": 0.016692540326775418,
+          "min": 0.003778409163183283,
+          "standard_deviation": 0.004593495152347861
         }
       },
       "rho": 0.05,
@@ -2578,6 +2830,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 0.04462352320032775,
+          "max": 0.10000000000000098,
+          "mean": 0.07969461925257637,
+          "median": 0.09993333409112903,
+          "min": 0.03268023141203735,
+          "standard_deviation": 0.028770302541539342
+        },
         "actual_robust_cost": {
           "iqr": 2293.9733518136054,
           "max": 25797.594536143755,
@@ -2626,6 +2886,14 @@
           "min": 0.004198394543476649,
           "standard_deviation": 0.037623646901157784
         },
+        "penalized_runtime_par2": {
+          "iqr": 5.350556599965785,
+          "max": 30.222528900019825,
+          "mean": 16.03681068001315,
+          "median": 15.868044750066474,
+          "min": 5.787562699988484,
+          "standard_deviation": 6.5263374744676135
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.6709880244452506,
           "max": 9.787594700232148,
@@ -2657,6 +2925,30 @@
           "median": 27.680551200173795,
           "min": 17.54372270172462,
           "standard_deviation": 6.939457041834157
+        },
+        "wgap": {
+          "iqr": 0.062183490233877786,
+          "max": 0.10411955321596267,
+          "mean": 0.048792843925165995,
+          "median": 0.042917458466483815,
+          "min": 0.004198394543476702,
+          "standard_deviation": 0.034995969170100456
+        },
+        "wminfr": {
+          "iqr": 0.06218349023387715,
+          "max": 0.9958016054565233,
+          "mean": 0.9498131644457521,
+          "median": 0.957082541533516,
+          "min": 0.881940530493222,
+          "standard_deviation": 0.03762364690115765
+        },
+        "wwd": {
+          "iqr": 0.003693429867401482,
+          "max": 0.01823691643181169,
+          "mean": 0.014762030659278735,
+          "median": 0.016779241365751485,
+          "min": 0.003778409163183283,
+          "standard_deviation": 0.004418298471040823
         }
       },
       "rho": 0.1,
@@ -2666,6 +2958,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 2.220446049250313e-16,
+          "max": 6.661338147750939e-16,
+          "mean": 6.661338147750939e-17,
+          "median": 2.220446049250313e-16,
+          "min": -7.771561172376096e-16,
+          "standard_deviation": 3.8884230758414213e-16
+        },
         "actual_robust_cost": {
           "iqr": 8094.534946740561,
           "max": 50979.16172795266,
@@ -2714,6 +3014,14 @@
           "min": 0.0851216949537126,
           "standard_deviation": 0.14662465705106523
         },
+        "penalized_runtime_par2": {
+          "iqr": 38.899927150050644,
+          "max": 115.07101029995829,
+          "mean": 76.5302649500547,
+          "median": 81.99565490009263,
+          "min": 39.04639680008404,
+          "standard_deviation": 26.250418981154333
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.4308089248370379,
           "max": 34.001662399154156,
@@ -2745,6 +3053,30 @@
           "median": 136.8201277530752,
           "min": 92.08667240082286,
           "standard_deviation": 27.446479576989333
+        },
+        "wgap": {
+          "iqr": 0.19720222320976868,
+          "max": 0.5297192898893928,
+          "mean": 0.2360346998458457,
+          "median": 0.18948344321881821,
+          "min": 0.08512169495371258,
+          "standard_deviation": 0.14662465705106523
+        },
+        "wminfr": {
+          "iqr": 0.19720222320976866,
+          "max": 0.9148783050462874,
+          "mean": 0.7639653001541543,
+          "median": 0.8105165567811818,
+          "min": 0.47028071011060724,
+          "standard_deviation": 0.14662465705106523
+        },
+        "wwd": {
+          "iqr": 0.08694085176443181,
+          "max": 0.327910077695717,
+          "mean": 0.16250915338736455,
+          "median": 0.14205486869769435,
+          "min": 0.07862617615598189,
+          "standard_deviation": 0.07576350957781844
         }
       },
       "rho": 0.0,
@@ -2754,6 +3086,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 3.885780586188048e-16,
+          "max": 0.010000000000001119,
+          "mean": 0.010000000000000365,
+          "median": 0.010000000000000231,
+          "min": 0.010000000000000009,
+          "standard_deviation": 3.8029527907997864e-16
+        },
         "actual_robust_cost": {
           "iqr": 8175.480296207974,
           "max": 51488.9533452322,
@@ -2802,6 +3142,14 @@
           "min": 0.002808614780343839,
           "standard_deviation": 0.09460491881538288
         },
+        "penalized_runtime_par2": {
+          "iqr": 31.877924174943473,
+          "max": 113.81008310010657,
+          "mean": 75.28985698001925,
+          "median": 72.05851234984584,
+          "min": 41.095043500186875,
+          "standard_deviation": 23.900313538222445
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.8455161004094407,
           "max": 43.16281149862334,
@@ -2833,6 +3181,30 @@
           "median": 129.5724583498668,
           "min": 100.41072920314036,
           "standard_deviation": 23.680036576274937
+        },
+        "wgap": {
+          "iqr": 0.1307448200882744,
+          "max": 0.25714101786697097,
+          "mean": 0.08489980910876847,
+          "median": 0.055232085267474196,
+          "min": 0.0028086147803438877,
+          "standard_deviation": 0.0929080819670893
+        },
+        "wminfr": {
+          "iqr": 0.13943758254122507,
+          "max": 0.9971913852196561,
+          "mean": 0.9104612723485612,
+          "median": 0.9428318054505558,
+          "min": 0.7351130650820693,
+          "standard_deviation": 0.09460491881538287
+        },
+        "wwd": {
+          "iqr": 0.01961628118267264,
+          "max": 0.06584854609628066,
+          "mean": 0.02128144918672472,
+          "median": 0.01036572965611704,
+          "min": 0.0025689101779218237,
+          "standard_deviation": 0.02059921794189547
         }
       },
       "rho": 0.01,
@@ -2842,6 +3214,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 0.003526038360453787,
+          "max": 0.0250000000000008,
+          "mean": 0.023384536632440202,
+          "median": 0.0249627638035691,
+          "min": 0.01910436692303774,
+          "standard_deviation": 0.0023099995167256654
+        },
         "actual_robust_cost": {
           "iqr": 8388.187102380965,
           "max": 52253.6289696528,
@@ -2890,6 +3270,14 @@
           "min": 0.0,
           "standard_deviation": 0.07778162495392585
         },
+        "penalized_runtime_par2": {
+          "iqr": 25.535523450176697,
+          "max": 94.6227271000389,
+          "mean": 66.36796710998752,
+          "median": 70.31164085003547,
+          "min": 33.21858979994431,
+          "standard_deviation": 20.758210685973392
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.7337028512265533,
           "max": 35.13900619978085,
@@ -2921,6 +3309,30 @@
           "median": 124.92148914921563,
           "min": 87.15877080149949,
           "standard_deviation": 20.813058499200412
+        },
+        "wgap": {
+          "iqr": 0.0628393338231594,
+          "max": 0.11169153164642664,
+          "mean": 0.04694515171393197,
+          "median": 0.042623251847875965,
+          "min": 0.0,
+          "standard_deviation": 0.0416666540320111
+        },
+        "wminfr": {
+          "iqr": 0.11151661639200483,
+          "max": 1.0,
+          "mean": 0.9242869308538604,
+          "median": 0.9477442721893059,
+          "min": 0.7925311176139487,
+          "standard_deviation": 0.07778162495392595
+        },
+        "wwd": {
+          "iqr": 0.002067572721503097,
+          "max": 0.011380791014063751,
+          "mean": 0.008539174543192307,
+          "median": 0.009718364305566218,
+          "min": 0.0,
+          "standard_deviation": 0.003474027830841215
         }
       },
       "rho": 0.025,
@@ -2930,6 +3342,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 0.022098757027323224,
+          "max": 0.05000000000000071,
+          "mean": 0.04039001297534237,
+          "median": 0.04956237154483778,
+          "min": 0.02319631973847991,
+          "standard_deviation": 0.012307635867098368
+        },
         "actual_robust_cost": {
           "iqr": 9044.301504159877,
           "max": 53528.1198143503,
@@ -2978,6 +3398,14 @@
           "min": 0.0,
           "standard_deviation": 0.07658613563636837
         },
+        "penalized_runtime_par2": {
+          "iqr": 28.523243174829986,
+          "max": 91.15965620009229,
+          "mean": 61.666705459984954,
+          "median": 63.460914400056936,
+          "min": 29.062795199919492,
+          "standard_deviation": 21.41797215210387
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 0.4543769750162028,
           "max": 35.07628730358556,
@@ -3009,6 +3437,30 @@
           "median": 118.63038079836406,
           "min": 82.7362180983182,
           "standard_deviation": 21.51621799710702
+        },
+        "wgap": {
+          "iqr": 0.06076339825206806,
+          "max": 0.10565415763387942,
+          "mean": 0.04634149556857457,
+          "median": 0.04604145405579879,
+          "min": 0.0,
+          "standard_deviation": 0.040047071303049034
+        },
+        "wminfr": {
+          "iqr": 0.10815829056705473,
+          "max": 1.0,
+          "mean": 0.9256045307247291,
+          "median": 0.9486682745576771,
+          "min": 0.7951244737127519,
+          "standard_deviation": 0.07658613563636843
+        },
+        "wwd": {
+          "iqr": 0.0020823305877502862,
+          "max": 0.011383615466284192,
+          "mean": 0.008554869901345607,
+          "median": 0.009732293121159419,
+          "min": 0.0,
+          "standard_deviation": 0.0034826814023854362
         }
       },
       "rho": 0.05,
@@ -3018,6 +3470,14 @@
     {
       "certified_count": 10,
       "metrics": {
+        "actual_price_of_fairness": {
+          "iqr": 0.05942700275457302,
+          "max": 0.10000000000000031,
+          "mean": 0.07483331263353458,
+          "median": 0.09987981874541785,
+          "min": 0.029181263147858516,
+          "standard_deviation": 0.03259189283007235
+        },
         "actual_robust_cost": {
           "iqr": 10369.93034234285,
           "max": 56077.04376574543,
@@ -3066,6 +3526,14 @@
           "min": 0.0,
           "standard_deviation": 0.07468434697161114
         },
+        "penalized_runtime_par2": {
+          "iqr": 33.73460979992524,
+          "max": 82.15856650006026,
+          "mean": 54.85905923997052,
+          "median": 52.72195954993367,
+          "min": 34.872264500008896,
+          "standard_deviation": 18.142432198645718
+        },
         "post_evaluation_wall_runtime": {
           "iqr": 1.3891050758538768,
           "max": 34.40672320011072,
@@ -3097,6 +3565,30 @@
           "median": 105.89604064950254,
           "min": 91.07447460107505,
           "standard_deviation": 18.548990587800958
+        },
+        "wgap": {
+          "iqr": 0.057650123394641734,
+          "max": 0.09071116547127878,
+          "mean": 0.04071652619806472,
+          "median": 0.03849858499483305,
+          "min": 0.0,
+          "standard_deviation": 0.03389121984098773
+        },
+        "wminfr": {
+          "iqr": 0.10437568231093464,
+          "max": 1.0,
+          "mean": 0.9274836392696562,
+          "median": 0.9494677183444677,
+          "min": 0.7996773405875655,
+          "standard_deviation": 0.07468434697161136
+        },
+        "wwd": {
+          "iqr": 0.002062754715317694,
+          "max": 0.011388652077155448,
+          "mean": 0.008552399281965361,
+          "median": 0.009696712638878946,
+          "min": 0.0,
+          "standard_deviation": 0.0034822626291178115
         }
       },
       "rho": 0.1,

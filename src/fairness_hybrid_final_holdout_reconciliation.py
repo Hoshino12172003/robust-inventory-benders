@@ -682,9 +682,27 @@ def _paper_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[
     full_rows = []
     metric_names = [
         "objective_t", "robust_minimum_fill_rate", "minimum_weighted_mean_fill_rate",
-        "actual_robust_cost", "algorithm_runtime", "post_evaluation_wall_runtime",
-        "total_wall_runtime", "iterations", "scenario_count", "cut_count",
+        "wminfr", "wgap", "wwd", "actual_robust_cost", "actual_price_of_fairness",
+        "algorithm_runtime", "post_evaluation_wall_runtime", "total_wall_runtime",
+        "penalized_runtime_par2", "iterations", "scenario_count", "cut_count",
     ]
+    metric_definitions = {
+        "objective_t": {"label": "Certified robust worst-region shortage rate (T)", "unit": "fraction", "direction": "lower_is_better", "definition": "Final certified objective T; an upper bound on shortage/demand for every applicable region under every scenario in the exact uncertainty set."},
+        "robust_minimum_fill_rate": {"label": "Certified robust minimum regional fill-rate guarantee (1 - T)", "unit": "fraction", "direction": "higher_is_better", "definition": "Algorithm certificate 1 - objective_t; a guaranteed lower bound for every applicable region under every scenario, not a demand-weighted mean."},
+        "minimum_weighted_mean_fill_rate": {"label": "Worst-scenario demand-weighted mean regional fill rate", "unit": "fraction", "direction": "higher_is_better", "definition": "Post-evaluation min_s [1 - total_shortage_s / total_demand_s]; a system-wide demand-weighted mean within each scenario, not the minimum regional fill rate."},
+        "wminfr": {"label": "Post-evaluation worst-scenario minimum regional fill rate", "unit": "fraction", "direction": "higher_is_better", "definition": "Post-evaluation min_s min_r fill_rate_(s,r) over applicable regions and all exact scenarios."},
+        "wgap": {"label": "Post-evaluation worst fill-rate range", "unit": "fraction", "direction": "lower_is_better", "definition": "Post-evaluation max_s [max_r fill_rate_(s,r) - min_r fill_rate_(s,r)] over applicable regions."},
+        "wwd": {"label": "Post-evaluation worst regional deviation below weighted mean", "unit": "fraction", "direction": "lower_is_better", "definition": "Post-evaluation max_s max_r [weighted_mean_fill_rate_s - fill_rate_(s,r)] over applicable regions."},
+        "actual_robust_cost": {"label": "Post-evaluation robust cost", "unit": "model_cost_units", "direction": "lower_is_better", "definition": "First-stage cost plus the maximum recourse cost over all exact post-evaluation scenarios."},
+        "actual_price_of_fairness": {"label": "Actual price of fairness", "unit": "fraction_of_baseline_cost", "direction": "lower_is_better", "definition": "actual_robust_cost / baseline_cost - 1, recomputed by exact post-evaluation."},
+        "algorithm_runtime": {"label": "Algorithm runtime", "unit": "seconds", "direction": "lower_is_better", "definition": "Optimization algorithm runtime only; excludes post-evaluation."},
+        "post_evaluation_wall_runtime": {"label": "Post-evaluation wall time", "unit": "seconds", "direction": "lower_is_better", "definition": "Exact post-evaluation pipeline wall time only."},
+        "total_wall_runtime": {"label": "Total wall time", "unit": "seconds", "direction": "lower_is_better", "definition": "Recorded end-to-end wall time, reported separately from algorithm and post-evaluation runtimes."},
+        "penalized_runtime_par2": {"label": "PAR-2 algorithm runtime", "unit": "seconds", "direction": "lower_is_better", "definition": "Algorithm runtime for certified tasks; 3600 seconds for an uncertified task under the frozen PAR-2 rule."},
+        "iterations": {"label": "Algorithm iterations", "unit": "count", "direction": "lower_is_better", "definition": "Number of recorded master/separation iterations."},
+        "scenario_count": {"label": "Committed master scenario blocks", "unit": "count", "direction": "descriptive", "definition": "Final number of complete scenario recourse blocks committed to the master."},
+        "cut_count": {"label": "Certified Farkas cuts", "unit": "count", "direction": "descriptive", "definition": "Final number of append-only certified Farkas cuts."},
+    }
     for item in frontiers:
         record = item["record"]
         result = record["result"]
@@ -708,6 +726,10 @@ def _paper_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[
                 "cut_count": int(result["cuts"]),
             }
         )
+        row = full_rows[-1]
+        _check(abs(row["robust_minimum_fill_rate"] - (1.0 - row["objective_t"])) <= TOLERANCE, "robust fill-rate label is inconsistent with 1 - T")
+        _check(row["wminfr"] <= row["minimum_weighted_mean_fill_rate"] + TOLERANCE, "minimum regional fill rate exceeds weighted mean label")
+        _check(1.0 - row["wminfr"] <= row["objective_t"] + TOLERANCE, "post-evaluation minimum fill rate violates certified T")
     groups = []
     for scale in SCALES:
         for rho in RHOS:
@@ -749,6 +771,7 @@ def _paper_metrics(records: list[dict[str, Any]]) -> tuple[dict[str, Any], list[
         "certified_count": 100,
         "par2_rule": {"basis": "algorithm_runtime", "unsolved_seconds": 3600.0},
         "runtime_fields_distinct": ["algorithm_runtime", "post_evaluation_wall_runtime", "total_wall_runtime"],
+        "metric_definitions": metric_definitions,
         "scale_rho_summaries": groups,
         "cross_scale_per_rho_paired": per_rho,
         "cross_scale_overall_seed_aggregated": {
