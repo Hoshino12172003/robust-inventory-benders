@@ -5,6 +5,7 @@ import csv
 import io
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Any
 import zipfile
@@ -37,6 +38,15 @@ PROTECTED_SHA256 = {
     "analysis/fairness_hybrid_final_holdout_reconciliation/results.corrected.csv": "50EB5823F4C7138E65FA36546B90EE081B48949D2F961F5AFDFAE098A7F0A496",
     "analysis/fairness_hybrid_final_holdout_reconciliation/paper_metrics.json": "044689ABF1ADD1C1FC217FCB5F46B8D280D8659865EE3A3707EBB9FE792F2E37",
 }
+
+SEED_PATH_PATTERN = re.compile(r"(?i)(?:^|[/_.-])s?(180|181|182|183|184)(?=$|[/_.-])")
+
+
+def _path_seed_records(relative: str) -> list[dict[str, Any]]:
+    return [
+        {"seed": int(match.group(1)), "path": relative, "location": "path", "category": _classify(relative, {"seed"})}
+        for match in SEED_PATH_PATTERN.finditer(relative.replace("\\", "/"))
+    ]
 
 
 def _target_seed(value: Any) -> int | None:
@@ -119,8 +129,11 @@ def _audit_structured_file(root: Path, path: Path) -> list[dict[str, Any]]:
 def audit_repository_seed_access(root: Path) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     for path in _tracked_files(root):
-        if path.exists() and path.suffix.lower() in {".json", ".csv", ".yaml", ".yml"}:
-            entries.extend(_audit_structured_file(root, path))
+        if path.exists():
+            relative = path.relative_to(root).as_posix()
+            entries.extend(_path_seed_records(relative))
+            if path.suffix.lower() in {".json", ".csv", ".yaml", ".yml"}:
+                entries.extend(_audit_structured_file(root, path))
     pattern = r'"seed"[[:space:]]*:[[:space:]]*(180|181|182|183|184)([^0-9]|$)|(^|,)[[:space:]]*(180|181|182|183|184)[[:space:]]*(,|$)'
     grep = subprocess.run(
         ["git", "-C", str(root), "grep", "-n", "-E", pattern, "--", "*.json", "*.csv"],
@@ -147,6 +160,7 @@ def audit_repository_seed_access(root: Path) -> dict[str, Any]:
         for path in known.rglob("*"):
             if not path.is_file() or path.resolve() in tracked:
                 continue
+            entries.extend(_path_seed_records(path.relative_to(root).as_posix()))
             if path.suffix.lower() in {".json", ".csv", ".yaml", ".yml"}:
                 entries.extend(_audit_structured_file(root, path))
     actual = [entry for entry in entries if entry["category"] != "preregistration_declaration"]
@@ -191,6 +205,7 @@ def audit_zip_seed_access(path: Path) -> dict[str, Any]:
         bad_crc = archive.testzip()
         names = archive.namelist()
         for name in names:
+            entries.extend(_path_seed_records(name))
             lower = name.lower()
             if lower.endswith(".json"):
                 entries.extend(_zip_json_records(name, archive.read(name)))

@@ -68,7 +68,7 @@ No mathematical model, fairness definition, uncertainty-set structure, Hybrid ca
 
 Seeds 180--184 remain inaccessible before a separately authorized formal run. A repository/config declaration that preregisters the numbers is not access. Actual access means evidence of a generated instance, solver run, baseline, anchor, run/status record, algorithm or post-evaluation checkpoint, or formal result for a reserved seed. The audit reads Git-tracked structured files, known configuration and formal-result roots, instance directories, manifests, run/status/checkpoint files, freeze evidence, and any supplied ZIP listing without extracting it. Detection stops the process; seeds are never silently replaced.
 
-The audit reports four distinct categories: preregistration declaration, generated instance, solved run, and formal-result access. It is rerun immediately before any later formal authorization and before any output directory, instance generation, or solver configuration.
+The audit reports four distinct categories: preregistration declaration, generated instance, solved run, and formal-result access. It examines both structured contents and path/member names, including opaque files and ZIP members. It is rerun immediately before any later formal authorization and before any output directory, instance generation, solver import, or solver configuration.
 
 ## 6. Output, checkpoint, and resume contract
 
@@ -77,9 +77,11 @@ Formal roots are short Windows-safe paths:
 - `experiments/results_fh_gamma/ml_a1`
 - `experiments/results_fh_gamma/lg_a1`
 
+The formal detached worktree is frozen as `E:\rfgs`. Before execution, the runner expands every root artifact, run/status file, baseline and algorithm checkpoint, post-evaluation final/index/chunk, and atomic `.tmp` name under that exact absolute root and rejects any path longer than 220 characters. It also requires a clean detached HEAD equal to current `origin/main`.
+
 The root manifest freezes schema, attempt, Git/config/protocol/candidate identities, solver settings, full matrix, run-key maps, and instance/baseline/anchor identities. Each run has atomic `run.json` and `status.json`. Frontier state also has an identity-bound append-only `algorithm_checkpoint.json` and a post-evaluation `index.json` plus SHA-bound ordered chunks. `results.csv` and `summary.csv` are atomic projections of committed run records. Corrupt JSON, missing identity, mapping drift, completed-run repetition, chunk gaps, SHA mismatch, or cumulative-count mismatch fails closed.
 
-Only strict `--resume` is supported for a future authorized run. `--overwrite` does not exist. A committed result is never solved again. This protocol does not authorize that run.
+Only strict `--resume` is supported for a future authorized run. `--overwrite` does not exist. A committed result, Gamma-specific baseline, checkpoint, scenario, cut, post-evaluation chunk, or CSV row is never repeated. A later authorization-only change supplies a Git-tracked JSON authorization file; no runner change is needed after this PR. This protocol does not authorize that run.
 
 ## 7. Dry-run and solver-limit envelopes
 
@@ -121,3 +123,5 @@ next_authorized_stage: fairness_hybrid_gamma_sensitivity_pre_run_audit_only
 ```
 
 This delivery authorizes only solver-free dry-run, static validation, checkpoint/resume unit tests with synthetic temporary data, and a fresh read-only pre-run audit. It does not authorize instance generation for seeds 180--184, Gurobi configuration or execution, formal optimization, selective reruns, Gamma 3/4, new rho values, or any mutation of frozen Holdout/D1/D2 artifacts.
+
+After this protocol is merged, the separately reviewed authorization-only file must use schema `fairness_hybrid_gamma_sensitivity_authorization_v1`, set `formal_run_authorized=true`, bind the exact config/protocol/candidate SHA values, matrix, attempt, and PR #53 protocol merge commit, and set `next_authorized_stage=fairness_hybrid_gamma_sensitivity_formal_run`. The runner requires that file to be Git tracked and the protocol merge commit to be an ancestor of the clean detached current `origin/main`. All authorization, Git, seed-access, existing-output identity, and path gates run before production dependencies are imported or any output is created.

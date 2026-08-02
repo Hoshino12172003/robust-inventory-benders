@@ -1,27 +1,32 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
+from dataclasses import dataclass
 import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable
+import subprocess
+import time
+from typing import Any, Callable, Iterable
 
 import yaml
 
-from .experiment_protocol import atomic_write_csv, atomic_write_json, file_sha256, penalized_runtime_par2
+from .experiment_protocol import atomic_write_csv, atomic_write_json, atomic_write_yaml, file_sha256, penalized_runtime_par2
 
 
 STAGE = "GAMMA_SENSITIVITY"
 SCHEMA = "fairness_hybrid_gamma_sensitivity_manifest_v1"
 CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_algorithm_checkpoint_v1"
 POST_SCHEMA = "fairness_hybrid_gamma_sensitivity_post_evaluation_v1"
+AUTHORIZATION_SCHEMA = "fairness_hybrid_gamma_sensitivity_authorization_v1"
 EXECUTION_ATTEMPT = 1
 BASE_COMMIT = "827b1373702972ae780231899afe17cf6eff0d53"
 CANDIDATE = "certified_hybrid_scenario_benders_fairness"
 CANDIDATE_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
-EXPECTED_CONFIG_SHA256 = "F09074EA83E91514A0D1DFBF49F31EA24D2AABD9C94530B5F6A7E5504DA4585C"
-EXPECTED_PROTOCOL_SHA256 = "D8CEA1249E92E9594D8308F5617D8767F23FFF7472644012DD4FD031CC7EF245"
+EXPECTED_CONFIG_SHA256 = "82834FB7BC91C3CE2BB4759A2C4571E3E812E9A9C030A2CD9F56F8CD60B61A59"
+EXPECTED_PROTOCOL_SHA256 = "D9552F83E292CB1EDB262DF2B113A8044AECD6607207FDBC857770083C35EC1A"
 SEEDS = [180, 181, 182, 183, 184]
 GAMMAS = [0, 1, 2]
 RHO = 0.025
@@ -51,6 +56,18 @@ FORBIDDEN_REUSE_PARTS = (
 
 class ProtocolGateError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class GammaDependencies:
+    generate_instance: Callable[[dict[str, Any], int], Any]
+    serialize_instance: Callable[[Any], dict[str, Any]]
+    deserialize_instance: Callable[[dict[str, Any]], Any]
+    solve_baseline: Callable[..., dict[str, Any]]
+    make_anchor: Callable[..., dict[str, Any]]
+    solve_frontier: Callable[..., dict[str, Any]]
+    post_evaluate: Callable[..., tuple[dict[str, Any], dict[str, float]]]
+    configure_solver: Callable[[dict[str, Any]], None]
 
 
 def canonical_json(value: Any) -> str:
@@ -106,6 +123,7 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
         "schema_version": 1,
         "execution_attempt": EXECUTION_ATTEMPT,
         "previous_attempt_results_reused": False,
+        "formal_worktree_root": r"E:\rfgs",
         "base_commit": BASE_COMMIT,
         "candidate": CANDIDATE,
         "required_candidate_sha256": CANDIDATE_SHA256,
@@ -261,17 +279,37 @@ def bind_data_identities(
 def _planned_paths(root: Path, rows: list[dict[str, Any]], config: dict[str, Any]) -> list[tuple[str, Path]]:
     planned: list[tuple[str, Path]] = []
     chunk_size = int(config["post_evaluation"]["checkpoint_chunk_size"])
+    for scale in SCALES:
+        output = root / SCALES[scale]["output_dir"]
+        for kind, relative in (
+            ("manifest", "manifest.json"), ("manifest_tmp", ".manifest.json.tmp"),
+            ("resolved_config", "resolved_config.yaml"), ("resolved_config_tmp", ".resolved_config.yaml.tmp"),
+            ("results", "results.csv"), ("results_tmp", ".results.csv.tmp"),
+            ("summary", "summary.csv"), ("summary_tmp", ".summary.csv.tmp"),
+            ("audit_log", "audit.log"), ("audit_log_tmp", ".audit.log.tmp"),
+        ):
+            planned.append((f"{scale}_{kind}", (output / relative).resolve()))
     for row in rows:
         output = root / SCALES[row["scale"]]["output_dir"]
         run = output / "runs" / row["run_directory_id"]
         instance = output / "instances" / f"s{row['seed']}_g{row['gamma']}.json"
         planned.append(("instance", instance.resolve()))
+        planned.append(("instance_tmp", instance.with_name(f".{instance.name}.tmp").resolve()))
         for kind, relative in (
             ("run", "run.json"),
+            ("run_tmp", ".run.json.tmp"),
             ("status", "status.json"),
+            ("status_tmp", ".status.json.tmp"),
+            ("baseline_checkpoint", "baseline_checkpoint.json"),
+            ("baseline_checkpoint_tmp", ".baseline_checkpoint.json.tmp"),
             ("algorithm_checkpoint", "algorithm_checkpoint.json"),
-            ("post_index", "post/checkpoint/index.json"),
-            ("post_chunk_tmp", f"post/checkpoint/.chunk_{math.ceil(scenario_count(row['scale'], row['gamma']) / chunk_size) - 1:05d}.json.tmp"),
+            ("algorithm_checkpoint_tmp", ".algorithm_checkpoint.json.tmp"),
+            ("post_final", "post_evaluation/final.json"),
+            ("post_final_tmp", "post_evaluation/.final.json.tmp"),
+            ("post_index", "post_evaluation/checkpoint/index.json"),
+            ("post_index_tmp", "post_evaluation/checkpoint/.index.json.tmp"),
+            ("post_chunk", f"post_evaluation/checkpoint/chunk_{math.ceil(scenario_count(row['scale'], row['gamma']) / chunk_size) - 1:05d}.json"),
+            ("post_chunk_tmp", f"post_evaluation/checkpoint/.chunk_{math.ceil(scenario_count(row['scale'], row['gamma']) / chunk_size) - 1:05d}.json.tmp"),
         ):
             planned.append((kind, (run / relative).resolve()))
     return planned
@@ -280,11 +318,12 @@ def _planned_paths(root: Path, rows: list[dict[str, Any]], config: dict[str, Any
 def dry_run(config_path: str | Path) -> dict[str, Any]:
     config = load_config(config_path)
     validate_config(config_path, config)
-    root = Path(__file__).resolve().parents[1]
+    repository_root = Path(__file__).resolve().parents[1]
+    root = Path(config["formal_worktree_root"])
     rows = expand_plan()
     paths = _planned_paths(root, rows, config)
     longest_type, longest = max(paths, key=lambda item: len(str(item[1])))
-    outputs = [root / SCALES[scale]["output_dir"] for scale in SCALES]
+    outputs = [repository_root / SCALES[scale]["output_dir"] for scale in SCALES]
     per_scale = {
         scale: {
             "baseline": sum(row["scale"] == scale and row["task_type"] == "baseline" for row in rows),
@@ -400,6 +439,20 @@ def write_run_status(path: str | Path, identity: dict[str, Any], *, state: str, 
     if state not in {"pending", "running", "interrupted", "complete"}:
         raise ProtocolGateError("invalid run status state")
     atomic_write_json(path, {"identity": identity, "state": state, "scientific_status": scientific_status})
+
+
+def validate_status_file(path: str | Path, identity: dict[str, Any], record: dict[str, Any] | None) -> None:
+    status = read_json_strict(path)
+    if status is None:
+        if record is not None:
+            raise ProtocolGateError("committed run is missing status.json")
+        return
+    if status.get("identity") != identity or status.get("state") not in {"pending", "running", "interrupted", "complete"}:
+        raise ProtocolGateError("run status identity or state mismatch")
+    if record is not None and (
+        status.get("state") != "complete" or status.get("scientific_status") != record.get("scientific_status")
+    ):
+        raise ProtocolGateError("committed run/status state contradiction")
 
 
 def validate_run_record(record: dict[str, Any], identity: dict[str, Any]) -> str:
@@ -593,6 +646,9 @@ def validate_result_row(row: dict[str, Any]) -> None:
 
 
 def write_results(path: str | Path, rows: list[dict[str, Any]]) -> None:
+    keys = [str(row.get("run_key")) for row in rows]
+    if len(keys) != len(set(keys)):
+        raise ProtocolGateError("duplicate results CSV run key")
     for row in rows:
         validate_result_row(row)
     atomic_write_csv(path, rows, RESULT_FIELDS)
@@ -623,14 +679,519 @@ def write_summary(path: str | Path, rows: list[dict[str, Any]]) -> None:
     atomic_write_csv(path, summary_rows(rows), fields)
 
 
-def formal_run(config_path: str | Path, *, resume: bool) -> None:
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(root), *args], check=False, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+
+
+def validate_authorization(path: str | Path, config_path: str | Path, root: Path) -> dict[str, Any]:
+    authorization = read_json_strict(path)
+    if authorization is None:
+        raise ProtocolGateError("formal_run_not_authorized: reviewed authorization file is required")
+    expected = {
+        "schema": AUTHORIZATION_SCHEMA,
+        "stage": STAGE,
+        "formal_run_authorized": True,
+        "execution_attempt": EXECUTION_ATTEMPT,
+        "config_file_sha256": file_sha256(config_path).upper(),
+        "protocol_sha256": EXPECTED_PROTOCOL_SHA256,
+        "candidate_sha256": CANDIDATE_SHA256,
+        "seeds": SEEDS,
+        "gamma": GAMMAS,
+        "rho": [RHO],
+        "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_formal_run",
+    }
+    for key, value in expected.items():
+        if authorization.get(key) != value:
+            raise ProtocolGateError(f"formal_run_not_authorized: authorization identity mismatch: {key}")
+    protocol_commit = authorization.get("protocol_merge_commit")
+    if not isinstance(protocol_commit, str) or len(protocol_commit) != 40:
+        raise ProtocolGateError("formal_run_not_authorized: invalid protocol merge commit")
+    tracked = _git(root, "ls-files", "--error-unmatch", str(Path(path).resolve().relative_to(root)).replace("\\", "/"))
+    if tracked.returncode:
+        raise ProtocolGateError("formal_run_not_authorized: authorization file must be Git tracked")
+    ancestor = _git(root, "merge-base", "--is-ancestor", protocol_commit, "HEAD")
+    if ancestor.returncode:
+        raise ProtocolGateError("formal_run_not_authorized: protocol merge commit is not an ancestor of HEAD")
+    return authorization
+
+
+def formal_git_gate(root: Path) -> str:
+    status = _git(root, "status", "--porcelain", "--untracked-files=all")
+    head = _git(root, "rev-parse", "HEAD")
+    main = _git(root, "rev-parse", "origin/main")
+    symbolic = _git(root, "symbolic-ref", "-q", "HEAD")
+    if status.returncode or status.stdout.strip():
+        raise ProtocolGateError("formal_run_not_authorized: worktree is not clean")
+    if head.returncode or main.returncode or head.stdout.strip() != main.stdout.strip():
+        raise ProtocolGateError("formal_run_not_authorized: HEAD is not current origin/main")
+    if symbolic.returncode == 0:
+        raise ProtocolGateError("formal_run_not_authorized: formal worktree must be detached")
+    return head.stdout.strip()
+
+
+def pre_run_seed_gate(root: Path) -> dict[str, Any]:
+    from .fairness_hybrid_gamma_sensitivity_audit import audit_repository_seed_access
+
+    report = audit_repository_seed_access(root)
+    prefixes = tuple(value["output_dir"].replace("\\", "/") + "/" for value in SCALES.values())
+    unexpected = []
+    for category in ("generated_instance_evidence", "solved_run_evidence", "formal_result_access_evidence"):
+        unexpected.extend(item for item in report[category] if not str(item["path"]).replace("\\", "/").startswith(prefixes))
+    if unexpected:
+        raise ProtocolGateError(f"formal_run_not_authorized: reserved seed access evidence: {unexpected}")
+    return report
+
+
+def _scale_config(config: dict[str, Any], scale: str, gamma: int) -> dict[str, Any]:
+    value = deepcopy(config)
+    value.update({"scale": scale, "gamma_value": gamma, "scenario_count": scenario_count(scale, gamma)})
+    return value
+
+
+def gamma_baseline_template(template: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    gamma = int(config["gamma_value"])
+    if gamma not in GAMMAS:
+        raise ProtocolGateError("baseline Gamma is outside the frozen sensitivity matrix")
+    resolved = deepcopy(template)
+    resolved.update({
+        "gamma_target": gamma,
+        "gamma_schedule": [gamma],
+        "gamma_continuation_enabled": False,
+        "exact_scenarios": True,
+        "max_scenarios": scenario_count(str(config["scale"]), gamma),
+        "time_limit": float(config["baseline_time_limit_seconds"]),
+        "baseline_time_limit": float(config["baseline_time_limit_seconds"]),
+    })
+    return resolved
+
+
+def production_dependencies() -> GammaDependencies:
+    # Deliberately lazy: dry-run and every authorization gate complete before importing solver code.
+    from .fairness_hybrid_ccg_benders import (
+        initial_upper_bound_expected_identity,
+        solve_certified_hybrid_scenario_benders_fairness,
+    )
+    from .fairness_hybrid_ccg_benders_runner import _hybrid_certified_anchor
+    from .fairness_large_final_remediation_runner import (
+        _configure_solver_parameters,
+        _production_generate_instance,
+        _scale_template,
+    )
+    from .benders import solve_benders
+    from .experiment_suite import _apply_selected_parameters, _apply_variant_config, _base_config
+    from .fairness_post_evaluation import checkpointed_fairness_post_evaluation
+    from .instance import InventoryInstance
+
+    def solve_baseline(
+        config: dict[str, Any], instance: Any, seed: int, solver: dict[str, Any],
+    ) -> dict[str, Any]:
+        _configure_solver_parameters(solver)
+        selected = _apply_selected_parameters(_scale_template(config))
+        resolved = gamma_baseline_template(selected, config)
+        base = _base_config(resolved, str(config["scale"]), seed)
+        variant = dict(resolved.get("variant_settings", {}).get("joint_v1_core_point_strengthened", {}))
+        method, _flags, method_config = _apply_variant_config(base, "proposed_adaptive_benders", variant)
+        result = solve_benders(method_config, instance, method)
+        payload = result.summary_dict()
+        payload["iteration_log"] = result.iteration_log
+        payload["gamma"] = int(config["gamma_value"])
+        return payload
+
+    def solve_frontier(
+        config: dict[str, Any], instance: Any, baseline: dict[str, Any], anchor: dict[str, Any],
+        common: dict[str, Any], checkpoint: Path, solver: dict[str, Any], row: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = solve_certified_hybrid_scenario_benders_fairness(
+            instance, baseline_record=baseline, anchor=anchor,
+            expected_identity=initial_upper_bound_expected_identity(common, anchor),
+            solver_parameters=solver, rho=RHO, gamma=int(row["gamma"]),
+            max_iterations=int(config["max_iterations"]),
+            time_limit=float(config["algorithm_time_limit_seconds"]), tol=float(config["tol"]),
+            feasibility_tolerance=float(solver["FeasibilityTol"]), checkpoint_path=checkpoint,
+            checkpoint_identity={"run_key": row["run_key"], **deepcopy(common)},
+            execution_protocol_sha256=EXPECTED_PROTOCOL_SHA256, output_flag=False,
+        )
+        return result.to_dict()
+
+    def post_evaluate(
+        config: dict[str, Any], instance: Any, result: dict[str, Any], anchor: dict[str, Any],
+        identity: dict[str, Any], post_root: Path, row: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, float]]:
+        evaluation, timing = checkpointed_fairness_post_evaluation(
+            instance, root=post_root, run_key=row["run_key"],
+            config_sha256_value=identity["config_file_sha256"], git_commit=identity["git_commit"],
+            baseline_anchor_sha256=anchor["anchor_sha256"], y_values=result["y_values"],
+            x_values=result["x_values"], t_value=float(result["objective_t"]),
+            baseline_cost=float(anchor["value"]), rho=RHO, gamma=int(row["gamma"]),
+            max_scenarios=scenario_count(str(row["scale"]), int(row["gamma"])),
+            per_scenario_time_limit=float(config["post_evaluation"]["time_limit_per_scenario_seconds"]),
+            tolerance=1e-7, chunk_size=int(config["post_evaluation"]["checkpoint_chunk_size"]),
+            resume_count=0, output_flag=False, run_execution_attempt=EXECUTION_ATTEMPT,
+            post_evaluation_pipeline_generation=int(config["post_evaluation"]["pipeline_generation"]),
+        )
+        return evaluation.to_dict(), {
+            "post_evaluation_solver_runtime": timing.solver_runtime,
+            "post_evaluation_wall_runtime": timing.wall_runtime,
+            "aggregation_runtime": timing.aggregation_runtime,
+            "checkpoint_io_runtime": timing.checkpoint_io_runtime,
+        }
+
+    return GammaDependencies(
+        generate_instance=_production_generate_instance,
+        serialize_instance=lambda value: value.to_dict(),
+        deserialize_instance=InventoryInstance.from_dict,
+        solve_baseline=solve_baseline,
+        make_anchor=_hybrid_certified_anchor,
+        solve_frontier=solve_frontier,
+        post_evaluate=post_evaluate,
+        configure_solver=_configure_solver_parameters,
+    )
+
+
+def _frontier_status(result: dict[str, Any], evaluation: dict[str, Any] | None, expected_count: int, tol: float) -> str:
+    log = result.get("iteration_log")
+    final = log[-1] if isinstance(log, list) and log and isinstance(log[-1], dict) else {}
+    bound = final.get("separation_objective_bound")
+    certified = (
+        result.get("status") == "optimal" and result.get("gap") is not None
+        and math.isfinite(float(result["gap"])) and float(result["gap"]) <= tol
+        and result.get("metadata", {}).get("full_separation_objective_bound_required") is True
+        and final.get("final_exact_separation_performed") is True
+        and final.get("robust_feasibility_certified") is True and final.get("master_status") == "optimal"
+        and bound is not None and math.isfinite(float(bound)) and float(bound) <= SOLVER_PARAMETERS["FeasibilityTol"]
+    )
+    if not certified:
+        return "robust_uncertified"
+    if not isinstance(evaluation, dict) or evaluation.get("valid") is not True:
+        return "invalid_post_evaluation"
+    if evaluation.get("errors") not in (None, []) or evaluation.get("objective_t_consistent") is False:
+        return "invalid_post_evaluation"
+    if evaluation.get("scenario_count") != expected_count:
+        return "invalid_post_evaluation"
+    return "certified_robust_optimal"
+
+
+def _result_projection(record: dict[str, Any]) -> dict[str, Any]:
+    result = record.get("result", {})
+    post = result.get("post_evaluation") or {}
+    frontier = record["task_type"] == "frontier"
+    zeros = 0.0
+    row = {field: "NOT_APPLICABLE" for field in RESULT_FIELDS}
+    row.update({field: record.get(field, row[field]) for field in RESULT_FIELDS})
+    row.update({
+        "algorithm_runtime": float(result.get("algorithm_runtime", result.get("runtime", 0.0))),
+        "master_runtime": float(result.get("master_runtime", 0.0)),
+        "separation_runtime": float(result.get("separation_runtime", 0.0)),
+        "post_evaluation_wall_runtime": float(result.get("post_evaluation_wall_runtime", 0.0)),
+        "total_wall_runtime": float(result.get("total_wall_runtime", result.get("runtime", 0.0))),
+        "penalized_runtime_par2": float(result.get("penalized_runtime_par2", 0.0)),
+        "baseline_robust_cost": float(record.get("baseline_robust_cost", result.get("upper_bound", 0.0))),
+        "cost_budget": float(record.get("cost_budget", 0.0)),
+        "actual_robust_cost": float(post.get("actual_robust_cost", zeros)),
+        "actual_price_of_fairness": float(post.get("actual_price_of_fairness", zeros)),
+        "objective_t": float(result.get("objective_t", zeros)),
+        "robust_minimum_fill_rate": float(result.get("robust_minimum_fill_rate", zeros)),
+        "wminfr": float(post.get("wminfr", zeros)),
+        "minimum_weighted_mean_fill_rate": float(post.get("minimum_weighted_mean_fill_rate", zeros)),
+        "inventory": float(sum(float(value) for value in result.get("x_values", {}).values())) if frontier else zeros,
+        "opened_warehouses": int(sum(float(value) >= 0.5 for value in result.get("y_values", {}).values())) if frontier else 0,
+        "iterations": int(result.get("iterations", len(result.get("iteration_log", [])))) if frontier else 0,
+        "scenario_block_count": int(result.get("metadata", {}).get("committed_scenario_count", 0)) if frontier else 0,
+        "certified_farkas_cut_count": int(result.get("cuts", 0)) if frontier else 0,
+    })
+    return row
+
+
+def aggregate_output(output: Path, rows: list[dict[str, Any]], *, require_complete: bool = False) -> list[dict[str, Any]]:
+    result_rows: list[dict[str, Any]] = []
+    for planned in rows:
+        record = read_json_strict(output / "runs" / planned["run_directory_id"] / "run.json")
+        if record is not None:
+            result_rows.append(_result_projection(record))
+    keys = [str(row["run_key"]) for row in result_rows]
+    if len(keys) != len(set(keys)):
+        raise ProtocolGateError("duplicate results CSV run key")
+    expected = {row["run_key"] for row in rows}
+    if not set(keys).issubset(expected) or (require_complete and set(keys) != expected):
+        raise ProtocolGateError("results CSV does not exactly match the frozen run plan")
+    write_results(output / "results.csv", result_rows)
+    write_summary(output / "summary.csv", result_rows)
+    return result_rows
+
+
+def _baseline_checkpoint(identity: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    return {"schema": "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v1", "identity": identity, "result": result}
+
+
+def _load_baseline_checkpoint(path: Path, identity: dict[str, Any]) -> dict[str, Any] | None:
+    value = read_json_strict(path)
+    if value is None:
+        return None
+    if value.get("schema") != "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v1" or value.get("identity") != identity:
+        raise ProtocolGateError("baseline checkpoint identity mismatch")
+    if not isinstance(value.get("result"), dict):
+        raise ProtocolGateError("baseline checkpoint result missing")
+    return value["result"]
+
+
+def _run_scale(
+    config_path: Path, config: dict[str, Any], scale: str, rows: list[dict[str, Any]], deps: GammaDependencies,
+    git_commit_value: str, *, failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    root = Path(__file__).resolve().parents[1]
+    output = root / SCALES[scale]["output_dir"]
+    expected_manifest = manifest_payload(config_path, scale, git_commit_value=git_commit_value)
+    manifest_path = output / "manifest.json"
+    existing = read_json_strict(manifest_path)
+    if output.exists() and existing is None:
+        raise ProtocolGateError(f"existing {scale} output lacks a valid manifest")
+    if existing is not None:
+        for key in ("schema", "identity", "run_key_to_directory_id", "directory_id_to_run_key"):
+            if existing.get(key) != expected_manifest[key]:
+                raise ProtocolGateError(f"strict resume {scale} manifest identity mismatch")
+        resolved = output / "resolved_config.yaml"
+        if not resolved.exists() or load_config(resolved) != config:
+            raise ProtocolGateError(f"strict resume {scale} resolved config mismatch")
+        manifest = existing
+    else:
+        output.mkdir(parents=True, exist_ok=False)
+        atomic_write_yaml(output / "resolved_config.yaml", config)
+        manifest = expected_manifest
+        atomic_write_json(manifest_path, manifest)
+    audit_identity = {
+        "schema": "fairness_hybrid_gamma_sensitivity_audit_log_v1",
+        "identity": expected_manifest["identity"],
+        "formal_worktree_root": str(root),
+        "solver_limit_envelopes_are_not_wall_time_predictions": True,
+    }
+    existing_audit = read_json_strict(output / "audit.log")
+    if existing_audit is not None and existing_audit.get("identity") != audit_identity["identity"]:
+        raise ProtocolGateError(f"strict resume {scale} audit log identity mismatch")
+    atomic_write_json(output / "audit.log", existing_audit or audit_identity)
+
+    completed: dict[str, dict[str, Any]] = {}
+    for seed in SEEDS:
+        for gamma in GAMMAS:
+            cell = [row for row in rows if row["seed"] == seed and row["gamma"] == gamma]
+            baseline_row = next(row for row in cell if row["task_type"] == "baseline")
+            frontier_row = next(row for row in cell if row["task_type"] == "frontier")
+            scale_config = _scale_config(config, scale, gamma)
+            instance_path = output / "instances" / f"s{seed}_g{gamma}.json"
+            stored_archive = read_json_strict(instance_path)
+            frozen_instance_identity = {
+                "stage": STAGE, "scale": scale, "seed": seed, "gamma": gamma,
+                "execution_attempt": EXECUTION_ATTEMPT, "git_commit": git_commit_value,
+                "config_file_sha256": file_sha256(config_path).upper(),
+                "protocol_sha256": EXPECTED_PROTOCOL_SHA256,
+            }
+            if stored_archive is None:
+                instance = deps.generate_instance(scale_config, seed)
+                serialized = deps.serialize_instance(instance)
+                if not isinstance(serialized, dict):
+                    raise ProtocolGateError("instance serializer returned invalid payload")
+                instance_data_sha = sha256_value(serialized)
+                instance_identity = {**frozen_instance_identity, "instance_data_sha256": instance_data_sha}
+                atomic_write_json(instance_path, {"identity": instance_identity, "instance": serialized})
+            else:
+                serialized = stored_archive.get("instance")
+                stored_identity = stored_archive.get("identity")
+                if not isinstance(serialized, dict) or not isinstance(stored_identity, dict):
+                    raise ProtocolGateError("Gamma-specific instance archive is corrupt")
+                instance_data_sha = sha256_value(serialized)
+                expected_instance_identity = {**frozen_instance_identity, "instance_data_sha256": instance_data_sha}
+                if stored_identity != expected_instance_identity:
+                    raise ProtocolGateError("Gamma-specific instance identity mismatch")
+                instance = deps.deserialize_instance(serialized)
+                instance_identity = stored_identity
+            instance_sha = instance_data_sha
+            instance_identity_sha = sha256_value(instance_identity)
+            baseline_identity = run_identity(baseline_row, config_path, git_commit_value=git_commit_value)
+            baseline_identity.update({"instance_sha256": instance_sha, "instance_identity_sha256": instance_identity_sha})
+            baseline_root = output / "runs" / baseline_row["run_directory_id"]
+            baseline_record = read_json_strict(baseline_root / "run.json")
+            validate_status_file(baseline_root / "status.json", baseline_identity, baseline_record)
+            if baseline_record is None:
+                checkpoint_path = baseline_root / "baseline_checkpoint.json"
+                payload = _load_baseline_checkpoint(checkpoint_path, baseline_identity)
+                if payload is None:
+                    write_run_status(baseline_root / "status.json", baseline_identity, state="running", scientific_status="pending")
+                    payload = deps.solve_baseline(scale_config, instance, seed, deepcopy(SOLVER_PARAMETERS))
+                    atomic_write_json(checkpoint_path, _baseline_checkpoint(baseline_identity, payload))
+                    if failure_injector:
+                        failure_injector("after_baseline_checkpoint", deepcopy(baseline_row))
+                solved = (
+                    payload.get("status") == "optimal" and payload.get("valid_UB") is True
+                    and math.isfinite(float(payload.get("upper_bound", math.nan)))
+                    and math.isfinite(float(payload.get("gap", math.nan))) and float(payload["gap"]) <= float(config["tol"])
+                )
+                runtime = float(payload.get("runtime", 0.0))
+                payload.update({
+                    "algorithm_runtime": runtime, "post_evaluation_wall_runtime": 0.0,
+                    "total_wall_runtime": runtime,
+                    "penalized_runtime_par2": par2("certified_robust_optimal" if solved else "robust_uncertified", runtime),
+                })
+                baseline_record = {
+                    **baseline_identity, "candidate": "baseline", "state": "complete",
+                    "algorithm_status": payload.get("status"),
+                    "scientific_status": "certified_robust_optimal" if solved else "robust_uncertified",
+                    "solved_to_tolerance": solved, "result": payload,
+                }
+                atomic_write_json(baseline_root / "run.json", baseline_record)
+                write_run_status(baseline_root / "status.json", baseline_identity, state="complete", scientific_status=baseline_record["scientific_status"])
+            else:
+                validate_run_record(baseline_record, baseline_identity)
+            completed[baseline_row["run_key"]] = baseline_record
+            common = {
+                "instance_sha256": instance_sha, "seed": seed, "gamma": gamma, "scale": scale,
+                "stage": STAGE, "execution_attempt": EXECUTION_ATTEMPT, "git_commit": git_commit_value,
+                "config_file_sha256": file_sha256(config_path).upper(),
+                "resolved_config_file_sha256": file_sha256(config_path).upper(),
+                "protocol_sha256": EXPECTED_PROTOCOL_SHA256, "candidate_sha256": CANDIDATE_SHA256,
+                "baseline_run_key": baseline_row["run_key"],
+            }
+            anchor = deps.make_anchor(baseline_record, common_identity=common, tolerance=float(config["tol"]))
+            manifest["instance_identities"][f"s{seed}_g{gamma}"] = {
+                **instance_identity, "instance_identity_sha256": instance_identity_sha,
+            }
+            manifest["baseline_anchors"][f"s{seed}_g{gamma}"] = anchor
+
+            frontier_identity = bind_data_identities(
+                run_identity(frontier_row, config_path, git_commit_value=git_commit_value),
+                instance_sha256=instance_sha, baseline=baseline_record, anchor=anchor,
+            )
+            frontier_identity.update({
+                "instance_identity_sha256": instance_identity_sha,
+                "post_evaluation_pipeline_generation": int(config["post_evaluation"]["pipeline_generation"]),
+                "run_execution_attempt": EXECUTION_ATTEMPT,
+            })
+            manifest["run_identities"][frontier_row["run_key"]] = frontier_identity
+            atomic_write_json(manifest_path, manifest)
+            frontier_root = output / "runs" / frontier_row["run_directory_id"]
+            frontier_record = read_json_strict(frontier_root / "run.json")
+            validate_status_file(frontier_root / "status.json", frontier_identity, frontier_record)
+            if frontier_record is not None:
+                validate_run_record(frontier_record, frontier_identity)
+                completed[frontier_row["run_key"]] = frontier_record
+                continue
+            write_run_status(frontier_root / "status.json", frontier_identity, state="running", scientific_status="pending")
+            started = time.perf_counter()
+            result = deps.solve_frontier(
+                scale_config, instance, baseline_record, anchor, common,
+                frontier_root / "algorithm_checkpoint.json", deepcopy(SOLVER_PARAMETERS), frontier_row,
+            )
+            algorithm_runtime = float(result.get("runtime", time.perf_counter() - started))
+            log = result.get("iteration_log")
+            final = log[-1] if isinstance(log, list) and log else {}
+            algorithm_certified = (
+                result.get("status") == "optimal" and result.get("metadata", {}).get("robust_feasibility_certified") is True
+                and final.get("final_exact_separation_performed") is True
+            )
+            evaluation = None
+            timing = {"post_evaluation_wall_runtime": 0.0, "aggregation_runtime": 0.0, "checkpoint_io_runtime": 0.0}
+            if algorithm_certified:
+                evaluation, timing = deps.post_evaluate(
+                    scale_config, instance, result, anchor, frontier_identity, frontier_root / "post_evaluation", frontier_row,
+                )
+            scientific = _frontier_status(result, evaluation, scenario_count(scale, gamma), float(config["tol"]))
+            result.update(timing)
+            result.update({
+                "post_evaluation": evaluation, "algorithm_runtime": algorithm_runtime,
+                "post_evaluation_wall_runtime": float(timing.get("post_evaluation_wall_runtime", 0.0)),
+                "total_wall_runtime": algorithm_runtime + float(timing.get("post_evaluation_wall_runtime", 0.0))
+                    + float(timing.get("aggregation_runtime", 0.0)) + float(timing.get("checkpoint_io_runtime", 0.0)),
+                "penalized_runtime_par2": par2(scientific, algorithm_runtime),
+            })
+            frontier_record = {
+                **frontier_identity, "candidate": CANDIDATE, "state": "complete",
+                "algorithm_status": result.get("status"), "scientific_status": scientific,
+                "solved_to_tolerance": scientific == "certified_robust_optimal",
+                "baseline_robust_cost": float(anchor["value"]),
+                "cost_budget": (1.0 + RHO) * float(anchor["value"]), "result": result,
+            }
+            atomic_write_json(frontier_root / "run.json", frontier_record)
+            write_run_status(frontier_root / "status.json", frontier_identity, state="complete", scientific_status=scientific)
+            completed[frontier_row["run_key"]] = frontier_record
+            aggregate_output(output, rows)
+            if scientific == "invalid_post_evaluation":
+                raise ProtocolGateError("Gamma sensitivity stopped fail closed: invalid post-evaluation")
+
+    aggregate_output(output, rows, require_complete=True)
+    manifest.update({
+        "completed_run_count": len(completed),
+        "baseline_certified_count": sum(r["task_type"] == "baseline" and r["scientific_status"] == "certified_robust_optimal" for r in completed.values()),
+        "frontier_certified_count": sum(r["task_type"] == "frontier" and r["scientific_status"] == "certified_robust_optimal" for r in completed.values()),
+    })
+    atomic_write_json(manifest_path, manifest)
+    atomic_write_json(output / "audit.log", {
+        **audit_identity, "completed_run_count": manifest["completed_run_count"],
+        "baseline_certified_count": manifest["baseline_certified_count"],
+        "frontier_certified_count": manifest["frontier_certified_count"],
+    })
+    return manifest
+
+
+def run_sensitivity(
+    config_path: str | Path, *, resume: bool, authorization_file: str | Path | None = None,
+    dependencies: GammaDependencies | None = None, test_authorization: bool = False,
+    failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     if not resume:
         raise ProtocolGateError("GAMMA_SENSITIVITY requires strict --resume; --overwrite is unsupported")
-    config = load_config(config_path)
-    validate_config(config_path, config)
-    if config["formal_run_authorized"] is not True:
-        raise ProtocolGateError("formal_run_not_authorized: only pre-run audit is authorized")
-    raise ProtocolGateError("formal_run_not_authorized: production execution requires a separate reviewed authorization")
+    path = Path(config_path)
+    config = load_config(path)
+    validate_config(path, config)
+    if dependencies is not None and not test_authorization:
+        raise ProtocolGateError("dependency substitution requires test_authorization")
+    root = Path(__file__).resolve().parents[1]
+    if test_authorization:
+        git_commit_value = "T" * 40
+    else:
+        if authorization_file is None:
+            raise ProtocolGateError("formal_run_not_authorized: reviewed authorization file is required")
+        git_commit_value = formal_git_gate(root)
+        validate_authorization(authorization_file, path, root)
+        pre_run_seed_gate(root)
+        if root.resolve() != Path(config["formal_worktree_root"]).resolve():
+            raise ProtocolGateError("formal_run_not_authorized: formal worktree root identity mismatch")
+    rows = expand_plan()
+    paths = _planned_paths(root, rows, config)
+    maximum = max(len(str(value)) for _, value in paths)
+    if maximum > 220:
+        raise ProtocolGateError(f"Windows path portability limit exceeded: {maximum}")
+    for scale in SCALES:
+        output = root / SCALES[scale]["output_dir"]
+        manifest = read_json_strict(output / "manifest.json")
+        if output.exists() and manifest is None:
+            raise ProtocolGateError(f"existing {scale} output lacks a valid manifest")
+        if manifest is not None:
+            expected = manifest_payload(path, scale, git_commit_value=git_commit_value)
+            for key in ("schema", "identity", "run_key_to_directory_id", "directory_id_to_run_key"):
+                if manifest.get(key) != expected[key]:
+                    raise ProtocolGateError(f"strict resume {scale} manifest identity mismatch")
+            resolved = output / "resolved_config.yaml"
+            if not resolved.exists() or load_config(resolved) != config:
+                raise ProtocolGateError(f"strict resume {scale} resolved config mismatch")
+    deps = dependencies or production_dependencies()
+    deps.configure_solver(deepcopy(SOLVER_PARAMETERS))
+    manifests = {}
+    for scale in SCALES:
+        manifests[scale] = _run_scale(
+            path, config, scale, [row for row in rows if row["scale"] == scale], deps,
+            git_commit_value, failure_injector=failure_injector,
+        )
+    return {
+        "stage": STAGE, "completed_run_count": sum(m["completed_run_count"] for m in manifests.values()),
+        "baseline_certified_count": sum(m["baseline_certified_count"] for m in manifests.values()),
+        "frontier_certified_count": sum(m["frontier_certified_count"] for m in manifests.values()),
+        "manifests": manifests,
+    }
+
+
+def formal_run(config_path: str | Path, *, resume: bool, authorization_file: str | Path | None = None) -> dict[str, Any]:
+    return run_sensitivity(config_path, resume=resume, authorization_file=authorization_file)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -639,13 +1200,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--stage", required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--authorization-file", type=Path)
     args = parser.parse_args(argv)
     if args.stage != STAGE:
         raise ProtocolGateError("only GAMMA_SENSITIVITY is accepted by this runner")
     if args.dry_run:
         print(json.dumps(dry_run(args.config), indent=2, sort_keys=True))
         return 0
-    formal_run(args.config, resume=args.resume)
+    print(json.dumps(formal_run(args.config, resume=args.resume, authorization_file=args.authorization_file), indent=2, sort_keys=True))
     return 0
 
 

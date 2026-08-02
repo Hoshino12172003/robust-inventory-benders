@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 import subprocess
 
@@ -47,6 +48,19 @@ def test_gamma_specific_baseline_and_anchor_pairing() -> None:
     assert len(baseline_keys) == 30
 
 
+@pytest.mark.parametrize("scale", ["medium_large", "large"])
+@pytest.mark.parametrize("gamma", [0, 1, 2])
+def test_baseline_solver_template_is_gamma_specific(scale: str, gamma: int) -> None:
+    config = runner._scale_config(runner.load_config(CONFIG), scale, gamma)
+    resolved = runner.gamma_baseline_template({"gamma_target": 99, "gamma_schedule": [99]}, config)
+    assert resolved["gamma_target"] == gamma
+    assert resolved["gamma_schedule"] == [gamma]
+    assert resolved["gamma_continuation_enabled"] is False
+    assert resolved["exact_scenarios"] is True
+    assert resolved["max_scenarios"] == runner.scenario_count(scale, gamma)
+    assert resolved["baseline_time_limit"] == resolved["time_limit"] == 1800.0
+
+
 @pytest.mark.parametrize(
     ("scale", "expected"),
     [("medium_large", [1, 61, 1831]), ("large", [1, 97, 4657])],
@@ -87,6 +101,19 @@ def test_config_gate_rejects_seed_gamma_rho_scale_and_authorization_drift(
 def test_dry_run_has_zero_side_effect_and_exact_envelopes() -> None:
     outputs = [ROOT / item["output_dir"] for item in runner.SCALES.values()]
     assert not any(path.exists() for path in outputs)
+
+
+def test_path_plan_covers_every_persistent_and_atomic_artifact() -> None:
+    config = runner.load_config(CONFIG)
+    outputs = [ROOT / item["output_dir"] for item in runner.SCALES.values()]
+    paths = runner._planned_paths(ROOT, runner.expand_plan(), config)
+    kinds = {kind for kind, _path in paths}
+    assert len(paths) >= 560
+    assert {
+        "medium_large_manifest_tmp", "large_results_tmp", "baseline_checkpoint",
+        "baseline_checkpoint_tmp", "algorithm_checkpoint_tmp", "post_final_tmp",
+        "post_index_tmp", "post_chunk", "post_chunk_tmp", "instance_tmp",
+    }.issubset(kinds)
     report = runner.dry_run(CONFIG)
     assert report["scales"] == ["medium_large", "large"]
     assert report["seeds"] == [180, 181, 182, 183, 184]
@@ -183,6 +210,8 @@ def test_atomic_manifest_status_and_checkpoint_writes(tmp_path: Path) -> None:
     runner.write_algorithm_checkpoint(tmp_path / "algorithm_checkpoint.json", checkpoint, identity)
     runner.write_run_status(tmp_path / "status.json", identity, state="running", scientific_status="pending")
     assert not any(path.name.endswith(".tmp") for path in tmp_path.iterdir())
+    with pytest.raises(runner.ProtocolGateError, match="identity or state"):
+        runner.validate_status_file(tmp_path / "status.json", {"run_key": "drift", "gamma": 1}, None)
 
 
 def test_post_evaluation_chunk_resume_checks_order_count_identity_and_sha(tmp_path: Path) -> None:
@@ -289,7 +318,7 @@ def test_formal_entrypoint_fails_before_outputs_or_solver() -> None:
     assert not any(path.exists() for path in outputs)
     with pytest.raises(runner.ProtocolGateError, match="strict --resume"):
         runner.formal_run(CONFIG, resume=False)
-    with pytest.raises(runner.ProtocolGateError, match="only pre-run audit"):
+    with pytest.raises(runner.ProtocolGateError, match="reviewed authorization file"):
         runner.formal_run(CONFIG, resume=True)
     assert not any(path.exists() for path in outputs)
 
@@ -320,6 +349,146 @@ def test_seed_access_audit_distinguishes_registration_and_actual_access(tmp_path
     report = audit.audit_repository_seed_access(tmp_path)
     assert report["audit_passed"] is False
     assert report["generated_instance_evidence"]
+
+
+def test_seed_access_audit_detects_nonstructured_paths_and_zip_members(tmp_path: Path) -> None:
+    import zipfile
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    artifact = tmp_path / "experiments/results/run_seed-181.bin"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"opaque")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    report = audit.audit_repository_seed_access(tmp_path)
+    assert report["audit_passed"] is False
+    assert any(item["location"] == "path" for item in report["solved_run_evidence"])
+    archive = tmp_path / "evidence.zip"
+    with zipfile.ZipFile(archive, "w") as target:
+        target.writestr("runs/s182_g1/checkpoint.bin", b"opaque")
+    zip_report = audit.audit_zip_seed_access(archive)
+    assert zip_report["audit_passed"] is False
+    assert zip_report["target_seed_records"][0]["location"] == "path"
+
+
+def _fake_dependencies(calls: dict[str, int]) -> runner.GammaDependencies:
+    def generate(config: dict[str, object], seed: int) -> dict[str, object]:
+        calls["generate"] += 1
+        return {"seed": seed, "gamma": config["gamma_value"], "scale": config["scale"]}
+
+    def baseline(config: dict[str, object], instance: object, seed: int, solver: dict[str, object]) -> dict[str, object]:
+        calls["baseline"] += 1
+        return {"status": "optimal", "valid_UB": True, "upper_bound": 100.0 + int(config["gamma_value"]), "gap": 0.0, "runtime": 1.0}
+
+    def anchor(record: dict[str, object], *, common_identity: dict[str, object], tolerance: float) -> dict[str, object]:
+        value = float(record["result"]["upper_bound"])
+        payload = {**common_identity, "baseline_run_key": record["run_key"], "value": value, "value_hex": value.hex()}
+        return {**payload, "anchor_sha256": runner.sha256_value(payload), "anchor_value_hex": value.hex()}
+
+    def frontier(
+        config: dict[str, object], instance: object, baseline_record: dict[str, object], anchor_value: dict[str, object],
+        common: dict[str, object], checkpoint: Path, solver: dict[str, object], row: dict[str, object],
+    ) -> dict[str, object]:
+        calls["frontier"] += 1
+        atomic_write_json(checkpoint, runner.algorithm_checkpoint({"run_key": row["run_key"]}, []))
+        gamma = int(row["gamma"])
+        return {
+            "status": "optimal", "gap": 0.0, "lower_bound": 100.0, "upper_bound": 100.0,
+            "runtime": 2.0, "objective_t": 0.2 + gamma * 0.01,
+            "robust_minimum_fill_rate": 0.8 - gamma * 0.01,
+            "x_values": {"x": 10.0 + gamma}, "y_values": {"y": 1.0}, "iterations": 1, "cuts": gamma,
+            "metadata": {"robust_feasibility_certified": True, "full_separation_objective_bound_required": True, "committed_scenario_count": gamma + 1},
+            "iteration_log": [{"final_exact_separation_performed": True, "robust_feasibility_certified": True, "master_status": "optimal", "separation_objective_bound": -0.0}],
+        }
+
+    def post(
+        config: dict[str, object], instance: object, result: dict[str, object], anchor_value: dict[str, object],
+        identity: dict[str, object], post_root: Path, row: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, float]]:
+        calls["post"] += 1
+        count = runner.scenario_count(str(row["scale"]), int(row["gamma"]))
+        atomic_write_json(post_root / "final.json", {"run_key": row["run_key"], "scenario_count": count, "valid": True})
+        return ({
+            "valid": True, "errors": [], "objective_t_consistent": True, "scenario_count": count,
+            "actual_robust_cost": float(anchor_value["value"]), "actual_price_of_fairness": 0.0,
+            "wminfr": float(result["robust_minimum_fill_rate"]), "minimum_weighted_mean_fill_rate": 0.9,
+        }, {"post_evaluation_solver_runtime": 0.2, "post_evaluation_wall_runtime": 0.3, "aggregation_runtime": 0.1, "checkpoint_io_runtime": 0.05})
+
+    def configure(settings: dict[str, object]) -> None:
+        calls["configure"] += 1
+        assert settings == runner.SOLVER_PARAMETERS
+
+    return runner.GammaDependencies(generate, lambda value: value, lambda value: value, baseline, anchor, frontier, post, configure)
+
+
+def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
+    scales = deepcopy(runner.SCALES)
+    for scale in scales:
+        scales[scale]["output_dir"] = str(tmp_path / scale)
+    monkeypatch.setattr(runner, "SCALES", scales)
+    monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
+    deps = _fake_dependencies(calls)
+    report = runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True)
+    assert report["completed_run_count"] == 60
+    assert report["baseline_certified_count"] == report["frontier_certified_count"] == 30
+    assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 1}
+    for scale in scales:
+        output = Path(scales[scale]["output_dir"])
+        results = list(__import__("csv").DictReader((output / "results.csv").open(encoding="utf-8")))
+        assert len(results) == 30 and len({row["run_key"] for row in results}) == 30
+        assert len(list((output / "instances").glob("*.json"))) == 15
+    runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True)
+    assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 2}
+
+
+def test_baseline_checkpoint_failure_resumes_without_repeating_solve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
+    scales = deepcopy(runner.SCALES)
+    for scale in scales:
+        scales[scale]["output_dir"] = str(tmp_path / scale)
+    monkeypatch.setattr(runner, "SCALES", scales)
+    monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
+    injected = {"done": False}
+    def fail_once(point: str, row: dict[str, object]) -> None:
+        if not injected["done"]:
+            injected["done"] = True
+            raise KeyboardInterrupt
+    deps = _fake_dependencies(calls)
+    with pytest.raises(KeyboardInterrupt):
+        runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True, failure_injector=fail_once)
+    assert calls["baseline"] == 1 and calls["frontier"] == 0
+    runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True)
+    assert calls["baseline"] == 30 and calls["frontier"] == 30
+
+
+def test_corrupt_existing_output_fails_before_solver_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
+    scales = deepcopy(runner.SCALES)
+    for scale in scales:
+        scales[scale]["output_dir"] = str(tmp_path / scale)
+    monkeypatch.setattr(runner, "SCALES", scales)
+    monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
+    output = Path(scales["medium_large"]["output_dir"])
+    atomic_write_json(output / "manifest.json", {"schema": "drift"})
+    with pytest.raises(runner.ProtocolGateError, match="manifest identity mismatch"):
+        runner.run_sensitivity(
+            CONFIG, resume=True, dependencies=_fake_dependencies(calls), test_authorization=True,
+        )
+    assert calls == {"generate": 0, "baseline": 0, "frontier": 0, "post": 0, "configure": 0}
+
+
+def test_results_writer_rejects_duplicate_run_keys(tmp_path: Path) -> None:
+    row = _valid_result_row()
+    with pytest.raises(runner.ProtocolGateError, match="duplicate"):
+        runner.write_results(tmp_path / "results.csv", [row, dict(row)])
+    with pytest.raises(runner.ProtocolGateError, match="run-key directory"):
+        runner.write_results(tmp_path / "results.csv", [{**row, "run_directory_id": "r_bad"}])
 
 
 def test_protocol_and_config_hashes_are_frozen() -> None:
