@@ -1,0 +1,28 @@
+{
+  "immutability_rule": "Any change to one of these four identities creates a new, non-final analysis and must not silently replace this freeze.",
+  "merge_commit": "13493ba63006604443f54f61799842dc2a3fbac9",
+  "merged_at": "2026-07-30T02:58:06Z",
+  "paper_metrics": {
+    "path": "analysis/fairness_hybrid_final_holdout_reconciliation/paper_metrics.json",
+    "sha256": "044689ABF1ADD1C1FC217FCB5F46B8D280D8659865EE3A3707EBB9FE792F2E37"
+  },
+  "pr": "https://github.com/Hoshino12172003/robust-inventory-benders/pull/51",
+  "results_corrected": {
+    "path": "analysis/fairness_hybrid_final_holdout_reconciliation/results.corrected.csv",
+    "sha256": "50EB5823F4C7138E65FA36546B90EE081B48949D2F961F5AFDFAE098A7F0A496"
+  },
+  "scientific_decision": {
+    "certified_runs": "120/120",
+    "decision": "approve_final_holdout_after_reporting_reconciliation",
+    "exact_frontier_certificates": "100/100",
+    "formal_results_modified": false,
+    "gurobi_called": false,
+    "optimization_rerun_required": false,
+    "post_evaluation_chunks": "13050/13050",
+    "scientific_solution_valid": true,
+    "source_archive_modified": false
+  },
+  "scope": "Hybrid FINAL_HOLDOUT only; D1/D2 excluded",
+  "source_zip_sha256": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "status": "frozen_unique_final_paper_authority"
+}
