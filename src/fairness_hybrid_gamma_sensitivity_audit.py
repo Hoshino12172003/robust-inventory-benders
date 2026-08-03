@@ -233,6 +233,18 @@ def static_audit(root: Path, archive: Path | None = None) -> dict[str, Any]:
     dry = dry_run(config_path)
     seed = audit_repository_seed_access(root)
     zip_report = audit_zip_seed_access(archive) if archive is not None and archive.exists() else None
+    ignore_lines = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    ignored_outputs = [
+        subprocess.run(["git", "-C", str(root), "check-ignore", "-q", path], check=False)
+        for path in (
+            "experiments/results_fh_gamma/ml_a1/manifest.json",
+            "experiments/results_fh_gamma/lg_a1/manifest.json",
+        )
+    ]
+    unrelated_output = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-q", "experiments/results_fh_gamma_other/manifest.json"],
+        check=False,
+    )
     checks = {
         "base_commit_frozen": config["base_commit"] == BASE_COMMIT,
         "config_sha_frozen": EXPECTED_CONFIG_SHA256 != "TO_BE_FROZEN" and file_sha256(config_path).upper() == EXPECTED_CONFIG_SHA256,
@@ -248,6 +260,11 @@ def static_audit(root: Path, archive: Path | None = None) -> dict[str, Any]:
         "zip_access_clear": zip_report is None or zip_report["audit_passed"] is True,
         "formal_run_forbidden": config["formal_run_authorized"] is False,
         "no_overwrite": config["overwrite_supported"] is False,
+        "formal_output_ignore_exact": (
+            ignore_lines.count("/experiments/results_fh_gamma/") == 1
+            and all(result.returncode == 0 for result in ignored_outputs)
+            and unrelated_output.returncode == 1
+        ),
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:

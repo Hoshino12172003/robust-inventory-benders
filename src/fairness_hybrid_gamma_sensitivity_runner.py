@@ -1136,6 +1136,7 @@ def _run_scale(
 def run_sensitivity(
     config_path: str | Path, *, resume: bool, authorization_file: str | Path | None = None,
     dependencies: GammaDependencies | None = None, test_authorization: bool = False,
+    test_git_root: Path | None = None,
     failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     if not resume:
@@ -1145,9 +1146,11 @@ def run_sensitivity(
     validate_config(path, config)
     if dependencies is not None and not test_authorization:
         raise ProtocolGateError("dependency substitution requires test_authorization")
+    if test_git_root is not None and not test_authorization:
+        raise ProtocolGateError("test Git root requires test_authorization")
     root = Path(__file__).resolve().parents[1]
     if test_authorization:
-        git_commit_value = "T" * 40
+        git_commit_value = formal_git_gate(test_git_root) if test_git_root is not None else "T" * 40
     else:
         if authorization_file is None:
             raise ProtocolGateError("formal_run_not_authorized: reviewed authorization file is required")

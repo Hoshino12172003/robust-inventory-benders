@@ -17,6 +17,23 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "experiments/configs/fairness_hybrid_gamma_sensitivity.yaml"
 
 
+def _detached_git_repo(path: Path) -> Path:
+    path.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(path)], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.email", "gamma-review@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.name", "Gamma Review"], check=True)
+    (path / ".gitignore").write_text("/experiments/results_fh_gamma/\n", encoding="utf-8")
+    (path / "tracked.txt").write_text("clean\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(path), "add", ".gitignore", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(path), "commit", "-q", "-m", "fixture"], check=True)
+    head = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "HEAD"], check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "-C", str(path), "update-ref", "refs/remotes/origin/main", head], check=True)
+    subprocess.run(["git", "-C", str(path), "switch", "--detach", "-q", head], check=True)
+    return path
+
+
 def test_exact_plan_has_sixty_unique_scientific_identities() -> None:
     plan = runner.expand_plan()
     assert len(plan) == 60
@@ -423,14 +440,17 @@ def _fake_dependencies(calls: dict[str, int]) -> runner.GammaDependencies:
 def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    git_root = _detached_git_repo(tmp_path / "g")
     calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
     scales = deepcopy(runner.SCALES)
-    for scale in scales:
-        scales[scale]["output_dir"] = str(tmp_path / scale)
+    for scale, short in (("medium_large", "m"), ("large", "l")):
+        scales[scale]["output_dir"] = str(git_root / "experiments/results_fh_gamma" / short)
     monkeypatch.setattr(runner, "SCALES", scales)
     monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
     deps = _fake_dependencies(calls)
-    report = runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True)
+    report = runner.run_sensitivity(
+        CONFIG, resume=True, dependencies=deps, test_authorization=True, test_git_root=git_root,
+    )
     assert report["completed_run_count"] == 60
     assert report["baseline_certified_count"] == report["frontier_certified_count"] == 30
     assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 1}
@@ -439,17 +459,53 @@ def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
         results = list(__import__("csv").DictReader((output / "results.csv").open(encoding="utf-8")))
         assert len(results) == 30 and len({row["run_key"] for row in results}) == 30
         assert len(list((output / "instances").glob("*.json"))) == 15
-    runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True)
+    status = subprocess.run(
+        ["git", "-C", str(git_root), "status", "--porcelain", "--untracked-files=all"],
+        check=True, capture_output=True, text=True,
+    )
+    assert status.stdout == ""
+    runner.run_sensitivity(
+        CONFIG, resume=True, dependencies=deps, test_authorization=True, test_git_root=git_root,
+    )
     assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 2}
+
+
+def test_real_git_gate_ignores_only_frozen_output_root_and_rejects_other_dirt(tmp_path: Path) -> None:
+    git_root = _detached_git_repo(tmp_path / "g")
+    runner.formal_git_gate(git_root)
+    ignored = git_root / "experiments/results_fh_gamma/ml_a1/manifest.json"
+    ignored.parent.mkdir(parents=True)
+    ignored.write_text("{}\n", encoding="utf-8")
+    check = subprocess.run(
+        ["git", "-C", str(git_root), "check-ignore", "-v", str(ignored)],
+        check=True, capture_output=True, text=True,
+    )
+    assert "/experiments/results_fh_gamma/" in check.stdout
+    runner.formal_git_gate(git_root)
+    unrelated = git_root / "unrelated.tmp"
+    unrelated.write_text("not allowed\n", encoding="utf-8")
+    with pytest.raises(runner.ProtocolGateError, match="worktree is not clean"):
+        runner.formal_git_gate(git_root)
+    unrelated.unlink()
+    (git_root / "tracked.txt").write_text("modified\n", encoding="utf-8")
+    with pytest.raises(runner.ProtocolGateError, match="worktree is not clean"):
+        runner.formal_git_gate(git_root)
+
+
+def test_repository_ignore_rule_is_exact() -> None:
+    lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert lines.count("/experiments/results_fh_gamma/") == 1
+    assert "experiments/results_fh_gamma*" not in lines
 
 
 def test_baseline_checkpoint_failure_resumes_without_repeating_solve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    git_root = _detached_git_repo(tmp_path / "g")
     calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
     scales = deepcopy(runner.SCALES)
-    for scale in scales:
-        scales[scale]["output_dir"] = str(tmp_path / scale)
+    for scale, short in (("medium_large", "m"), ("large", "l")):
+        scales[scale]["output_dir"] = str(git_root / "experiments/results_fh_gamma" / short)
     monkeypatch.setattr(runner, "SCALES", scales)
     monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
     injected = {"done": False}
@@ -459,19 +515,37 @@ def test_baseline_checkpoint_failure_resumes_without_repeating_solve(
             raise KeyboardInterrupt
     deps = _fake_dependencies(calls)
     with pytest.raises(KeyboardInterrupt):
-        runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True, failure_injector=fail_once)
+        runner.run_sensitivity(
+            CONFIG, resume=True, dependencies=deps, test_authorization=True,
+            test_git_root=git_root, failure_injector=fail_once,
+        )
     assert calls["baseline"] == 1 and calls["frontier"] == 0
-    runner.run_sensitivity(CONFIG, resume=True, dependencies=deps, test_authorization=True)
+    checkpoints = list((git_root / "experiments/results_fh_gamma").rglob("baseline_checkpoint.json"))
+    assert len(checkpoints) == 1
+    original_checkpoint = json.loads(checkpoints[0].read_text(encoding="utf-8"))
+    corrupt_checkpoint = deepcopy(original_checkpoint)
+    corrupt_checkpoint["identity"]["gamma"] = 99
+    atomic_write_json(checkpoints[0], corrupt_checkpoint)
+    with pytest.raises(runner.ProtocolGateError, match="baseline checkpoint identity mismatch"):
+        runner.run_sensitivity(
+            CONFIG, resume=True, dependencies=deps, test_authorization=True, test_git_root=git_root,
+        )
+    assert calls["baseline"] == 1 and calls["frontier"] == 0
+    atomic_write_json(checkpoints[0], original_checkpoint)
+    runner.run_sensitivity(
+        CONFIG, resume=True, dependencies=deps, test_authorization=True, test_git_root=git_root,
+    )
     assert calls["baseline"] == 30 and calls["frontier"] == 30
 
 
 def test_corrupt_existing_output_fails_before_solver_configuration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    git_root = _detached_git_repo(tmp_path / "g")
     calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
     scales = deepcopy(runner.SCALES)
-    for scale in scales:
-        scales[scale]["output_dir"] = str(tmp_path / scale)
+    for scale, short in (("medium_large", "m"), ("large", "l")):
+        scales[scale]["output_dir"] = str(git_root / "experiments/results_fh_gamma" / short)
     monkeypatch.setattr(runner, "SCALES", scales)
     monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
     output = Path(scales["medium_large"]["output_dir"])
@@ -479,6 +553,7 @@ def test_corrupt_existing_output_fails_before_solver_configuration(
     with pytest.raises(runner.ProtocolGateError, match="manifest identity mismatch"):
         runner.run_sensitivity(
             CONFIG, resume=True, dependencies=_fake_dependencies(calls), test_authorization=True,
+            test_git_root=git_root,
         )
     assert calls == {"generate": 0, "baseline": 0, "frontier": 0, "post": 0, "configure": 0}
 
