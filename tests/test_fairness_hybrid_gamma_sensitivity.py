@@ -131,7 +131,7 @@ def test_path_plan_covers_every_persistent_and_atomic_artifact() -> None:
         "baseline_checkpoint_tmp", "algorithm_checkpoint_tmp", "post_final_tmp",
         "post_index_tmp", "post_chunk", "post_chunk_tmp", "instance_tmp",
     }.issubset(kinds)
-    report = runner.dry_run(CONFIG)
+    report = runner.dry_run(CONFIG, worktree_root=Path(config["formal_worktree_root"]))
     assert report["scales"] == ["medium_large", "large"]
     assert report["seeds"] == [180, 181, 182, 183, 184]
     assert report["gamma"] == [0, 1, 2] and report["rho"] == [0.025]
@@ -142,6 +142,41 @@ def test_path_plan_covers_every_persistent_and_atomic_artifact() -> None:
     assert report["instances_generated"] is report["solver_called"] is report["output_dir_exists"] is False
     assert report["windows_path_check"] is True and report["longest_windows_path_length"] < 220
     assert not any(path.exists() for path in outputs)
+
+
+def test_dry_run_uses_the_operational_worktree_root(tmp_path: Path) -> None:
+    operational_root = Path(r"E:\rfgs2") if Path.cwd().drive else tmp_path / "rfgs2"
+    report = runner.dry_run(CONFIG, worktree_root=operational_root)
+    resolved = operational_root.resolve()
+    assert report["planned_worktree_root"] == str(resolved)
+    assert report["longest_windows_absolute_path"].startswith(str(resolved))
+    assert report["windows_path_check"] is True
+    if Path.cwd().drive:
+        assert report["longest_windows_path_length"] == 124
+
+
+def test_formal_run_does_not_treat_worktree_path_as_scientific_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class OperationalRootAccepted(RuntimeError):
+        pass
+
+    monkeypatch.setattr(runner, "formal_git_gate", lambda _root: "F" * 40)
+    monkeypatch.setattr(runner, "validate_authorization", lambda *_args: {})
+    monkeypatch.setattr(
+        runner, "pre_run_seed_gate", lambda _root: {"actual_access_evidence_count": 0},
+    )
+    monkeypatch.setattr(
+        runner, "_planned_paths", lambda *_args: [("short", Path(r"E:\rfgs2\x"))],
+    )
+    monkeypatch.setattr(
+        runner, "production_dependencies",
+        lambda: (_ for _ in ()).throw(OperationalRootAccepted()),
+    )
+    with pytest.raises(OperationalRootAccepted):
+        runner.run_sensitivity(
+            CONFIG, resume=True, authorization_file=Path("authorization.json"),
+        )
 
 
 def test_manifest_and_run_identity_bind_gamma_config_protocol_git_and_solver() -> None:
