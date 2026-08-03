@@ -1,0 +1,31 @@
+{
+  "source_root": "E:\\rfgs2\\experiments\\results_fh_gamma",
+  "medium_large_output": "ml_a2",
+  "large_output": "lg_a2",
+  "large_output_exists": false,
+  "run_json_count": 1,
+  "status_json_count": 2,
+  "completed_baseline_count": 1,
+  "completed_frontier_count": 0,
+  "running_frontier": {
+    "cell": "medium_large_s180_g0",
+    "rho": "0.025",
+    "run_json_exists": false,
+    "algorithm_checkpoint_exists": false,
+    "master_optimize_evidence": false,
+    "separation_evidence": false,
+    "final_exact_certification_exists": false,
+    "post_evaluation_exists": false
+  },
+  "sha256": {
+    "audit.log": "D40D8EB0A7C8A0BC7B05A2498B372417892F2A7B606BA0855F6BEA337DD1B58F",
+    "instances/s180_g0.json": "B31C5E1A825A70031EDAC107392A522AE2607713842991241205C4BB678C1DEF",
+    "manifest.json": "0C196944E0609F46C8A774650D2E8C1C96DB12336FEFA1DB4BB4DF03540206BB",
+    "resolved_config.yaml": "F48CC4794BC9CAB68AFB8EB973DF6D7854BA279C1F7F841572D221C013876D74",
+    "runs/r_57d2d7dfa96bec7e79551603/status.json": "61C5AF0AD6A78CD71E1EDAA035081556C7960063B9CFDF59570F36757D618DA2",
+    "runs/r_820cada96802166f37cc424c/baseline_checkpoint.json": "AFDFED6F707086A063734B07A7678C32C5BA8B254BF9213C7C9EB8D94D4EE240",
+    "runs/r_820cada96802166f37cc424c/run.json": "8938FFAC97F3FBEA9FAA1D23655FD325DFA64BCDC4E562AA14B8B38A4F624B6B",
+    "runs/r_820cada96802166f37cc424c/status.json": "3C25933A587BF620C6BC363A305CCC8236D79E26D256DEC25F0FF152D7BC04E5"
+  },
+  "audit_before_after_sha_equal": true
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+import math
 from pathlib import Path
 import subprocess
 
@@ -162,7 +163,10 @@ def test_formal_run_does_not_treat_worktree_path_as_scientific_identity(
         pass
 
     monkeypatch.setattr(runner, "formal_git_gate", lambda _root: "F" * 40)
-    monkeypatch.setattr(runner, "validate_authorization", lambda *_args: {})
+    monkeypatch.setattr(
+        runner, "validate_authorization",
+        lambda *_args: {"optimization_commit": "O" * 40, "reporting_hotfix_commit": "R" * 40},
+    )
     monkeypatch.setattr(
         runner, "pre_run_seed_gate", lambda _root: {"actual_access_evidence_count": 0},
     )
@@ -177,6 +181,41 @@ def test_formal_run_does_not_treat_worktree_path_as_scientific_identity(
         runner.run_sensitivity(
             CONFIG, resume=True, authorization_file=Path("authorization.json"),
         )
+
+
+def test_authorization_locks_reporting_only_successor_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "fairness_hybrid_gamma_sensitivity.yaml"
+    config.write_bytes(CONFIG.read_bytes())
+    authorization = json.loads(
+        (ROOT / "experiments/configs/fairness_hybrid_gamma_sensitivity_authorization.json").read_text(encoding="utf-8"),
+    )
+    authorization.update({
+        "optimization_core_commit": runner.OPTIMIZATION_CORE_COMMIT,
+        "optimization_commit": runner.REPORTING_HOTFIX_BASE_COMMIT,
+        "reporting_hotfix_base_commit": runner.REPORTING_HOTFIX_BASE_COMMIT,
+        "reporting_hotfix_commit": "a" * 40,
+        "reporting_only_changed_files": list(runner.REPORTING_ONLY_CHANGED_FILES),
+    })
+    authorization_path = tmp_path / "authorization.json"
+    atomic_write_json(authorization_path, authorization)
+
+    def accepted_git(_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        stdout = ""
+        if args[:2] == ("diff", "--name-only"):
+            if args[2] == f"{runner.REPORTING_HOTFIX_BASE_COMMIT}..{'a' * 40}":
+                stdout = "\n".join(runner.REPORTING_ONLY_CHANGED_FILES) + "\n"
+            else:
+                stdout = runner.AUTHORIZATION_RELATIVE_PATH + "\n"
+        return subprocess.CompletedProcess(args, 0, stdout, "")
+
+    monkeypatch.setattr(runner, "_git", accepted_git)
+    assert runner.validate_authorization(authorization_path, config, tmp_path)["reporting_hotfix_commit"] == "a" * 40
+    authorization["reporting_only_changed_files"] = ["src/benders.py"]
+    atomic_write_json(authorization_path, authorization)
+    with pytest.raises(runner.ProtocolGateError, match="reporting_only_changed_files"):
+        runner.validate_authorization(authorization_path, config, tmp_path)
 
 
 def test_manifest_and_run_identity_bind_gamma_config_protocol_git_and_solver() -> None:
@@ -392,6 +431,28 @@ def test_scientific_status_and_par2_use_algorithm_runtime() -> None:
     assert runner.classify_scientific_status({**certified, "final_exact_separation_objective_bound": 0.01}) == "robust_uncertified"
 
 
+def test_frontier_status_requires_complete_certificate_and_post_evaluation() -> None:
+    result = {
+        "status": "optimal", "gap": 0.0,
+        "metadata": {
+            "robust_feasibility_certified": True,
+            "full_separation_objective_bound_required": True,
+        },
+        "iteration_log": [{
+            "final_exact_separation_performed": True,
+            "robust_feasibility_certified": True,
+            "master_status": "optimal", "separation_objective_bound": -0.0,
+        }],
+    }
+    post = {"valid": True, "errors": [], "objective_t_consistent": True, "scenario_count": 61}
+    assert runner._frontier_status(result, post, 61, 1e-4) == "certified_robust_optimal"
+    drifted = deepcopy(result)
+    drifted["metadata"]["robust_feasibility_certified"] = False
+    assert runner._frontier_status(drifted, post, 61, 1e-4) == "robust_uncertified"
+    assert runner._frontier_status(result, {**post, "errors": None}, 61, 1e-4) == "invalid_post_evaluation"
+    assert runner._frontier_status(result, {**post, "objective_t_consistent": None}, 61, 1e-4) == "invalid_post_evaluation"
+
+
 def test_formal_entrypoint_fails_before_outputs_or_solver() -> None:
     outputs = [ROOT / value["output_dir"] for value in runner.SCALES.values()]
     assert not any(path.exists() for path in outputs)
@@ -452,11 +513,26 @@ def test_seed_access_audit_detects_nonstructured_paths_and_zip_members(tmp_path:
 def _fake_dependencies(calls: dict[str, int]) -> runner.GammaDependencies:
     def generate(config: dict[str, object], seed: int) -> dict[str, object]:
         calls["generate"] += 1
-        return {"seed": seed, "gamma": config["gamma_value"], "scale": config["scale"]}
+        warehouses = 2 if config["scale"] == "medium_large" else 3
+        products = 2 if config["scale"] == "medium_large" else 3
+        return {
+            "seed": seed, "gamma": config["gamma_value"], "scale": config["scale"],
+            "num_warehouses": warehouses, "num_products": products,
+        }
 
     def baseline(config: dict[str, object], instance: object, seed: int, solver: dict[str, object]) -> dict[str, object]:
         calls["baseline"] += 1
-        return {"status": "optimal", "valid_UB": True, "upper_bound": 100.0 + int(config["gamma_value"]), "gap": 0.0, "runtime": 1.0}
+        payload = dict(instance)
+        warehouses = int(payload["num_warehouses"])
+        products = int(payload["num_products"])
+        return {
+            "status": "optimal", "valid_UB": True,
+            "upper_bound": 100.0 + int(config["gamma_value"]), "gap": 0.0,
+            "runtime": 1.0, "master_runtime": 0.6, "subproblem_runtime": 0.4,
+            "iterations": 1,
+            "best_x_values": [[1.0 for _ in range(products)] for _ in range(warehouses)],
+            "best_y_values": [1.0 for _ in range(warehouses)],
+        }
 
     def anchor(record: dict[str, object], *, common_identity: dict[str, object], tolerance: float) -> dict[str, object]:
         value = float(record["result"]["upper_bound"])
@@ -470,11 +546,16 @@ def _fake_dependencies(calls: dict[str, int]) -> runner.GammaDependencies:
         calls["frontier"] += 1
         atomic_write_json(checkpoint, runner.algorithm_checkpoint({"run_key": row["run_key"]}, []))
         gamma = int(row["gamma"])
+        payload = dict(instance)
+        warehouses = int(payload["num_warehouses"])
+        products = int(payload["num_products"])
         return {
             "status": "optimal", "gap": 0.0, "lower_bound": 100.0, "upper_bound": 100.0,
             "runtime": 2.0, "objective_t": 0.2 + gamma * 0.01,
             "robust_minimum_fill_rate": 0.8 - gamma * 0.01,
-            "x_values": {"x": 10.0 + gamma}, "y_values": {"y": 1.0}, "iterations": 1, "cuts": gamma,
+            "master_runtime": 1.25, "separation_runtime": 0.75,
+            "x_values": [[10.0 + gamma for _ in range(products)] for _ in range(warehouses)],
+            "y_values": [1.0 for _ in range(warehouses)], "iterations": 1, "cuts": gamma,
             "metadata": {"robust_feasibility_certified": True, "full_separation_objective_bound_required": True, "committed_scenario_count": gamma + 1},
             "iteration_log": [{"final_exact_separation_performed": True, "robust_feasibility_certified": True, "master_status": "optimal", "separation_objective_bound": -0.0}],
         }
@@ -516,11 +597,41 @@ def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
     assert report["completed_run_count"] == 60
     assert report["baseline_certified_count"] == report["frontier_certified_count"] == 30
     assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 1}
+    first_bytes = {}
     for scale in scales:
         output = Path(scales[scale]["output_dir"])
         results = list(__import__("csv").DictReader((output / "results.csv").open(encoding="utf-8")))
         assert len(results) == 30 and len({row["run_key"] for row in results}) == 30
         assert len(list((output / "instances").glob("*.json"))) == 15
+        run_files = list((output / "runs").glob("*/run.json"))
+        status_files = list((output / "runs").glob("*/status.json"))
+        assert len(run_files) == len(status_files) == 30
+        assert all(json.loads(path.read_text(encoding="utf-8"))["state"] == "complete" for path in status_files)
+        first_bytes[scale] = {
+            "results": (output / "results.csv").read_bytes(),
+            "summary": (output / "summary.csv").read_bytes(),
+        }
+    optimization_commit = subprocess.run(
+        ["git", "-C", str(git_root), "rev-parse", "HEAD"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    successor = {
+        "optimization_commit": optimization_commit,
+        "reporting_hotfix_commit": "a" * 40,
+        "authorization_head_commit": "b" * 40,
+        "changed_files": list(runner.REPORTING_ONLY_CHANGED_FILES),
+    }
+    config = runner.load_config(CONFIG)
+    plan = runner.expand_plan()
+    for scale in scales:
+        runner._run_scale(
+            CONFIG, config, scale, [row for row in plan if row["scale"] == scale], deps,
+            optimization_commit, reporting_successor=successor,
+        )
+        manifest = json.loads((Path(scales[scale]["output_dir"]) / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["identity"]["git_commit"] == optimization_commit
+        assert manifest["reporting_successor"] == successor
+    assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 1}
     status = subprocess.run(
         ["git", "-C", str(git_root), "status", "--porcelain", "--untracked-files=all"],
         check=True, capture_output=True, text=True,
@@ -530,6 +641,87 @@ def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
         CONFIG, resume=True, dependencies=deps, test_authorization=True, test_git_root=git_root,
     )
     assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 2}
+    for scale in scales:
+        output = Path(scales[scale]["output_dir"])
+        assert (output / "results.csv").read_bytes() == first_bytes[scale]["results"]
+        assert (output / "summary.csv").read_bytes() == first_bytes[scale]["summary"]
+
+
+def _persisted_projection_record(task_type: str) -> tuple[dict[str, object], dict[str, object]]:
+    instance = {"num_warehouses": 2, "num_products": 3}
+    result = {
+        "status": "optimal", "runtime": 2.0, "algorithm_runtime": 2.0,
+        "master_runtime": 1.25, "separation_runtime": 0.75,
+        "post_evaluation_wall_runtime": 0.3, "total_wall_runtime": 2.45,
+        "penalized_runtime_par2": 2.0, "iterations": 2,
+    }
+    if task_type == "baseline":
+        result.update({
+            "valid_UB": True, "upper_bound": 100.0,
+            "best_x_values": [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            "best_y_values": [1.0, 0.0],
+        })
+    else:
+        result.update({
+            "objective_t": 0.2, "robust_minimum_fill_rate": 0.8,
+            "x_values": [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            "y_values": [1.0, 0.0], "cuts": 2,
+            "metadata": {"committed_scenario_count": 3},
+            "post_evaluation": {
+                "valid": True, "errors": [], "objective_t_consistent": True,
+                "actual_robust_cost": 101.0, "actual_price_of_fairness": 0.01,
+                "wminfr": 0.8, "minimum_weighted_mean_fill_rate": 0.9,
+            },
+        })
+    record = {
+        "task_type": task_type, "scientific_status": "certified_robust_optimal",
+        "baseline_robust_cost": 100.0, "cost_budget": 102.5, "result": result,
+    }
+    return record, instance
+
+
+@pytest.mark.parametrize("task_type", ["baseline", "frontier"])
+def test_production_json_round_trip_projects_strict_first_stage_schema(
+    tmp_path: Path, task_type: str,
+) -> None:
+    record, instance = _persisted_projection_record(task_type)
+    path = tmp_path / f"{task_type}.json"
+    atomic_write_json(path, record)
+    loaded = runner.read_json_strict(path)
+    assert loaded is not None
+    row = runner._result_projection(loaded, instance)
+    assert row["inventory"] == 21.0
+    assert row["opened_warehouses"] == 1
+    assert row["iterations"] == 2
+    if task_type == "baseline":
+        assert row["objective_t"] == "NOT_APPLICABLE"
+        assert row["baseline_robust_cost"] == 100.0
+    else:
+        assert row["objective_t"] == 0.2
+        assert row["wminfr"] == 0.8
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        [[1.0, 2.0, 3.0]],
+        [[1.0, 2.0], [3.0, 4.0, 5.0]],
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+        [[True, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        [["1", 2.0, 3.0], [4.0, 5.0, 6.0]],
+        [[math.nan, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        [[math.inf, 2.0, 3.0], [4.0, 5.0, 6.0]],
+    ],
+)
+def test_reporting_matrix_rejects_shape_and_nonfinite_drift(value: object) -> None:
+    with pytest.raises(runner.ProtocolGateError, match="reporting field"):
+        runner._strict_numeric_matrix(value, 2, 3, "result.x_values")
+
+
+@pytest.mark.parametrize("value", [[1.0], [1.0, 0.0, 1.0], [True, 0.0], ["1", 0.0], [math.nan, 0.0]])
+def test_reporting_vector_rejects_shape_and_type_drift(value: object) -> None:
+    with pytest.raises(runner.ProtocolGateError, match="reporting field"):
+        runner._strict_numeric_vector(value, 2, "result.y_values")
 
 
 def test_runner_to_production_frontier_identity_chain_for_all_thirty_cells(
@@ -549,15 +741,20 @@ def test_runner_to_production_frontier_identity_chain_for_all_thirty_cells(
     monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
 
     class Result:
-        def __init__(self, gamma: int) -> None:
+        def __init__(self, gamma: int, warehouses: int, products: int) -> None:
             self.gamma = gamma
+            self.warehouses = warehouses
+            self.products = products
 
         def to_dict(self) -> dict[str, object]:
             return {
                 "status": "optimal", "gap": 0.0, "lower_bound": 0.2, "upper_bound": 0.2,
                 "runtime": 0.1, "objective_t": 0.2,
-                "robust_minimum_fill_rate": 0.8, "x_values": {"x": 0.0},
-                "y_values": {"y": 1.0}, "iterations": 1, "cuts": self.gamma,
+                "robust_minimum_fill_rate": 0.8,
+                "x_values": [[0.0 for _ in range(self.products)] for _ in range(self.warehouses)],
+                "y_values": [1.0 for _ in range(self.warehouses)],
+                "master_runtime": 0.05, "separation_runtime": 0.05,
+                "iterations": 1, "cuts": self.gamma,
                 "metadata": {
                     "robust_feasibility_certified": True,
                     "full_separation_objective_bound_required": True,
@@ -582,7 +779,7 @@ def test_runner_to_production_frontier_identity_chain_for_all_thirty_cells(
             expected_identity=expected,
             expected_candidate_sha256=runner.CANDIDATE_SHA256,
         )
-        return Result(int(kwargs["gamma"]))
+        return Result(int(kwargs["gamma"]), len(instance.I), len(instance.J))
 
     monkeypatch.setattr(hybrid, "solve_certified_hybrid_scenario_benders_fairness", fake_hybrid_solver)
     production = runner.production_dependencies()
@@ -595,7 +792,8 @@ def test_runner_to_production_frontier_identity_chain_for_all_thirty_cells(
         calls["baseline"] += 1
         return {
             "status": "optimal", "valid_UB": True, "upper_bound": 30.0,
-            "gap": 0.0, "runtime": 0.1,
+            "gap": 0.0, "runtime": 0.1, "master_runtime": 0.06,
+            "subproblem_runtime": 0.04, "iterations": 1,
             "best_y_values": [1.0 for _ in instance.I],
             "best_x_values": [[0.0 for _ in instance.J] for _ in instance.I],
         }
