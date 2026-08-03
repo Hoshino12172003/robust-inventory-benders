@@ -1,0 +1,67 @@
+experiment_name: fairness_hybrid_gamma_sensitivity
+stage: GAMMA_SENSITIVITY
+authorization: protocol_only_pre_run_audit
+formal_run_authorized: false
+next_authorized_stage: fairness_hybrid_gamma_sensitivity_pre_run_audit_only
+schema_version: 1
+execution_attempt: 1
+previous_attempt_results_reused: false
+formal_worktree_root: 'E:\rfgs'
+base_commit: 827b1373702972ae780231899afe17cf6eff0d53
+final_holdout:
+  source_zip_sha256: BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839
+  pr51_merge_commit: 13493ba63006604443f54f61799842dc2a3fbac9
+  results_corrected_sha256: 50EB5823F4C7138E65FA36546B90EE081B48949D2F961F5AFDFAE098A7F0A496
+  paper_metrics_sha256: 044689ABF1ADD1C1FC217FCB5F46B8D280D8659865EE3A3707EBB9FE792F2E37
+protocol_document: docs/fairness_hybrid_gamma_sensitivity_protocol.md
+required_protocol_sha256: D9552F83E292CB1EDB262DF2B113A8044AECD6607207FDBC857770083C35EC1A
+candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
+required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
+candidate: certified_hybrid_scenario_benders_fairness
+scales:
+  medium_large:
+    num_regions: 10
+    num_products: 6
+    demand_components: 60
+    scenario_counts: {0: 1, 1: 61, 2: 1831}
+    baseline_count: 15
+    frontier_count: 15
+    total_tasks: 30
+    output_dir: experiments/results_fh_gamma/ml_a1
+  large:
+    num_regions: 12
+    num_products: 8
+    demand_components: 96
+    scenario_counts: {0: 1, 1: 97, 2: 4657}
+    baseline_count: 15
+    frontier_count: 15
+    total_tasks: 30
+    output_dir: experiments/results_fh_gamma/lg_a1
+seeds: [180, 181, 182, 183, 184]
+gamma: [0, 1, 2]
+rho: [0.025]
+baseline_rho_identity: NOT_APPLICABLE
+baseline_count: 30
+frontier_count: 30
+total_tasks: 60
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7}
+tol: 1.0e-4
+baseline_time_limit_seconds: 1800
+algorithm_time_limit_seconds: 1800
+general_time_limit_seconds: 1800
+max_iterations: 10000
+post_evaluation: {time_limit_per_scenario_seconds: 30, checkpoint_chunk_size: 25, pipeline_generation: 4}
+runtime_semantics: {par2_multiplier: 2, par2_basis: algorithm_runtime}
+statistics:
+  independent_unit: seed
+  paired_axis: gamma_within_scale_and_seed
+  paired_changes: [gamma_0_to_1, gamma_1_to_2]
+  cluster_bootstrap_resamples_seed: true
+  multiple_testing: Holm
+  n_per_scale_gamma: 5
+  prohibit_seed_gamma_independence: true
+resume: true
+overwrite_supported: false
+forbidden_reuse_families: [FINAL_HOLDOUT, D1, D2]
+forbidden_gamma: [3, 4]
+forbidden_additional_rho: true

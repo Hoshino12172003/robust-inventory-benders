@@ -14,4 +14,5 @@ experiments/results_fairness_diagnostic/
 experiments/results_regional_fairness_model/
 experiments/results_fairness_scalability/
 experiments/results_fairness_hybrid_ccg_benders/
+/experiments/results_fh_gamma/
 .idea/
