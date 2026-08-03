@@ -5,6 +5,18 @@
   "stage": "GAMMA_SENSITIVITY",
   "execution_attempt": 3,
   "protocol_merge_commit": "656189058018b6c014b7ad4c4d5b492325de43f4",
+  "optimization_core_commit": "656189058018b6c014b7ad4c4d5b492325de43f4",
+  "optimization_commit": "b1b5e9908bbb685b8a852aff762f08ce7226aba1",
+  "reporting_hotfix_base_commit": "b1b5e9908bbb685b8a852aff762f08ce7226aba1",
+  "reporting_hotfix_commit": "f887daad4a8c59e222cc9d56ac725d1e3c98a40e",
+  "reporting_only_changed_files": [
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/attempt2_readonly_audit.json",
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/attempt3_readonly_audit.json",
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/decision.json",
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/reporting_schema_audit.md",
+    "src/fairness_hybrid_gamma_sensitivity_runner.py",
+    "tests/test_fairness_hybrid_gamma_sensitivity.py"
+  ],
   "protocol_sha256": "F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E",
   "config_file_sha256": "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07",
   "candidate": "certified_hybrid_scenario_benders_fairness",
@@ -33,8 +45,8 @@
     "experiments/results_fh_gamma/lg_a3"
   ],
   "previous_attempt_results_reused": false,
-  "authorization_purpose": "Authorize only the isolated Attempt 3 certified Hybrid Gamma sensitivity formal run after the Attempt 1 and Attempt 2 pipeline identity incidents; no prior-attempt scientific artifact may be reused.",
-  "authorized_at": "2026-08-03T12:22:03.6747683+08:00",
+  "authorization_purpose": "Authorize only the reporting-hotfix successor resume of Attempt 3. Preserve optimization identity b1b5e9908bbb685b8a852aff762f08ce7226aba1, skip its completed certified cell, and prohibit all Attempt 1/2 reuse.",
+  "authorized_at": "2026-08-03T13:30:16.5100829+08:00",
   "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt3_formal_run_only",
   "prohibited_scope": {
     "other_stages": true,
