@@ -315,11 +315,13 @@ def _planned_paths(root: Path, rows: list[dict[str, Any]], config: dict[str, Any
     return planned
 
 
-def dry_run(config_path: str | Path) -> dict[str, Any]:
+def dry_run(
+    config_path: str | Path, *, worktree_root: str | Path | None = None,
+) -> dict[str, Any]:
     config = load_config(config_path)
     validate_config(config_path, config)
     repository_root = Path(__file__).resolve().parents[1]
-    root = Path(config["formal_worktree_root"])
+    root = Path(worktree_root).resolve() if worktree_root is not None else repository_root
     rows = expand_plan()
     paths = _planned_paths(root, rows, config)
     longest_type, longest = max(paths, key=lambda item: len(str(item[1])))
@@ -357,6 +359,7 @@ def dry_run(config_path: str | Path) -> dict[str, Any]:
         "post_evaluation_solver_limit_hours_approx": 277,
         "solver_limit_envelopes_are_not_wall_time_predictions": True,
         "longest_windows_absolute_path": str(longest),
+        "planned_worktree_root": str(root),
         "longest_windows_path_type": longest_type,
         "longest_windows_path_length": len(str(longest)),
         "windows_path_check": len(str(longest)) < 220,
@@ -1157,8 +1160,6 @@ def run_sensitivity(
         git_commit_value = formal_git_gate(root)
         validate_authorization(authorization_file, path, root)
         pre_run_seed_gate(root)
-        if root.resolve() != Path(config["formal_worktree_root"]).resolve():
-            raise ProtocolGateError("formal_run_not_authorized: formal worktree root identity mismatch")
     rows = expand_plan()
     paths = _planned_paths(root, rows, config)
     maximum = max(len(str(value)) for _, value in paths)

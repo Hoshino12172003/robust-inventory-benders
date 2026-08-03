@@ -230,7 +230,7 @@ def static_audit(root: Path, archive: Path | None = None) -> dict[str, Any]:
     config = load_config(config_path)
     validate_config(config_path, config)
     plan = expand_plan()
-    dry = dry_run(config_path)
+    dry = dry_run(config_path, worktree_root=Path(config["formal_worktree_root"]))
     seed = audit_repository_seed_access(root)
     zip_report = audit_zip_seed_access(archive) if archive is not None and archive.exists() else None
     ignore_lines = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
