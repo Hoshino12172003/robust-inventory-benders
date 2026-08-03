@@ -1,0 +1,74 @@
+{
+  "bound_crossing_count": 0,
+  "coverage": {
+    "acceptance_evidence": 413220,
+    "accepted_evidence": 413220,
+    "algorithm_checkpoint": 30,
+    "baseline_checkpoint": 30,
+    "chunk": 1350,
+    "final_exact_certification": 30,
+    "post_evaluation": 30,
+    "run_json": 60,
+    "scenario_records": 33240,
+    "status_json": 60
+  },
+  "decision": "approve_gamma_sensitivity_attempt3",
+  "failures": [],
+  "identity": {
+    "attempt1_or_attempt2_mixed": false,
+    "authorization_sha256": "8B643287CC13B2BA4D5681A00453FA77742CDCF0FFF6103FFE399E8E1FF45908",
+    "candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
+    "config_sha256": "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07",
+    "execution_attempt": 3,
+    "optimization_commit": "b1b5e9908bbb685b8a852aff762f08ce7226aba1",
+    "previous_attempt_results_reused": false,
+    "protocol_sha256": "F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E",
+    "stage": "GAMMA_SENSITIVITY"
+  },
+  "matrix": {
+    "baseline": 30,
+    "frontier": 30,
+    "gamma": [
+      0,
+      1,
+      2
+    ],
+    "rho": 0.025,
+    "scales": [
+      "medium_large",
+      "large"
+    ],
+    "seeds": [
+      180,
+      181,
+      182,
+      183,
+      184
+    ],
+    "total": 60,
+    "unique_directory_ids": 60,
+    "unique_run_keys": 60
+  },
+  "optimization_rerun_required": false,
+  "post_evaluation": {
+    "maximum_acceptance_residual": 2.9103830456733704e-11
+  },
+  "scientific_solution_valid": true,
+  "source_archive": {
+    "crc_valid": true,
+    "entry_count": 1759,
+    "file_count": 1633,
+    "name": "fairness_hybrid_gamma_sensitivity_attempt3_results.zip",
+    "sha256_after": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F",
+    "sha256_before": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F",
+    "sha256_expected": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F",
+    "unchanged": true
+  },
+  "source_summary_cross_scale_zero_display_rows": 2,
+  "source_summary_zero_rows_classification": "display_only_not_scientific_error",
+  "structured_parse": {
+    "csv_count": 4,
+    "json_count": 1623,
+    "nan_or_inf": 0
+  }
+}

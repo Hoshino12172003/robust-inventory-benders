@@ -1,0 +1,36 @@
+{
+  "authorization_sha256": "8B643287CC13B2BA4D5681A00453FA77742CDCF0FFF6103FFE399E8E1FF45908",
+  "candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
+  "config_sha256": "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07",
+  "decision": "approve_gamma_sensitivity_attempt3",
+  "deterministic_rebuild_requirement": "two independent output directories must be byte-identical",
+  "execution_attempt": 3,
+  "immutable_source": true,
+  "matrix": {
+    "baseline": 30,
+    "frontier": 30,
+    "gamma": [
+      0,
+      1,
+      2
+    ],
+    "rho": 0.025,
+    "scales": [
+      "medium_large",
+      "large"
+    ],
+    "seeds": [
+      180,
+      181,
+      182,
+      183,
+      184
+    ],
+    "total": 60,
+    "unique_directory_ids": 60,
+    "unique_run_keys": 60
+  },
+  "optimization_commit": "b1b5e9908bbb685b8a852aff762f08ce7226aba1",
+  "protocol_sha256": "F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E",
+  "source_archive_sha256": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F"
+}
