@@ -13,20 +13,28 @@ from typing import Any, Callable, Iterable
 
 import yaml
 
-from .experiment_protocol import atomic_write_csv, atomic_write_json, atomic_write_yaml, file_sha256, penalized_runtime_par2
+from .experiment_protocol import (
+    atomic_write_csv,
+    atomic_write_json,
+    atomic_write_yaml,
+    canonical_json_sha256,
+    file_sha256,
+    penalized_runtime_par2,
+)
 
 
 STAGE = "GAMMA_SENSITIVITY"
-SCHEMA = "fairness_hybrid_gamma_sensitivity_manifest_v1"
-CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_algorithm_checkpoint_v1"
-POST_SCHEMA = "fairness_hybrid_gamma_sensitivity_post_evaluation_v1"
-AUTHORIZATION_SCHEMA = "fairness_hybrid_gamma_sensitivity_authorization_v1"
-EXECUTION_ATTEMPT = 1
-BASE_COMMIT = "827b1373702972ae780231899afe17cf6eff0d53"
+SCHEMA = "fairness_hybrid_gamma_sensitivity_manifest_v2"
+CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_algorithm_checkpoint_v2"
+POST_SCHEMA = "fairness_hybrid_gamma_sensitivity_post_evaluation_v2"
+AUTHORIZATION_SCHEMA = "fairness_hybrid_gamma_sensitivity_authorization_v2"
+BASELINE_CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v2"
+EXECUTION_ATTEMPT = 2
+BASE_COMMIT = "72288df0f628e499616b5132daf1e89b2467dce5"
 CANDIDATE = "certified_hybrid_scenario_benders_fairness"
 CANDIDATE_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
-EXPECTED_CONFIG_SHA256 = "82834FB7BC91C3CE2BB4759A2C4571E3E812E9A9C030A2CD9F56F8CD60B61A59"
-EXPECTED_PROTOCOL_SHA256 = "D9552F83E292CB1EDB262DF2B113A8044AECD6607207FDBC857770083C35EC1A"
+EXPECTED_CONFIG_SHA256 = "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68"
+EXPECTED_PROTOCOL_SHA256 = "098287216AF8A9917F6488E8BAF662F62A115D10F98B307C7CB66032C7452375"
 SEEDS = [180, 181, 182, 183, 184]
 GAMMAS = [0, 1, 2]
 RHO = 0.025
@@ -37,20 +45,26 @@ SCALES = {
         "num_products": 6,
         "demand_components": 60,
         "scenario_counts": {0: 1, 1: 61, 2: 1831},
-        "output_dir": "experiments/results_fh_gamma/ml_a1",
+        "output_dir": "experiments/results_fh_gamma/ml_a2",
     },
     "large": {
         "num_regions": 12,
         "num_products": 8,
         "demand_components": 96,
         "scenario_counts": {0: 1, 1: 97, 2: 4657},
-        "output_dir": "experiments/results_fh_gamma/lg_a1",
+        "output_dir": "experiments/results_fh_gamma/lg_a2",
     },
 }
 FORBIDDEN_REUSE_PARTS = (
     "results_fairness_hybrid_final_holdout",
     "fairness_hybrid_ccg_benders_d1",
     "fairness_hybrid_ccg_benders_d2",
+    "experiments/results_fh_gamma/ml_a1",
+    "experiments/results_fh_gamma/lg_a1",
+)
+ATTEMPT1_OUTPUT_DIRS = (
+    "experiments/results_fh_gamma/ml_a1",
+    "experiments/results_fh_gamma/lg_a1",
 )
 
 
@@ -75,7 +89,47 @@ def canonical_json(value: Any) -> str:
 
 
 def sha256_value(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest().upper()
+    return canonical_json_sha256(value)
+
+
+def instance_archive_payload(
+    frozen_identity: dict[str, Any], serialized_instance: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(serialized_instance, dict):
+        raise ProtocolGateError("instance serializer returned invalid payload")
+    canonical_sha = sha256_value(serialized_instance)
+    return {
+        "identity": {**frozen_identity, "instance_canonical_sha256": canonical_sha},
+        "instance": serialized_instance,
+    }
+
+
+def validate_instance_archive(
+    archive: dict[str, Any], frozen_identity: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], str, str]:
+    if not isinstance(archive, dict):
+        raise ProtocolGateError("Gamma-specific instance archive is corrupt")
+    serialized = archive.get("instance")
+    stored_identity = archive.get("identity")
+    if not isinstance(serialized, dict) or not isinstance(stored_identity, dict):
+        raise ProtocolGateError("Gamma-specific instance archive is corrupt")
+    canonical_sha = sha256_value(serialized)
+    expected_identity = {**frozen_identity, "instance_canonical_sha256": canonical_sha}
+    if stored_identity != expected_identity:
+        raise ProtocolGateError("Gamma-specific instance identity mismatch")
+    return serialized, stored_identity, canonical_sha, sha256_value(stored_identity)
+
+
+def record_manifest_identity(
+    manifest: dict[str, Any], section: str, key: str, value: dict[str, Any],
+) -> None:
+    target = manifest.get(section)
+    if not isinstance(target, dict):
+        raise ProtocolGateError(f"manifest {section} is corrupt")
+    existing = target.get(key)
+    if existing is not None and existing != value:
+        raise ProtocolGateError(f"manifest {section} identity mismatch")
+    target[key] = deepcopy(value)
 
 
 def run_directory_id(run_key: str) -> str:
@@ -120,7 +174,7 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
         "authorization": "protocol_only_pre_run_audit",
         "formal_run_authorized": False,
         "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_pre_run_audit_only",
-        "schema_version": 1,
+        "schema_version": 2,
         "execution_attempt": EXECUTION_ATTEMPT,
         "previous_attempt_results_reused": False,
         "formal_worktree_root": r"E:\rfgs",
@@ -149,6 +203,7 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
         "resume": True,
         "overwrite_supported": False,
         "forbidden_reuse_families": ["FINAL_HOLDOUT", "D1", "D2"],
+        "forbidden_prior_attempt_output_dirs": list(ATTEMPT1_OUTPUT_DIRS),
         "forbidden_gamma": [3, 4],
         "forbidden_additional_rho": True,
     }
@@ -254,23 +309,40 @@ def run_identity(row: dict[str, Any], config_path: str | Path, *, git_commit_val
 
 
 def bind_data_identities(
-    identity: dict[str, Any], *, instance_sha256: str, baseline: dict[str, Any], anchor: dict[str, Any]
+    identity: dict[str, Any], *, instance_canonical_sha256: str,
+    instance_identity_sha256: str, baseline: dict[str, Any], anchor: dict[str, Any]
 ) -> dict[str, Any]:
     if identity["task_type"] != "frontier":
         raise ProtocolGateError("data identity binding applies to frontier runs")
-    for key in ("scale", "seed", "gamma", "execution_attempt"):
-        if baseline.get(key) != identity[key]:
+    expected = {
+        "scale": identity["scale"], "seed": identity["seed"], "gamma": identity["gamma"],
+        "execution_attempt": identity["execution_attempt"],
+        "instance_sha256": instance_canonical_sha256,
+        "instance_canonical_sha256": instance_canonical_sha256,
+        "instance_identity_sha256": instance_identity_sha256,
+    }
+    for key, value in expected.items():
+        if baseline.get(key) != value:
             raise ProtocolGateError(f"Gamma-specific baseline identity mismatch: {key}")
     if baseline.get("run_key") != identity["baseline_run_key"]:
         raise ProtocolGateError("Gamma-specific baseline run key mismatch")
     if anchor.get("baseline_run_key") != identity["baseline_run_key"]:
         raise ProtocolGateError("anchor is not bound to the Gamma-specific baseline")
-    for name, value in (("instance_sha256", instance_sha256), ("anchor_sha256", anchor.get("anchor_sha256"))):
+    for key, value in expected.items():
+        if anchor.get(key) != value:
+            raise ProtocolGateError(f"Gamma-specific anchor identity mismatch: {key}")
+    for name, value in (
+        ("instance_canonical_sha256", instance_canonical_sha256),
+        ("instance_identity_sha256", instance_identity_sha256),
+        ("anchor_sha256", anchor.get("anchor_sha256")),
+    ):
         if not isinstance(value, str) or len(value) != 64:
             raise ProtocolGateError(f"invalid {name}")
     return {
         **identity,
-        "instance_sha256": instance_sha256,
+        "instance_sha256": instance_canonical_sha256,
+        "instance_canonical_sha256": instance_canonical_sha256,
+        "instance_identity_sha256": instance_identity_sha256,
         "anchor_sha256": anchor["anchor_sha256"],
         "anchor_value_hex": anchor.get("anchor_value_hex"),
     }
@@ -601,7 +673,8 @@ def par2(scientific_status: str, algorithm_runtime: float, limit: float = 1800.0
 RESULT_FIELDS = [
     "run_key", "run_directory_id", "stage", "execution_attempt", "git_commit", "config_file_sha256",
     "protocol_sha256", "candidate_sha256", "scale", "task_type", "seed", "gamma", "rho",
-    "candidate", "instance_sha256", "baseline_run_key", "anchor_sha256", "state", "algorithm_status", "scientific_status",
+    "candidate", "instance_sha256", "instance_canonical_sha256", "instance_identity_sha256",
+    "baseline_run_key", "anchor_sha256", "state", "algorithm_status", "scientific_status",
     "algorithm_runtime", "master_runtime", "separation_runtime",
     "post_evaluation_wall_runtime", "total_wall_runtime", "penalized_runtime_par2", "baseline_robust_cost",
     "cost_budget", "actual_robust_cost", "actual_price_of_fairness", "objective_t",
@@ -695,16 +768,21 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
         raise ProtocolGateError("formal_run_not_authorized: reviewed authorization file is required")
     expected = {
         "schema": AUTHORIZATION_SCHEMA,
+        "schema_version": 2,
         "stage": STAGE,
         "formal_run_authorized": True,
         "execution_attempt": EXECUTION_ATTEMPT,
         "config_file_sha256": file_sha256(config_path).upper(),
         "protocol_sha256": EXPECTED_PROTOCOL_SHA256,
         "candidate_sha256": CANDIDATE_SHA256,
+        "candidate": CANDIDATE,
+        "scales": list(SCALES),
         "seeds": SEEDS,
         "gamma": GAMMAS,
         "rho": [RHO],
-        "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_formal_run",
+        "output_directories": [value["output_dir"] for value in SCALES.values()],
+        "previous_attempt_results_reused": False,
+        "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt2_formal_run_only",
     }
     for key, value in expected.items():
         if authorization.get(key) != value:
@@ -738,7 +816,7 @@ def formal_git_gate(root: Path) -> str:
 def pre_run_seed_gate(root: Path) -> dict[str, Any]:
     from .fairness_hybrid_gamma_sensitivity_audit import audit_repository_seed_access
 
-    report = audit_repository_seed_access(root)
+    report = audit_repository_seed_access(root, excluded_untracked_roots=ATTEMPT1_OUTPUT_DIRS)
     prefixes = tuple(value["output_dir"].replace("\\", "/") + "/" for value in SCALES.values())
     unexpected = []
     for category in ("generated_instance_evidence", "solved_run_evidence", "formal_result_access_evidence"):
@@ -807,9 +885,15 @@ def production_dependencies() -> GammaDependencies:
         config: dict[str, Any], instance: Any, baseline: dict[str, Any], anchor: dict[str, Any],
         common: dict[str, Any], checkpoint: Path, solver: dict[str, Any], row: dict[str, Any],
     ) -> dict[str, Any]:
+        expected_identity = initial_upper_bound_expected_identity(common, anchor)
+        expected_identity.update({
+            "instance_canonical_sha256": common["instance_canonical_sha256"],
+            "gamma": common["gamma"],
+            "execution_attempt": common["execution_attempt"],
+        })
         result = solve_certified_hybrid_scenario_benders_fairness(
             instance, baseline_record=baseline, anchor=anchor,
-            expected_identity=initial_upper_bound_expected_identity(common, anchor),
+            expected_identity=expected_identity,
             solver_parameters=solver, rho=RHO, gamma=int(row["gamma"]),
             max_iterations=int(config["max_iterations"]),
             time_limit=float(config["algorithm_time_limit_seconds"]), tol=float(config["tol"]),
@@ -926,14 +1010,14 @@ def aggregate_output(output: Path, rows: list[dict[str, Any]], *, require_comple
 
 
 def _baseline_checkpoint(identity: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-    return {"schema": "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v1", "identity": identity, "result": result}
+    return {"schema": BASELINE_CHECKPOINT_SCHEMA, "identity": identity, "result": result}
 
 
 def _load_baseline_checkpoint(path: Path, identity: dict[str, Any]) -> dict[str, Any] | None:
     value = read_json_strict(path)
     if value is None:
         return None
-    if value.get("schema") != "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v1" or value.get("identity") != identity:
+    if value.get("schema") != BASELINE_CHECKPOINT_SCHEMA or value.get("identity") != identity:
         raise ProtocolGateError("baseline checkpoint identity mismatch")
     if not isinstance(value.get("result"), dict):
         raise ProtocolGateError("baseline checkpoint result missing")
@@ -965,7 +1049,7 @@ def _run_scale(
         manifest = expected_manifest
         atomic_write_json(manifest_path, manifest)
     audit_identity = {
-        "schema": "fairness_hybrid_gamma_sensitivity_audit_log_v1",
+        "schema": "fairness_hybrid_gamma_sensitivity_audit_log_v2",
         "identity": expected_manifest["identity"],
         "formal_worktree_root": str(root),
         "solver_limit_envelopes_are_not_wall_time_predictions": True,
@@ -993,26 +1077,27 @@ def _run_scale(
             if stored_archive is None:
                 instance = deps.generate_instance(scale_config, seed)
                 serialized = deps.serialize_instance(instance)
-                if not isinstance(serialized, dict):
-                    raise ProtocolGateError("instance serializer returned invalid payload")
-                instance_data_sha = sha256_value(serialized)
-                instance_identity = {**frozen_instance_identity, "instance_data_sha256": instance_data_sha}
-                atomic_write_json(instance_path, {"identity": instance_identity, "instance": serialized})
+                archive = instance_archive_payload(frozen_instance_identity, serialized)
+                serialized, instance_identity, instance_canonical_sha, instance_identity_sha = (
+                    validate_instance_archive(archive, frozen_instance_identity)
+                )
+                atomic_write_json(instance_path, archive)
+                instance_archive_file_sha = file_sha256(instance_path).upper()
             else:
-                serialized = stored_archive.get("instance")
-                stored_identity = stored_archive.get("identity")
-                if not isinstance(serialized, dict) or not isinstance(stored_identity, dict):
-                    raise ProtocolGateError("Gamma-specific instance archive is corrupt")
-                instance_data_sha = sha256_value(serialized)
-                expected_instance_identity = {**frozen_instance_identity, "instance_data_sha256": instance_data_sha}
-                if stored_identity != expected_instance_identity:
-                    raise ProtocolGateError("Gamma-specific instance identity mismatch")
+                serialized, instance_identity, instance_canonical_sha, instance_identity_sha = (
+                    validate_instance_archive(stored_archive, frozen_instance_identity)
+                )
                 instance = deps.deserialize_instance(serialized)
-                instance_identity = stored_identity
-            instance_sha = instance_data_sha
-            instance_identity_sha = sha256_value(instance_identity)
+                instance_archive_file_sha = file_sha256(instance_path).upper()
+            restored_instance_sha = sha256_value(deps.serialize_instance(instance))
+            if restored_instance_sha != instance_canonical_sha:
+                raise ProtocolGateError("Gamma-specific instance canonical round-trip mismatch")
             baseline_identity = run_identity(baseline_row, config_path, git_commit_value=git_commit_value)
-            baseline_identity.update({"instance_sha256": instance_sha, "instance_identity_sha256": instance_identity_sha})
+            baseline_identity.update({
+                "instance_sha256": instance_canonical_sha,
+                "instance_canonical_sha256": instance_canonical_sha,
+                "instance_identity_sha256": instance_identity_sha,
+            })
             baseline_root = output / "runs" / baseline_row["run_directory_id"]
             baseline_record = read_json_strict(baseline_root / "run.json")
             validate_status_file(baseline_root / "status.json", baseline_identity, baseline_record)
@@ -1048,7 +1133,10 @@ def _run_scale(
                 validate_run_record(baseline_record, baseline_identity)
             completed[baseline_row["run_key"]] = baseline_record
             common = {
-                "instance_sha256": instance_sha, "seed": seed, "gamma": gamma, "scale": scale,
+                "instance_sha256": instance_canonical_sha,
+                "instance_canonical_sha256": instance_canonical_sha,
+                "instance_identity_sha256": instance_identity_sha,
+                "seed": seed, "gamma": gamma, "scale": scale,
                 "stage": STAGE, "execution_attempt": EXECUTION_ATTEMPT, "git_commit": git_commit_value,
                 "config_file_sha256": file_sha256(config_path).upper(),
                 "resolved_config_file_sha256": file_sha256(config_path).upper(),
@@ -1056,21 +1144,29 @@ def _run_scale(
                 "baseline_run_key": baseline_row["run_key"],
             }
             anchor = deps.make_anchor(baseline_record, common_identity=common, tolerance=float(config["tol"]))
-            manifest["instance_identities"][f"s{seed}_g{gamma}"] = {
+            manifest_instance_identity = {
                 **instance_identity, "instance_identity_sha256": instance_identity_sha,
+                "instance_archive_file_sha256": instance_archive_file_sha,
             }
-            manifest["baseline_anchors"][f"s{seed}_g{gamma}"] = anchor
+            cell_key = f"s{seed}_g{gamma}"
+            record_manifest_identity(
+                manifest, "instance_identities", cell_key, manifest_instance_identity,
+            )
+            record_manifest_identity(manifest, "baseline_anchors", cell_key, anchor)
 
             frontier_identity = bind_data_identities(
                 run_identity(frontier_row, config_path, git_commit_value=git_commit_value),
-                instance_sha256=instance_sha, baseline=baseline_record, anchor=anchor,
+                instance_canonical_sha256=instance_canonical_sha,
+                instance_identity_sha256=instance_identity_sha,
+                baseline=baseline_record, anchor=anchor,
             )
             frontier_identity.update({
-                "instance_identity_sha256": instance_identity_sha,
                 "post_evaluation_pipeline_generation": int(config["post_evaluation"]["pipeline_generation"]),
                 "run_execution_attempt": EXECUTION_ATTEMPT,
             })
-            manifest["run_identities"][frontier_row["run_key"]] = frontier_identity
+            record_manifest_identity(
+                manifest, "run_identities", frontier_row["run_key"], frontier_identity,
+            )
             atomic_write_json(manifest_path, manifest)
             frontier_root = output / "runs" / frontier_row["run_directory_id"]
             frontier_record = read_json_strict(frontier_root / "run.json")

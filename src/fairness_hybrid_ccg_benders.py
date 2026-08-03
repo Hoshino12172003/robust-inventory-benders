@@ -12,7 +12,7 @@ from typing import Any, Callable, Mapping
 import gurobipy as gp
 from gurobipy import GRB
 
-from .experiment_protocol import atomic_write_json, read_json
+from .experiment_protocol import atomic_write_json, canonical_json_sha256, read_json
 from .fairness_benders import FairnessBendersResult, _build_master, relative_gap
 from .fairness_large_final_remediation import (
     CUT_SCHEMA,
@@ -86,7 +86,7 @@ def _finite_float(value: Any, label: str) -> float:
 
 
 def _instance_sha256(instance: InventoryInstance) -> str:
-    return hashlib.sha256(canonical_json_bytes(instance.to_dict())).hexdigest().upper()
+    return canonical_json_sha256(instance.to_dict())
 
 
 def canonical_scenario_payload(instance: InventoryInstance, scenario: DemandScenario) -> dict[str, Any]:
