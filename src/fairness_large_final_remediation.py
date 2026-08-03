@@ -22,7 +22,7 @@ from typing import Any, Callable
 import gurobipy as gp
 from gurobipy import GRB
 
-from .experiment_protocol import atomic_write_json, config_sha256, read_json
+from .experiment_protocol import atomic_write_json, canonical_json_sha256, config_sha256, read_json
 from .fairness_benders import FairnessBendersResult, _build_master, relative_gap
 from .fairness_large_final_remediation_audit import (
     CUT_SCHEMA,
@@ -214,17 +214,26 @@ def construct_initial_t1_upper_bound(
         "resolved_config_file_sha256", "candidate_sha256", "baseline_run_key",
         "anchor_value_hex", "anchor_sha256",
     }
-    if not isinstance(expected_identity, dict) or set(expected_identity) != required_identity:
+    gamma_identity = {"instance_canonical_sha256", "gamma", "execution_attempt"}
+    if (
+        not isinstance(expected_identity, dict)
+        or set(expected_identity) not in (required_identity, required_identity | gamma_identity)
+    ):
         raise InitialUpperBoundAssumptionFailure("incomplete_expected_run_identity")
-    for field in required_identity - {"seed"}:
+    active_identity = set(expected_identity)
+    integer_fields = {"seed"} | ({"gamma", "execution_attempt"} if gamma_identity <= active_identity else set())
+    for field in active_identity - integer_fields:
         if not isinstance(expected_identity[field], str) or not expected_identity[field]:
             raise InitialUpperBoundAssumptionFailure(f"invalid_expected_identity_{field}")
-    if isinstance(expected_identity["seed"], bool) or not isinstance(expected_identity["seed"], int):
-        raise InitialUpperBoundAssumptionFailure("invalid_expected_identity_seed")
+    for field in integer_fields:
+        if isinstance(expected_identity[field], bool) or not isinstance(expected_identity[field], int):
+            raise InitialUpperBoundAssumptionFailure(f"invalid_expected_identity_{field}")
     expected_hash_fields = {
         "instance_sha256", "config_file_sha256", "resolved_config_file_sha256",
         "candidate_sha256", "anchor_sha256",
     }
+    if gamma_identity <= active_identity:
+        expected_hash_fields.add("instance_canonical_sha256")
     if any(
         len(expected_identity[field]) != 64
         or any(character not in "0123456789ABCDEF" for character in expected_identity[field].upper())
@@ -233,8 +242,17 @@ def construct_initial_t1_upper_bound(
         raise InitialUpperBoundAssumptionFailure("invalid_expected_identity_sha256")
     if expected_identity["candidate_sha256"].upper() != str(expected_candidate_sha256).upper():
         raise InitialUpperBoundAssumptionFailure("candidate_identity_mismatch")
-    current_instance_sha256 = config_sha256(instance.to_dict()).upper()
+    current_instance_sha256 = (
+        canonical_json_sha256(instance.to_dict())
+        if gamma_identity <= active_identity
+        else config_sha256(instance.to_dict()).upper()
+    )
     if expected_identity["instance_sha256"].upper() != current_instance_sha256:
+        raise InitialUpperBoundAssumptionFailure("current_instance_identity_mismatch")
+    if (
+        gamma_identity <= active_identity
+        and expected_identity["instance_canonical_sha256"].upper() != current_instance_sha256
+    ):
         raise InitialUpperBoundAssumptionFailure("current_instance_identity_mismatch")
 
     checks: dict[str, bool] = {}
@@ -275,6 +293,8 @@ def construct_initial_t1_upper_bound(
         "instance_sha256", "seed", "scale", "git_commit", "config_file_sha256",
         "resolved_config_file_sha256", "candidate_sha256", "baseline_run_key",
     }
+    if gamma_identity <= active_identity:
+        common_identity_fields |= gamma_identity
     if not common_identity_fields.issubset(baseline_record):
         raise InitialUpperBoundAssumptionFailure("incomplete_baseline_run_identity")
     for field in common_identity_fields:

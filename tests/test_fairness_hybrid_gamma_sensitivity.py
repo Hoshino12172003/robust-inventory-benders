@@ -193,20 +193,35 @@ def test_manifest_and_run_identity_bind_gamma_config_protocol_git_and_solver() -
     for key, directory in manifest["run_key_to_directory_id"].items():
         assert manifest["directory_id_to_run_key"][directory] == key
     baseline_row = runner.paired_baseline(plan, frontier)
-    baseline = {**baseline_row, "run_key": baseline_row["run_key"], "execution_attempt": 1}
+    instance_sha = "I" * 64
+    identity_sha = "D" * 64
+    shared = {
+        "scale": identity["scale"], "seed": identity["seed"], "gamma": identity["gamma"],
+        "execution_attempt": runner.EXECUTION_ATTEMPT,
+        "instance_sha256": instance_sha,
+        "instance_canonical_sha256": instance_sha,
+        "instance_identity_sha256": identity_sha,
+    }
+    baseline = {**baseline_row, **shared, "run_key": baseline_row["run_key"]}
+    anchor = {
+        **shared, "baseline_run_key": baseline_row["run_key"],
+        "anchor_sha256": "A" * 64, "anchor_value_hex": "0x1p+0",
+    }
     bound = runner.bind_data_identities(
         identity,
-        instance_sha256="I" * 64,
+        instance_canonical_sha256=instance_sha,
+        instance_identity_sha256=identity_sha,
         baseline=baseline,
-        anchor={"baseline_run_key": baseline_row["run_key"], "anchor_sha256": "A" * 64, "anchor_value_hex": "0x1p+0"},
+        anchor=anchor,
     )
-    assert bound["instance_sha256"] == "I" * 64 and bound["anchor_sha256"] == "A" * 64
+    assert bound["instance_canonical_sha256"] == instance_sha and bound["anchor_sha256"] == "A" * 64
     with pytest.raises(runner.ProtocolGateError, match="gamma"):
         runner.bind_data_identities(
             identity,
-            instance_sha256="I" * 64,
+            instance_canonical_sha256=instance_sha,
+            instance_identity_sha256=identity_sha,
             baseline={**baseline, "gamma": 2},
-            anchor={"baseline_run_key": baseline_row["run_key"], "anchor_sha256": "A" * 64},
+            anchor=anchor,
         )
 
 
@@ -302,10 +317,12 @@ def test_forbidden_final_holdout_d1_d2_reuse() -> None:
         "experiments/results_fairness_hybrid_final_holdout/ml_a1/instances/170.json",
         "analysis/fairness_hybrid_ccg_benders_d1/run.json",
         "analysis/fairness_hybrid_ccg_benders_d2/checkpoint.json",
+        "experiments/results_fh_gamma/ml_a1/run.json",
+        "experiments/results_fh_gamma/lg_a1/run.json",
     ):
         with pytest.raises(runner.ProtocolGateError, match="may not be reused"):
             runner.reject_reuse_path(path)
-    runner.reject_reuse_path("experiments/results_fh_gamma/ml_a1/run.json")
+    runner.reject_reuse_path("experiments/results_fh_gamma/ml_a2/run.json")
 
 
 def _valid_result_row() -> dict[str, object]:
@@ -314,11 +331,13 @@ def _valid_result_row() -> dict[str, object]:
     baseline = runner.paired_baseline(runner.expand_plan(), planned)
     row.update({
         **planned,
-        "execution_attempt": 1, "git_commit": "G" * 40,
+        "execution_attempt": runner.EXECUTION_ATTEMPT, "git_commit": "G" * 40,
         "config_file_sha256": runner.EXPECTED_CONFIG_SHA256,
         "protocol_sha256": runner.EXPECTED_PROTOCOL_SHA256,
         "candidate_sha256": runner.CANDIDATE_SHA256,
-        "instance_sha256": "I" * 64, "baseline_run_key": baseline["run_key"], "anchor_sha256": "A" * 64,
+        "instance_sha256": "I" * 64, "instance_canonical_sha256": "I" * 64,
+        "instance_identity_sha256": "D" * 64,
+        "baseline_run_key": baseline["run_key"], "anchor_sha256": "A" * 64,
         "state": "complete", "algorithm_status": "optimal",
         "scientific_status": "certified_robust_optimal", "objective_t": 0.2,
         "robust_minimum_fill_rate": 0.8, "wminfr": 0.8,
@@ -508,7 +527,7 @@ def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
 def test_real_git_gate_ignores_only_frozen_output_root_and_rejects_other_dirt(tmp_path: Path) -> None:
     git_root = _detached_git_repo(tmp_path / "g")
     runner.formal_git_gate(git_root)
-    ignored = git_root / "experiments/results_fh_gamma/ml_a1/manifest.json"
+    ignored = git_root / "experiments/results_fh_gamma/ml_a2/manifest.json"
     ignored.parent.mkdir(parents=True)
     ignored.write_text("{}\n", encoding="utf-8")
     check = subprocess.run(
