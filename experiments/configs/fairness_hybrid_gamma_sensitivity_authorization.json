@@ -1,12 +1,12 @@
 {
-  "schema": "fairness_hybrid_gamma_sensitivity_authorization_v1",
-  "schema_version": 1,
+  "schema": "fairness_hybrid_gamma_sensitivity_authorization_v2",
+  "schema_version": 2,
   "formal_run_authorized": true,
   "stage": "GAMMA_SENSITIVITY",
-  "execution_attempt": 1,
-  "protocol_merge_commit": "174fbd1d158a5daff6bed51114186405a5cf8540",
-  "protocol_sha256": "D9552F83E292CB1EDB262DF2B113A8044AECD6607207FDBC857770083C35EC1A",
-  "config_file_sha256": "82834FB7BC91C3CE2BB4759A2C4571E3E812E9A9C030A2CD9F56F8CD60B61A59",
+  "execution_attempt": 2,
+  "protocol_merge_commit": "ef4c4af7b22811ee3b3b53d3e5b59462825ceeae",
+  "protocol_sha256": "098287216AF8A9917F6488E8BAF662F62A115D10F98B307C7CB66032C7452375",
+  "config_file_sha256": "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68",
   "candidate": "certified_hybrid_scenario_benders_fairness",
   "candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
   "scales": [
@@ -29,13 +29,13 @@
     0.025
   ],
   "output_directories": [
-    "experiments/results_fh_gamma/ml_a1",
-    "experiments/results_fh_gamma/lg_a1"
+    "experiments/results_fh_gamma/ml_a2",
+    "experiments/results_fh_gamma/lg_a2"
   ],
   "previous_attempt_results_reused": false,
-  "authorization_purpose": "Authorize only the preregistered certified Hybrid Gamma sensitivity formal run.",
-  "authorized_at": "2026-08-03T09:50:56.4169140+08:00",
-  "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_formal_run",
+  "authorization_purpose": "Authorize only the isolated Attempt 2 certified Hybrid Gamma sensitivity formal run after the Attempt 1 pipeline identity incident; no Attempt 1 scientific artifact may be reused.",
+  "authorized_at": "2026-08-03T11:24:16.0160952+08:00",
+  "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt2_formal_run_only",
   "prohibited_scope": {
     "other_stages": true,
     "other_scales": true,
@@ -44,6 +44,7 @@
     "other_rho": true,
     "full_grid": true,
     "overwrite": true,
-    "selective_rerun": true
+    "selective_rerun": true,
+    "attempt1_artifact_reuse": true
   }
 }
