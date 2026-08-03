@@ -14,7 +14,7 @@ import yaml
 
 from .experiment_protocol import file_sha256
 from .fairness_hybrid_gamma_sensitivity_runner import (
-    ATTEMPT1_OUTPUT_DIRS,
+    PRIOR_ATTEMPT_OUTPUT_DIRS,
     BASE_COMMIT,
     CANDIDATE_SHA256,
     EXPECTED_CONFIG_SHA256,
@@ -237,14 +237,14 @@ def static_audit(root: Path, archive: Path | None = None) -> dict[str, Any]:
     validate_config(config_path, config)
     plan = expand_plan()
     dry = dry_run(config_path, worktree_root=Path(config["formal_worktree_root"]))
-    seed = audit_repository_seed_access(root, excluded_untracked_roots=ATTEMPT1_OUTPUT_DIRS)
+    seed = audit_repository_seed_access(root, excluded_untracked_roots=PRIOR_ATTEMPT_OUTPUT_DIRS)
     zip_report = audit_zip_seed_access(archive) if archive is not None and archive.exists() else None
     ignore_lines = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
     ignored_outputs = [
         subprocess.run(["git", "-C", str(root), "check-ignore", "-q", path], check=False)
         for path in (
-            "experiments/results_fh_gamma/ml_a2/manifest.json",
-            "experiments/results_fh_gamma/lg_a2/manifest.json",
+            "experiments/results_fh_gamma/ml_a3/manifest.json",
+            "experiments/results_fh_gamma/lg_a3/manifest.json",
         )
     ]
     unrelated_output = subprocess.run(

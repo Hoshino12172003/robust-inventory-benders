@@ -1,0 +1,57 @@
+{
+  "schema": "fairness_hybrid_gamma_sensitivity_attempt2_identity_incident_v1",
+  "classification": "pipeline_identity_projection_defect",
+  "execution_state": "execution_incomplete",
+  "scientifically_usable": false,
+  "results_reused": false,
+  "execution_attempt": 2,
+  "git_commit": "562885f737cf8fe2c56827b28712dc7f3db51306",
+  "config_sha256": "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68",
+  "protocol_sha256": "098287216AF8A9917F6488E8BAF662F62A115D10F98B307C7CB66032C7452375",
+  "candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
+  "authorization_sha256": "C0AF6CFE40280ABECCDB8C4C0380FAD46C6956BE7DED74DF037A326F249C4E1F",
+  "output_directories": [
+    "experiments/results_fh_gamma/ml_a2",
+    "experiments/results_fh_gamma/lg_a2"
+  ],
+  "accessed_scales": ["medium_large"],
+  "accessed_seed_values": [180],
+  "accessed_gamma_values": [0],
+  "failed_task": {
+    "scale_value": "medium_large",
+    "seed_value": 180,
+    "gamma_value": 0,
+    "task_type": "frontier",
+    "run_directory_id": "r_57d2d7dfa96bec7e79551603",
+    "failure": "incomplete_baseline_run_identity"
+  },
+  "execution_boundary": {
+    "generated_instance_count": 1,
+    "baseline_solver_called": true,
+    "baseline_complete_count": 1,
+    "baseline_status": "optimal",
+    "baseline_valid_upper_bound": true,
+    "baseline_gap": 0.0000724727233660597,
+    "baseline_runtime_seconds": 7.06593630000134,
+    "frontier_solver_entry_called": true,
+    "frontier_master_created": false,
+    "frontier_master_solved": false,
+    "frontier_incumbent_available": false,
+    "algorithm_checkpoint_count": 0,
+    "separation_executed": false,
+    "final_exact_certification_executed": false,
+    "post_evaluation_created": false,
+    "frontier_certified_solved_count": 0,
+    "results_csv_created": false,
+    "summary_csv_created": false
+  },
+  "identity_comparison": {
+    "instance_canonical_sha256": "72D9415391E1C9DCB865144A6CB0D3DAEEA7DAB6A9143660C30970A7AC69C15D",
+    "instance_identity_sha256": "181B0C15CD812E212DDAA72FCEACDA61629C31EBA70F32A0405FD67E8D7BE6A5",
+    "baseline_has_resolved_config_file_sha256": false,
+    "anchor_resolved_config_file_sha256": "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68",
+    "expected_resolved_config_file_sha256": "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68",
+    "all_other_required_baseline_identity_fields_present": true
+  },
+  "root_cause": "run_identity omitted resolved_config_file_sha256 from the persisted baseline identity, while the common identity, anchor, expected identity, and initial-upper-bound fail-closed contract required it"
+}

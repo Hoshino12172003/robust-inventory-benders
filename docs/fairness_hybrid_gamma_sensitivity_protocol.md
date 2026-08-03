@@ -74,20 +74,22 @@ The audit reports four distinct categories: preregistration declaration, generat
 
 Formal roots are short Windows-safe paths:
 
-- `experiments/results_fh_gamma/ml_a1`
-- `experiments/results_fh_gamma/lg_a1`
+- `experiments/results_fh_gamma/ml_a3`
+- `experiments/results_fh_gamma/lg_a3`
 
-The formal detached worktree is frozen as `E:\rfgs`. Before execution, the runner expands every root artifact, run/status file, baseline and algorithm checkpoint, post-evaluation final/index/chunk, and atomic `.tmp` name under that exact absolute root and rejects any path longer than 220 characters. It also requires a clean detached HEAD equal to current `origin/main`.
+The reviewed operational detached worktree is `E:\rfgs2`; the absolute worktree path is not part of scientific identity. Before execution, the runner expands every root artifact, run/status file, baseline and algorithm checkpoint, post-evaluation final/index/chunk, and atomic `.tmp` name under the actual worktree root and rejects any path longer than 220 characters. It also requires a clean detached HEAD equal to current `origin/main`.
 
 The root manifest freezes schema, attempt, Git/config/protocol/candidate identities, solver settings, full matrix, run-key maps, and instance/baseline/anchor identities. Each run has atomic `run.json` and `status.json`. Frontier state also has an identity-bound append-only `algorithm_checkpoint.json` and a post-evaluation `index.json` plus SHA-bound ordered chunks. `results.csv` and `summary.csv` are atomic projections of committed run records. Corrupt JSON, missing identity, mapping drift, completed-run repetition, chunk gaps, SHA mismatch, or cumulative-count mismatch fails closed.
 
 Only strict `--resume` is supported for a future authorized run. `--overwrite` does not exist. A committed result, Gamma-specific baseline, checkpoint, scenario, cut, post-evaluation chunk, or CSV row is never repeated. A later authorization-only change supplies a Git-tracked JSON authorization file; no runner change is needed after this PR. This protocol does not authorize that run.
 
-## 11. Attempt 2 identity-incident isolation
+## 11. Prior identity incidents and Attempt 3 isolation
 
 Attempt 1 stopped during the first Medium-large, seed 180, Gamma 0 frontier before master construction because the initial-upper-bound identity gate compared the canonical JSON instance payload SHA with a YAML configuration SHA of the same instance. Attempt 1 is frozen as `execution_incomplete`, `pipeline_identity_defect`, and `scientifically_usable=false`; none of its instance, baseline, anchor, checkpoint, run, or aggregate artifacts may be reused.
 
-Attempt 2 uses execution attempt 2 and the isolated output roots `experiments/results_fh_gamma/ml_a2` and `experiments/results_fh_gamma/lg_a2`. Its canonical instance identity is the SHA256 of the strict canonical JSON serialization of `InventoryInstance.to_dict()`. The identity binds scale, seed, Gamma, execution attempt, Git commit, Config SHA, Protocol SHA, and canonical instance payload SHA. Exact archive-file SHA, when reported, is named separately and is never substituted for the canonical instance payload SHA. The same canonical identity must be present in the archive, manifest, baseline, anchor, frontier, checkpoint, and initial-upper-bound solver contract. Any field drift remains fail closed.
+Attempt 2 stopped at the same first frontier before master construction because `run_identity` omitted `resolved_config_file_sha256` from the persisted baseline identity while the common identity, anchor, expected identity, and initial-upper-bound contract required it. Attempt 2 is frozen as `execution_incomplete`, `pipeline_identity_projection_defect`, and `scientifically_usable=false`; its artifacts also may not be reused.
+
+Attempt 3 uses execution attempt 3 and the isolated output roots `experiments/results_fh_gamma/ml_a3` and `experiments/results_fh_gamma/lg_a3`. Its canonical instance identity is the SHA256 of the strict canonical JSON serialization of `InventoryInstance.to_dict()`. Exact archive-file SHA is named separately. The archive, manifest, baseline, anchor, frontier, checkpoint, and initial-upper-bound solver contract must carry the same canonical identity, Gamma, execution attempt, config SHA, resolved-config SHA, Git commit, candidate SHA, baseline run key, and anchor SHA as applicable. Any real field drift remains fail closed.
 
 ## 7. Dry-run and solver-limit envelopes
 
@@ -130,4 +132,4 @@ next_authorized_stage: fairness_hybrid_gamma_sensitivity_pre_run_audit_only
 
 This delivery authorizes only solver-free dry-run, static validation, checkpoint/resume unit tests with synthetic temporary data, and a fresh read-only pre-run audit. It does not authorize instance generation for seeds 180--184, Gurobi configuration or execution, formal optimization, selective reruns, Gamma 3/4, new rho values, or any mutation of frozen Holdout/D1/D2 artifacts.
 
-After the Attempt 2 repair is merged, the separately reviewed authorization-only file must use schema `fairness_hybrid_gamma_sensitivity_authorization_v2`, set `formal_run_authorized=true`, bind the exact config/protocol/candidate SHA values, unchanged matrix, execution attempt 2, isolated Attempt 2 output roots, and repair merge commit, and set `next_authorized_stage=fairness_hybrid_gamma_sensitivity_attempt2_formal_run_only`. It must state `previous_attempt_results_reused=false`. The runner requires that file to be Git tracked and the repair merge commit to be an ancestor of the clean detached current `origin/main`. All authorization, Git, seed-access, existing-output identity, and path gates run before production dependencies are imported or any output is created.
+After the Attempt 3 repair is merged, the separately reviewed authorization-only file must use schema `fairness_hybrid_gamma_sensitivity_authorization_v3`, set `formal_run_authorized=true`, bind the exact config/protocol/candidate SHA values, unchanged matrix, execution attempt 3, isolated Attempt 3 output roots, and repair merge commit, and set `next_authorized_stage=fairness_hybrid_gamma_sensitivity_attempt3_formal_run_only`. It must state `previous_attempt_results_reused=false` and prohibit Attempt 1/2 artifact reuse. The runner requires that file to be Git tracked and the repair merge commit to be an ancestor of the clean detached current `origin/main`. All authorization, Git, seed-access, existing-output identity, and path gates run before production dependencies are imported or any output is created.

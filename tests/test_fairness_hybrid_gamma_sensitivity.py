@@ -186,6 +186,7 @@ def test_manifest_and_run_identity_bind_gamma_config_protocol_git_and_solver() -
     assert identity["gamma"] == 1 and identity["rho"] == "0.025"
     assert identity["baseline_run_key"] == runner.paired_baseline(plan, frontier)["run_key"]
     assert identity["config_file_sha256"] == runner.EXPECTED_CONFIG_SHA256
+    assert identity["resolved_config_file_sha256"] == runner.EXPECTED_CONFIG_SHA256
     assert identity["protocol_sha256"] == runner.EXPECTED_PROTOCOL_SHA256
     assert identity["solver_parameters"] == {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7}
     manifest = runner.manifest_payload(CONFIG, "large", git_commit_value="a" * 40)
@@ -319,10 +320,12 @@ def test_forbidden_final_holdout_d1_d2_reuse() -> None:
         "analysis/fairness_hybrid_ccg_benders_d2/checkpoint.json",
         "experiments/results_fh_gamma/ml_a1/run.json",
         "experiments/results_fh_gamma/lg_a1/run.json",
+        "experiments/results_fh_gamma/ml_a2/run.json",
+        "experiments/results_fh_gamma/lg_a2/run.json",
     ):
         with pytest.raises(runner.ProtocolGateError, match="may not be reused"):
             runner.reject_reuse_path(path)
-    runner.reject_reuse_path("experiments/results_fh_gamma/ml_a2/run.json")
+    runner.reject_reuse_path("experiments/results_fh_gamma/ml_a3/run.json")
 
 
 def _valid_result_row() -> dict[str, object]:
@@ -333,9 +336,10 @@ def _valid_result_row() -> dict[str, object]:
         **planned,
         "execution_attempt": runner.EXECUTION_ATTEMPT, "git_commit": "G" * 40,
         "config_file_sha256": runner.EXPECTED_CONFIG_SHA256,
+        "resolved_config_file_sha256": runner.EXPECTED_CONFIG_SHA256,
         "protocol_sha256": runner.EXPECTED_PROTOCOL_SHA256,
         "candidate_sha256": runner.CANDIDATE_SHA256,
-        "instance_sha256": "I" * 64, "instance_canonical_sha256": "I" * 64,
+        "instance_sha256": "A" * 64, "instance_canonical_sha256": "A" * 64,
         "instance_identity_sha256": "D" * 64,
         "baseline_run_key": baseline["run_key"], "anchor_sha256": "A" * 64,
         "state": "complete", "algorithm_status": "optimal",
@@ -363,6 +367,10 @@ def test_csv_fields_and_three_fill_rate_semantics(tmp_path: Path) -> None:
     crossing["objective_t"] = 0.3
     with pytest.raises(runner.ProtocolGateError, match="must equal 1-T"):
         runner.validate_result_row(crossing)
+    with pytest.raises(runner.ProtocolGateError, match="resolved_config_file_sha256"):
+        runner.validate_result_row({**row, "resolved_config_file_sha256": "missing"})
+    with pytest.raises(runner.ProtocolGateError, match="canonical instance identity drift"):
+        runner.validate_result_row({**row, "instance_canonical_sha256": "C" * 64})
     protocol = (ROOT / "docs/fairness_hybrid_gamma_sensitivity_protocol.md").read_text(encoding="utf-8")
     assert "robust_minimum_fill_rate = 1 - T" in protocol
     assert "`wminfr`: exact post-evaluation minimum" in protocol
@@ -524,10 +532,113 @@ def test_solver_free_full_sixty_run_pipeline_and_second_resume_are_exact(
     assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 2}
 
 
+def test_runner_to_production_frontier_identity_chain_for_all_thirty_cells(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.fairness_hybrid_ccg_benders as hybrid
+    from src.fairness_large_final_remediation import construct_initial_t1_upper_bound
+    from src.instance import InventoryInstance
+    from tests.test_fairness_large_final_remediation_implementation import tiny_instance
+
+    git_root = _detached_git_repo(tmp_path / "g")
+    calls = {name: 0 for name in ("generate", "baseline", "frontier", "post", "configure")}
+    scales = deepcopy(runner.SCALES)
+    for scale, short in (("medium_large", "m"), ("large", "l")):
+        scales[scale]["output_dir"] = str(git_root / "experiments/results_fh_gamma" / short)
+    monkeypatch.setattr(runner, "SCALES", scales)
+    monkeypatch.setattr(runner, "validate_config", lambda path, config: None)
+
+    class Result:
+        def __init__(self, gamma: int) -> None:
+            self.gamma = gamma
+
+        def to_dict(self) -> dict[str, object]:
+            return {
+                "status": "optimal", "gap": 0.0, "lower_bound": 0.2, "upper_bound": 0.2,
+                "runtime": 0.1, "objective_t": 0.2,
+                "robust_minimum_fill_rate": 0.8, "x_values": {"x": 0.0},
+                "y_values": {"y": 1.0}, "iterations": 1, "cuts": self.gamma,
+                "metadata": {
+                    "robust_feasibility_certified": True,
+                    "full_separation_objective_bound_required": True,
+                    "committed_scenario_count": self.gamma + 1,
+                },
+                "iteration_log": [{
+                    "final_exact_separation_performed": True,
+                    "robust_feasibility_certified": True,
+                    "master_status": "optimal", "separation_objective_bound": -0.0,
+                }],
+            }
+
+    def fake_hybrid_solver(instance: InventoryInstance, **kwargs: object) -> Result:
+        calls["frontier"] += 1
+        expected = kwargs["expected_identity"]
+        baseline_record = kwargs["baseline_record"]
+        anchor = kwargs["anchor"]
+        assert baseline_record["resolved_config_file_sha256"] == expected["resolved_config_file_sha256"]
+        construct_initial_t1_upper_bound(
+            instance, baseline_record=baseline_record, anchor=anchor,
+            rho=float(kwargs["rho"]), tolerance=float(kwargs["tol"]),
+            expected_identity=expected,
+            expected_candidate_sha256=runner.CANDIDATE_SHA256,
+        )
+        return Result(int(kwargs["gamma"]))
+
+    monkeypatch.setattr(hybrid, "solve_certified_hybrid_scenario_benders_fairness", fake_hybrid_solver)
+    production = runner.production_dependencies()
+
+    def generate(_config: dict[str, object], _seed: int) -> InventoryInstance:
+        calls["generate"] += 1
+        return tiny_instance()
+
+    def baseline(_config: dict[str, object], instance: InventoryInstance, _seed: int, _solver: dict[str, object]) -> dict[str, object]:
+        calls["baseline"] += 1
+        return {
+            "status": "optimal", "valid_UB": True, "upper_bound": 30.0,
+            "gap": 0.0, "runtime": 0.1,
+            "best_y_values": [1.0 for _ in instance.I],
+            "best_x_values": [[0.0 for _ in instance.J] for _ in instance.I],
+        }
+
+    def post(
+        _config: dict[str, object], _instance: InventoryInstance, result: dict[str, object],
+        anchor: dict[str, object], _identity: dict[str, object], post_root: Path,
+        row: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, float]]:
+        calls["post"] += 1
+        count = runner.scenario_count(str(row["scale"]), int(row["gamma"]))
+        atomic_write_json(post_root / "final.json", {"valid": True, "scenario_count": count})
+        return ({
+            "valid": True, "errors": [], "objective_t_consistent": True,
+            "scenario_count": count, "actual_robust_cost": float(anchor["value"]),
+            "actual_price_of_fairness": 0.0,
+            "wminfr": float(result["robust_minimum_fill_rate"]),
+            "minimum_weighted_mean_fill_rate": 0.9,
+        }, {"post_evaluation_solver_runtime": 0.0, "post_evaluation_wall_runtime": 0.0,
+            "aggregation_runtime": 0.0, "checkpoint_io_runtime": 0.0})
+
+    dependencies = runner.GammaDependencies(
+        generate_instance=generate,
+        serialize_instance=lambda value: value.to_dict(),
+        deserialize_instance=InventoryInstance.from_dict,
+        solve_baseline=baseline,
+        make_anchor=production.make_anchor,
+        solve_frontier=production.solve_frontier,
+        post_evaluate=post,
+        configure_solver=lambda _settings: calls.__setitem__("configure", calls["configure"] + 1),
+    )
+    report = runner.run_sensitivity(
+        CONFIG, resume=True, dependencies=dependencies,
+        test_authorization=True, test_git_root=git_root,
+    )
+    assert report["completed_run_count"] == 60
+    assert calls == {"generate": 30, "baseline": 30, "frontier": 30, "post": 30, "configure": 1}
+
+
 def test_real_git_gate_ignores_only_frozen_output_root_and_rejects_other_dirt(tmp_path: Path) -> None:
     git_root = _detached_git_repo(tmp_path / "g")
     runner.formal_git_gate(git_root)
-    ignored = git_root / "experiments/results_fh_gamma/ml_a2/manifest.json"
+    ignored = git_root / "experiments/results_fh_gamma/ml_a3/manifest.json"
     ignored.parent.mkdir(parents=True)
     ignored.write_text("{}\n", encoding="utf-8")
     check = subprocess.run(
