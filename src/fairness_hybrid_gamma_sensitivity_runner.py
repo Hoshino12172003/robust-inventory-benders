@@ -24,17 +24,17 @@ from .experiment_protocol import (
 
 
 STAGE = "GAMMA_SENSITIVITY"
-SCHEMA = "fairness_hybrid_gamma_sensitivity_manifest_v2"
-CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_algorithm_checkpoint_v2"
-POST_SCHEMA = "fairness_hybrid_gamma_sensitivity_post_evaluation_v2"
-AUTHORIZATION_SCHEMA = "fairness_hybrid_gamma_sensitivity_authorization_v2"
-BASELINE_CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v2"
-EXECUTION_ATTEMPT = 2
-BASE_COMMIT = "72288df0f628e499616b5132daf1e89b2467dce5"
+SCHEMA = "fairness_hybrid_gamma_sensitivity_manifest_v3"
+CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_algorithm_checkpoint_v3"
+POST_SCHEMA = "fairness_hybrid_gamma_sensitivity_post_evaluation_v3"
+AUTHORIZATION_SCHEMA = "fairness_hybrid_gamma_sensitivity_authorization_v3"
+BASELINE_CHECKPOINT_SCHEMA = "fairness_hybrid_gamma_sensitivity_baseline_checkpoint_v3"
+EXECUTION_ATTEMPT = 3
+BASE_COMMIT = "562885f737cf8fe2c56827b28712dc7f3db51306"
 CANDIDATE = "certified_hybrid_scenario_benders_fairness"
 CANDIDATE_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
-EXPECTED_CONFIG_SHA256 = "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68"
-EXPECTED_PROTOCOL_SHA256 = "098287216AF8A9917F6488E8BAF662F62A115D10F98B307C7CB66032C7452375"
+EXPECTED_CONFIG_SHA256 = "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07"
+EXPECTED_PROTOCOL_SHA256 = "F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E"
 SEEDS = [180, 181, 182, 183, 184]
 GAMMAS = [0, 1, 2]
 RHO = 0.025
@@ -45,14 +45,14 @@ SCALES = {
         "num_products": 6,
         "demand_components": 60,
         "scenario_counts": {0: 1, 1: 61, 2: 1831},
-        "output_dir": "experiments/results_fh_gamma/ml_a2",
+        "output_dir": "experiments/results_fh_gamma/ml_a3",
     },
     "large": {
         "num_regions": 12,
         "num_products": 8,
         "demand_components": 96,
         "scenario_counts": {0: 1, 1: 97, 2: 4657},
-        "output_dir": "experiments/results_fh_gamma/lg_a2",
+        "output_dir": "experiments/results_fh_gamma/lg_a3",
     },
 }
 FORBIDDEN_REUSE_PARTS = (
@@ -61,10 +61,14 @@ FORBIDDEN_REUSE_PARTS = (
     "fairness_hybrid_ccg_benders_d2",
     "experiments/results_fh_gamma/ml_a1",
     "experiments/results_fh_gamma/lg_a1",
+    "experiments/results_fh_gamma/ml_a2",
+    "experiments/results_fh_gamma/lg_a2",
 )
-ATTEMPT1_OUTPUT_DIRS = (
+PRIOR_ATTEMPT_OUTPUT_DIRS = (
     "experiments/results_fh_gamma/ml_a1",
     "experiments/results_fh_gamma/lg_a1",
+    "experiments/results_fh_gamma/ml_a2",
+    "experiments/results_fh_gamma/lg_a2",
 )
 
 
@@ -174,10 +178,10 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
         "authorization": "protocol_only_pre_run_audit",
         "formal_run_authorized": False,
         "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_pre_run_audit_only",
-        "schema_version": 2,
+        "schema_version": 3,
         "execution_attempt": EXECUTION_ATTEMPT,
         "previous_attempt_results_reused": False,
-        "formal_worktree_root": r"E:\rfgs",
+        "formal_worktree_root": r"E:\rfgs2",
         "base_commit": BASE_COMMIT,
         "candidate": CANDIDATE,
         "required_candidate_sha256": CANDIDATE_SHA256,
@@ -203,7 +207,7 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
         "resume": True,
         "overwrite_supported": False,
         "forbidden_reuse_families": ["FINAL_HOLDOUT", "D1", "D2"],
-        "forbidden_prior_attempt_output_dirs": list(ATTEMPT1_OUTPUT_DIRS),
+        "forbidden_prior_attempt_output_dirs": list(PRIOR_ATTEMPT_OUTPUT_DIRS),
         "forbidden_gamma": [3, 4],
         "forbidden_additional_rho": True,
     }
@@ -284,6 +288,7 @@ def run_identity(row: dict[str, Any], config_path: str | Path, *, git_commit_val
     config = load_config(config_path)
     validate_config(config_path, config)
     baseline = paired_baseline(expand_plan(), row) if row["task_type"] == "frontier" else row
+    config_sha = file_sha256(config_path).upper()
     return {
         "schema": SCHEMA,
         "stage": STAGE,
@@ -291,7 +296,8 @@ def run_identity(row: dict[str, Any], config_path: str | Path, *, git_commit_val
         "previous_attempt_results_reused": False,
         "git_commit": git_commit_value,
         "base_commit": BASE_COMMIT,
-        "config_file_sha256": file_sha256(config_path).upper(),
+        "config_file_sha256": config_sha,
+        "resolved_config_file_sha256": config_sha,
         "protocol_sha256": config["required_protocol_sha256"],
         "candidate": row["candidate"],
         "candidate_sha256": CANDIDATE_SHA256,
@@ -671,7 +677,8 @@ def par2(scientific_status: str, algorithm_runtime: float, limit: float = 1800.0
 
 
 RESULT_FIELDS = [
-    "run_key", "run_directory_id", "stage", "execution_attempt", "git_commit", "config_file_sha256",
+    "run_key", "run_directory_id", "stage", "execution_attempt", "git_commit",
+    "config_file_sha256", "resolved_config_file_sha256",
     "protocol_sha256", "candidate_sha256", "scale", "task_type", "seed", "gamma", "rho",
     "candidate", "instance_sha256", "instance_canonical_sha256", "instance_identity_sha256",
     "baseline_run_key", "anchor_sha256", "state", "algorithm_status", "scientific_status",
@@ -693,6 +700,15 @@ def validate_result_row(row: dict[str, Any]) -> None:
         raise ProtocolGateError("results CSV matrix identity drift")
     if row["run_directory_id"] != run_directory_id(str(row["run_key"])):
         raise ProtocolGateError("results CSV run-key directory mapping drift")
+    for name in (
+        "config_file_sha256", "resolved_config_file_sha256", "candidate_sha256",
+        "instance_sha256", "instance_canonical_sha256", "instance_identity_sha256",
+    ):
+        value = str(row[name]).upper()
+        if len(value) != 64 or any(character not in "0123456789ABCDEF" for character in value):
+            raise ProtocolGateError(f"results CSV invalid SHA256 field: {name}")
+    if str(row["instance_sha256"]).upper() != str(row["instance_canonical_sha256"]).upper():
+        raise ProtocolGateError("results CSV canonical instance identity drift")
     planned = next((item for item in expand_plan() if item["run_key"] == row["run_key"]), None)
     if planned is None or any(row[name] != planned[name] for name in ("scale", "task_type", "seed", "gamma", "rho", "candidate")):
         raise ProtocolGateError("results CSV run identity is not in the frozen plan")
@@ -768,7 +784,7 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
         raise ProtocolGateError("formal_run_not_authorized: reviewed authorization file is required")
     expected = {
         "schema": AUTHORIZATION_SCHEMA,
-        "schema_version": 2,
+        "schema_version": 3,
         "stage": STAGE,
         "formal_run_authorized": True,
         "execution_attempt": EXECUTION_ATTEMPT,
@@ -782,7 +798,7 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
         "rho": [RHO],
         "output_directories": [value["output_dir"] for value in SCALES.values()],
         "previous_attempt_results_reused": False,
-        "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt2_formal_run_only",
+        "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt3_formal_run_only",
     }
     for key, value in expected.items():
         if authorization.get(key) != value:
@@ -816,7 +832,7 @@ def formal_git_gate(root: Path) -> str:
 def pre_run_seed_gate(root: Path) -> dict[str, Any]:
     from .fairness_hybrid_gamma_sensitivity_audit import audit_repository_seed_access
 
-    report = audit_repository_seed_access(root, excluded_untracked_roots=ATTEMPT1_OUTPUT_DIRS)
+    report = audit_repository_seed_access(root, excluded_untracked_roots=PRIOR_ATTEMPT_OUTPUT_DIRS)
     prefixes = tuple(value["output_dir"].replace("\\", "/") + "/" for value in SCALES.values())
     unexpected = []
     for category in ("generated_instance_evidence", "solved_run_evidence", "formal_result_access_evidence"):
@@ -1049,7 +1065,7 @@ def _run_scale(
         manifest = expected_manifest
         atomic_write_json(manifest_path, manifest)
     audit_identity = {
-        "schema": "fairness_hybrid_gamma_sensitivity_audit_log_v2",
+        "schema": "fairness_hybrid_gamma_sensitivity_audit_log_v3",
         "identity": expected_manifest["identity"],
         "formal_worktree_root": str(root),
         "solver_limit_envelopes_are_not_wall_time_predictions": True,

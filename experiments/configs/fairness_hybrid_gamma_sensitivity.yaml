@@ -3,18 +3,18 @@ stage: GAMMA_SENSITIVITY
 authorization: protocol_only_pre_run_audit
 formal_run_authorized: false
 next_authorized_stage: fairness_hybrid_gamma_sensitivity_pre_run_audit_only
-schema_version: 2
-execution_attempt: 2
+schema_version: 3
+execution_attempt: 3
 previous_attempt_results_reused: false
-formal_worktree_root: 'E:\rfgs'
-base_commit: 72288df0f628e499616b5132daf1e89b2467dce5
+formal_worktree_root: 'E:\rfgs2'
+base_commit: 562885f737cf8fe2c56827b28712dc7f3db51306
 final_holdout:
   source_zip_sha256: BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839
   pr51_merge_commit: 13493ba63006604443f54f61799842dc2a3fbac9
   results_corrected_sha256: 50EB5823F4C7138E65FA36546B90EE081B48949D2F961F5AFDFAE098A7F0A496
   paper_metrics_sha256: 044689ABF1ADD1C1FC217FCB5F46B8D280D8659865EE3A3707EBB9FE792F2E37
 protocol_document: docs/fairness_hybrid_gamma_sensitivity_protocol.md
-required_protocol_sha256: 098287216AF8A9917F6488E8BAF662F62A115D10F98B307C7CB66032C7452375
+required_protocol_sha256: F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E
 candidate_definition: experiments/configs/certified_hybrid_scenario_benders_fairness_d1_candidate.yaml
 required_candidate_sha256: 8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0
 candidate: certified_hybrid_scenario_benders_fairness
@@ -27,7 +27,7 @@ scales:
     baseline_count: 15
     frontier_count: 15
     total_tasks: 30
-    output_dir: experiments/results_fh_gamma/ml_a2
+    output_dir: experiments/results_fh_gamma/ml_a3
   large:
     num_regions: 12
     num_products: 8
@@ -36,7 +36,7 @@ scales:
     baseline_count: 15
     frontier_count: 15
     total_tasks: 30
-    output_dir: experiments/results_fh_gamma/lg_a2
+    output_dir: experiments/results_fh_gamma/lg_a3
 seeds: [180, 181, 182, 183, 184]
 gamma: [0, 1, 2]
 rho: [0.025]
@@ -63,6 +63,6 @@ statistics:
 resume: true
 overwrite_supported: false
 forbidden_reuse_families: [FINAL_HOLDOUT, D1, D2]
-forbidden_prior_attempt_output_dirs: [experiments/results_fh_gamma/ml_a1, experiments/results_fh_gamma/lg_a1]
+forbidden_prior_attempt_output_dirs: [experiments/results_fh_gamma/ml_a1, experiments/results_fh_gamma/lg_a1, experiments/results_fh_gamma/ml_a2, experiments/results_fh_gamma/lg_a2]
 forbidden_gamma: [3, 4]
 forbidden_additional_rho: true

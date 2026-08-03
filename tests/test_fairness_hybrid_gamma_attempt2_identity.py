@@ -36,7 +36,7 @@ def _production_identity_bundle(scale: str, gamma: int, tmp_path: Path) -> dict[
     restored, instance_identity, canonical_sha, identity_sha = runner.validate_instance_archive(archive, frozen)
     assert restored == serialized
     archive_file_sha = file_sha256(archive_path).upper()
-    baseline_run_key = f"production-schema::{scale}::991::{gamma}::baseline::attempt2"
+    baseline_run_key = f"production-schema::{scale}::991::{gamma}::baseline::attempt3"
     common = {
         "instance_sha256": canonical_sha,
         "instance_canonical_sha256": canonical_sha,
@@ -149,3 +149,41 @@ def test_production_identity_rejects_baseline_anchor_and_manifest_drift(tmp_path
             manifest, "instance_identities", "s991_g2",
             {**bundle["manifest_identity"], "gamma": 1},
         )
+
+
+def test_production_frontier_adapter_receives_complete_runner_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _production_identity_bundle("medium_large", 0, tmp_path)
+    import src.fairness_hybrid_ccg_benders as hybrid
+
+    captured: dict[str, object] = {}
+
+    class Result:
+        def to_dict(self) -> dict[str, object]:
+            return {"adapter_reached": True}
+
+    def fake_solver(instance: object, **kwargs: object) -> Result:
+        expected = kwargs["expected_identity"]
+        baseline = kwargs["baseline_record"]
+        anchor = kwargs["anchor"]
+        assert isinstance(expected, dict) and isinstance(baseline, dict) and isinstance(anchor, dict)
+        assert baseline["resolved_config_file_sha256"] == expected["resolved_config_file_sha256"]
+        construct_initial_t1_upper_bound(
+            instance, baseline_record=baseline, anchor=anchor, rho=runner.RHO,
+            tolerance=1e-4, expected_identity=expected,
+            expected_candidate_sha256=runner.CANDIDATE_SHA256,
+        )
+        captured["expected"] = expected
+        return Result()
+
+    monkeypatch.setattr(hybrid, "solve_certified_hybrid_scenario_benders_fairness", fake_solver)
+    dependencies = runner.production_dependencies()
+    result = dependencies.solve_frontier(
+        runner._scale_config(runner.load_config(CONFIG), "medium_large", 0),
+        bundle["instance"], bundle["baseline"], bundle["anchor"], bundle["common"],
+        tmp_path / "algorithm_checkpoint.json", runner.SOLVER_PARAMETERS,
+        {"gamma": 0, "run_key": "production-adapter"},
+    )
+    assert result == {"adapter_reached": True}
+    assert captured["expected"]["execution_attempt"] == runner.EXECUTION_ATTEMPT
