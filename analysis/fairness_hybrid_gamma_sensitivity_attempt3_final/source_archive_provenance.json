@@ -1,0 +1,8 @@
+{
+  "access_mode": "read_only",
+  "derived_files_modify_source": false,
+  "paired_comparison": "within scale and seed across Gamma",
+  "scientific_unit": "seed",
+  "source_archive_name": "fairness_hybrid_gamma_sensitivity_attempt3_results.zip",
+  "source_archive_sha256": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F"
+}

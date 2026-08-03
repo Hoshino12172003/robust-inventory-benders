@@ -1,0 +1,9 @@
+scale,candidate,tasks,certified_solved,time_limit_uncertified,pipeline_failures
+medium_large,single_cut,6,6,0,0
+medium_large,persistent_separation,6,6,0,0
+medium_large,persistent_certified_cache,6,2,1,0
+medium_large,persistent_certified_cache_batch5,6,6,0,0
+large,single_cut,6,0,6,0
+large,persistent_separation,6,0,6,0
+large,persistent_certified_cache,6,0,6,0
+large,persistent_certified_cache_batch5,6,0,6,0

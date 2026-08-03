@@ -1,0 +1,9 @@
+scale,candidate,task_count,mean_par2,median_par2,mean_final_gap
+medium_large,single_cut,6,391.6362868499321,419.4407375998562,0.0
+large,single_cut,6,3600.0,3600.0,NOT_AVAILABLE
+medium_large,persistent_separation,6,383.386736416646,398.10208759992383,0.0
+large,persistent_separation,6,3600.0,3600.0,NOT_AVAILABLE
+medium_large,persistent_certified_cache,6,2424.1748118666387,3600.0,0.0
+large,persistent_certified_cache,6,3600.0,3600.0,NOT_AVAILABLE
+medium_large,persistent_certified_cache_batch5,6,158.80106708337553,34.5372454499593,0.0
+large,persistent_certified_cache_batch5,6,3600.0,3600.0,NOT_AVAILABLE
