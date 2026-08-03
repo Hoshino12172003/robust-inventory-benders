@@ -1,12 +1,12 @@
 {
-  "schema": "fairness_hybrid_gamma_sensitivity_authorization_v2",
-  "schema_version": 2,
+  "schema": "fairness_hybrid_gamma_sensitivity_authorization_v3",
+  "schema_version": 3,
   "formal_run_authorized": true,
   "stage": "GAMMA_SENSITIVITY",
-  "execution_attempt": 2,
-  "protocol_merge_commit": "ef4c4af7b22811ee3b3b53d3e5b59462825ceeae",
-  "protocol_sha256": "098287216AF8A9917F6488E8BAF662F62A115D10F98B307C7CB66032C7452375",
-  "config_file_sha256": "ED492C925A32E751882FBA685120A87530DE852D6F3F7C5E374479300AE15F68",
+  "execution_attempt": 3,
+  "protocol_merge_commit": "656189058018b6c014b7ad4c4d5b492325de43f4",
+  "protocol_sha256": "F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E",
+  "config_file_sha256": "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07",
   "candidate": "certified_hybrid_scenario_benders_fairness",
   "candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
   "scales": [
@@ -29,13 +29,13 @@
     0.025
   ],
   "output_directories": [
-    "experiments/results_fh_gamma/ml_a2",
-    "experiments/results_fh_gamma/lg_a2"
+    "experiments/results_fh_gamma/ml_a3",
+    "experiments/results_fh_gamma/lg_a3"
   ],
   "previous_attempt_results_reused": false,
-  "authorization_purpose": "Authorize only the isolated Attempt 2 certified Hybrid Gamma sensitivity formal run after the Attempt 1 pipeline identity incident; no Attempt 1 scientific artifact may be reused.",
-  "authorized_at": "2026-08-03T11:24:16.0160952+08:00",
-  "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt2_formal_run_only",
+  "authorization_purpose": "Authorize only the isolated Attempt 3 certified Hybrid Gamma sensitivity formal run after the Attempt 1 and Attempt 2 pipeline identity incidents; no prior-attempt scientific artifact may be reused.",
+  "authorized_at": "2026-08-03T12:22:03.6747683+08:00",
+  "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt3_formal_run_only",
   "prohibited_scope": {
     "other_stages": true,
     "other_scales": true,
@@ -45,6 +45,7 @@
     "full_grid": true,
     "overwrite": true,
     "selective_rerun": true,
-    "attempt1_artifact_reuse": true
+    "attempt1_artifact_reuse": true,
+    "attempt2_artifact_reuse": true
   }
 }
