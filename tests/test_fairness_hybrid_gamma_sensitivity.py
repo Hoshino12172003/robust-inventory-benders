@@ -163,7 +163,10 @@ def test_formal_run_does_not_treat_worktree_path_as_scientific_identity(
         pass
 
     monkeypatch.setattr(runner, "formal_git_gate", lambda _root: "F" * 40)
-    monkeypatch.setattr(runner, "validate_authorization", lambda *_args: {})
+    monkeypatch.setattr(
+        runner, "validate_authorization",
+        lambda *_args: {"optimization_commit": "O" * 40, "reporting_hotfix_commit": "R" * 40},
+    )
     monkeypatch.setattr(
         runner, "pre_run_seed_gate", lambda _root: {"actual_access_evidence_count": 0},
     )
