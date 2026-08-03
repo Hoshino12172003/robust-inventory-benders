@@ -35,6 +35,17 @@ CANDIDATE = "certified_hybrid_scenario_benders_fairness"
 CANDIDATE_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
 EXPECTED_CONFIG_SHA256 = "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07"
 EXPECTED_PROTOCOL_SHA256 = "F8D058C390FC9446DD9885E58ACE06EAA2685B6B9007D1E787ABDDF66B1EBB0E"
+OPTIMIZATION_CORE_COMMIT = "656189058018b6c014b7ad4c4d5b492325de43f4"
+REPORTING_HOTFIX_BASE_COMMIT = "b1b5e9908bbb685b8a852aff762f08ce7226aba1"
+REPORTING_ONLY_CHANGED_FILES = (
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/attempt2_readonly_audit.json",
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/attempt3_readonly_audit.json",
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/decision.json",
+    "analysis/fairness_hybrid_gamma_sensitivity_reporting_hotfix/reporting_schema_audit.md",
+    "src/fairness_hybrid_gamma_sensitivity_runner.py",
+    "tests/test_fairness_hybrid_gamma_sensitivity.py",
+)
+AUTHORIZATION_RELATIVE_PATH = "experiments/configs/fairness_hybrid_gamma_sensitivity_authorization.json"
 SEEDS = [180, 181, 182, 183, 184]
 GAMMAS = [0, 1, 2]
 RHO = 0.025
@@ -694,14 +705,17 @@ def validate_result_row(row: dict[str, Any]) -> None:
     missing = [field for field in RESULT_FIELDS if field not in row]
     if missing:
         raise ProtocolGateError(f"results CSV fields missing: {missing}")
-    if row["stage"] != STAGE or int(row["execution_attempt"]) != EXECUTION_ATTEMPT:
+    if row["stage"] != STAGE or type(row["execution_attempt"]) is not int or row["execution_attempt"] != EXECUTION_ATTEMPT:
         raise ProtocolGateError("results CSV stage or attempt identity drift")
-    if int(row["gamma"]) not in GAMMAS or int(row["seed"]) not in SEEDS or row["scale"] not in SCALES:
+    if (
+        type(row["gamma"]) is not int or row["gamma"] not in GAMMAS
+        or type(row["seed"]) is not int or row["seed"] not in SEEDS or row["scale"] not in SCALES
+    ):
         raise ProtocolGateError("results CSV matrix identity drift")
     if row["run_directory_id"] != run_directory_id(str(row["run_key"])):
         raise ProtocolGateError("results CSV run-key directory mapping drift")
     for name in (
-        "config_file_sha256", "resolved_config_file_sha256", "candidate_sha256",
+        "config_file_sha256", "resolved_config_file_sha256", "protocol_sha256", "candidate_sha256",
         "instance_sha256", "instance_canonical_sha256", "instance_identity_sha256",
     ):
         value = str(row[name]).upper()
@@ -714,27 +728,36 @@ def validate_result_row(row: dict[str, Any]) -> None:
         raise ProtocolGateError("results CSV run identity is not in the frozen plan")
     if row["task_type"] == "frontier" and row["baseline_run_key"] != paired_baseline(expand_plan(), planned)["run_key"]:
         raise ProtocolGateError("results CSV baseline identity drift")
-    for name in ("algorithm_runtime", "post_evaluation_wall_runtime", "total_wall_runtime", "penalized_runtime_par2"):
-        try:
-            value = float(row[name])
-        except (TypeError, ValueError) as exc:
-            raise ProtocolGateError(f"results CSV non-finite field: {name}") from exc
-        if not math.isfinite(value):
-            raise ProtocolGateError(f"results CSV non-finite field: {name}")
+    for name in (
+        "algorithm_runtime", "master_runtime", "separation_runtime",
+        "post_evaluation_wall_runtime", "total_wall_runtime", "penalized_runtime_par2",
+        "baseline_robust_cost", "inventory", "opened_warehouses", "iterations",
+    ):
+        if row[name] != "NOT_APPLICABLE":
+            _strict_finite_number(row[name], f"results CSV {name}")
     if row["task_type"] == "frontier":
-        for name in (
-            "objective_t", "robust_minimum_fill_rate", "wminfr", "minimum_weighted_mean_fill_rate",
-            "actual_robust_cost", "actual_price_of_fairness", "inventory", "opened_warehouses",
-            "iterations", "scenario_block_count", "certified_farkas_cut_count",
-        ):
-            try:
-                value = float(row[name])
-            except (TypeError, ValueError) as exc:
-                raise ProtocolGateError(f"results CSV non-finite field: {name}") from exc
-            if not math.isfinite(value):
-                raise ProtocolGateError(f"results CSV non-finite field: {name}")
-        if not math.isclose(float(row["robust_minimum_fill_rate"]), 1.0 - float(row["objective_t"]), abs_tol=1e-12):
-            raise ProtocolGateError("robust_minimum_fill_rate must equal 1-T")
+        required = ("cost_budget", "iterations", "scenario_block_count", "certified_farkas_cut_count")
+        for name in required:
+            _strict_finite_number(row[name], f"results CSV {name}")
+        objective_fields = (row["objective_t"], row["robust_minimum_fill_rate"])
+        if (objective_fields[0] == "NOT_APPLICABLE") != (objective_fields[1] == "NOT_APPLICABLE"):
+            raise ProtocolGateError("objective_t and robust_minimum_fill_rate must appear together")
+        if objective_fields[0] != "NOT_APPLICABLE":
+            _strict_finite_number(objective_fields[0], "results CSV objective_t")
+            _strict_finite_number(objective_fields[1], "results CSV robust_minimum_fill_rate")
+            if not math.isclose(objective_fields[1], 1.0 - objective_fields[0], abs_tol=1e-12):
+                raise ProtocolGateError("robust_minimum_fill_rate must equal 1-T")
+        if row["scientific_status"] == "certified_robust_optimal":
+            for name in (
+                "objective_t", "robust_minimum_fill_rate", "inventory", "opened_warehouses",
+                "wminfr", "minimum_weighted_mean_fill_rate",
+                "actual_robust_cost", "actual_price_of_fairness",
+            ):
+                _strict_finite_number(row[name], f"results CSV {name}")
+            if row["wminfr"] > row["minimum_weighted_mean_fill_rate"] + 1e-7:
+                raise ProtocolGateError("wminfr cannot exceed the demand-weighted mean fill rate")
+            if 1.0 - row["wminfr"] > row["objective_t"] + 1e-7:
+                raise ProtocolGateError("post-evaluation minimum fill rate violates certified T")
 
 
 def write_results(path: str | Path, rows: list[dict[str, Any]]) -> None:
@@ -799,6 +822,10 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
         "output_directories": [value["output_dir"] for value in SCALES.values()],
         "previous_attempt_results_reused": False,
         "next_authorized_stage": "fairness_hybrid_gamma_sensitivity_attempt3_formal_run_only",
+        "optimization_core_commit": OPTIMIZATION_CORE_COMMIT,
+        "optimization_commit": REPORTING_HOTFIX_BASE_COMMIT,
+        "reporting_hotfix_base_commit": REPORTING_HOTFIX_BASE_COMMIT,
+        "reporting_only_changed_files": list(REPORTING_ONLY_CHANGED_FILES),
     }
     for key, value in expected.items():
         if authorization.get(key) != value:
@@ -812,6 +839,18 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
     ancestor = _git(root, "merge-base", "--is-ancestor", protocol_commit, "HEAD")
     if ancestor.returncode:
         raise ProtocolGateError("formal_run_not_authorized: protocol merge commit is not an ancestor of HEAD")
+    reporting_commit = authorization.get("reporting_hotfix_commit")
+    if not isinstance(reporting_commit, str) or len(reporting_commit) != 40:
+        raise ProtocolGateError("formal_run_not_authorized: invalid reporting hotfix commit")
+    reporting_ancestor = _git(root, "merge-base", "--is-ancestor", reporting_commit, "HEAD")
+    if reporting_ancestor.returncode:
+        raise ProtocolGateError("formal_run_not_authorized: reporting hotfix commit is not an ancestor of HEAD")
+    changed = _git(root, "diff", "--name-only", f"{REPORTING_HOTFIX_BASE_COMMIT}..{reporting_commit}")
+    if changed.returncode or tuple(sorted(changed.stdout.splitlines())) != REPORTING_ONLY_CHANGED_FILES:
+        raise ProtocolGateError("formal_run_not_authorized: reporting-only changed-file scope mismatch")
+    post_reporting = _git(root, "diff", "--name-only", f"{reporting_commit}..HEAD")
+    if post_reporting.returncode or post_reporting.stdout.splitlines() != [AUTHORIZATION_RELATIVE_PATH]:
+        raise ProtocolGateError("formal_run_not_authorized: post-reporting scope is not authorization-only")
     return authorization
 
 
@@ -961,6 +1000,7 @@ def _frontier_status(result: dict[str, Any], evaluation: dict[str, Any] | None, 
     certified = (
         result.get("status") == "optimal" and result.get("gap") is not None
         and math.isfinite(float(result["gap"])) and float(result["gap"]) <= tol
+        and result.get("metadata", {}).get("robust_feasibility_certified") is True
         and result.get("metadata", {}).get("full_separation_objective_bound_required") is True
         and final.get("final_exact_separation_performed") is True
         and final.get("robust_feasibility_certified") is True and final.get("master_status") == "optimal"
@@ -970,41 +1010,142 @@ def _frontier_status(result: dict[str, Any], evaluation: dict[str, Any] | None, 
         return "robust_uncertified"
     if not isinstance(evaluation, dict) or evaluation.get("valid") is not True:
         return "invalid_post_evaluation"
-    if evaluation.get("errors") not in (None, []) or evaluation.get("objective_t_consistent") is False:
+    if evaluation.get("errors") != [] or evaluation.get("objective_t_consistent") is not True:
         return "invalid_post_evaluation"
     if evaluation.get("scenario_count") != expected_count:
         return "invalid_post_evaluation"
     return "certified_robust_optimal"
 
 
-def _result_projection(record: dict[str, Any]) -> dict[str, Any]:
-    result = record.get("result", {})
-    post = result.get("post_evaluation") or {}
-    frontier = record["task_type"] == "frontier"
-    zeros = 0.0
+def _strict_finite_number(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolGateError(f"reporting field {field} must be a finite JSON number")
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise ProtocolGateError(f"reporting field {field} must be a finite JSON number")
+    return converted
+
+
+def _strict_nonnegative_integer(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ProtocolGateError(f"reporting field {field} must be a nonnegative JSON integer")
+    return value
+
+
+def _strict_numeric_vector(value: Any, length: int, field: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != length:
+        raise ProtocolGateError(f"reporting field {field} must be a length-{length} numeric vector")
+    return [_strict_finite_number(item, f"{field}[{index}]") for index, item in enumerate(value)]
+
+
+def _strict_numeric_matrix(value: Any, rows: int, columns: int, field: str) -> list[list[float]]:
+    if not isinstance(value, list) or len(value) != rows:
+        raise ProtocolGateError(f"reporting field {field} must be a {rows}x{columns} numeric matrix")
+    return [
+        _strict_numeric_vector(row, columns, f"{field}[{index}]")
+        for index, row in enumerate(value)
+    ]
+
+
+def _instance_reporting_dimensions(serialized_instance: dict[str, Any]) -> tuple[int, int]:
+    warehouses = _strict_nonnegative_integer(serialized_instance.get("num_warehouses"), "instance.num_warehouses")
+    products = _strict_nonnegative_integer(serialized_instance.get("num_products"), "instance.num_products")
+    if warehouses == 0 or products == 0:
+        raise ProtocolGateError("reporting instance dimensions must be positive")
+    return warehouses, products
+
+
+def _result_projection(
+    record: dict[str, Any], serialized_instance: dict[str, Any],
+) -> dict[str, Any]:
+    result = record.get("result")
+    if not isinstance(result, dict):
+        raise ProtocolGateError("reporting run result must be a JSON object")
+    post = result.get("post_evaluation")
+    frontier = record.get("task_type") == "frontier"
+    if record.get("task_type") not in {"baseline", "frontier"}:
+        raise ProtocolGateError("reporting run task_type is invalid")
+    warehouses, products = _instance_reporting_dimensions(serialized_instance)
+    x_field = "x_values" if frontier else "best_x_values"
+    y_field = "y_values" if frontier else "best_y_values"
+    x_value = result.get(x_field)
+    y_value = result.get(y_field)
+    has_solution = x_value is not None or y_value is not None
+    if has_solution and (x_value is None or y_value is None):
+        raise ProtocolGateError("reporting first-stage solution is incomplete")
+    if record.get("scientific_status") == "certified_robust_optimal" and not has_solution:
+        raise ProtocolGateError("certified reporting row requires a first-stage solution")
+    if has_solution:
+        x_matrix = _strict_numeric_matrix(x_value, warehouses, products, f"result.{x_field}")
+        y_vector = _strict_numeric_vector(y_value, warehouses, f"result.{y_field}")
+        inventory: float | str = sum(sum(row) for row in x_matrix)
+        opened_warehouses: int | str = sum(value >= 0.5 for value in y_vector)
+    else:
+        inventory = opened_warehouses = "NOT_APPLICABLE"
+
+    algorithm_runtime = _strict_finite_number(
+        result.get("algorithm_runtime", result.get("runtime")), "result.algorithm_runtime",
+    )
+    total_wall_runtime = _strict_finite_number(
+        result.get("total_wall_runtime", result.get("runtime")), "result.total_wall_runtime",
+    )
+    par2_runtime = _strict_finite_number(result.get("penalized_runtime_par2"), "result.penalized_runtime_par2")
+    master_runtime = _strict_finite_number(result.get("master_runtime", 0.0), "result.master_runtime")
+    separation_runtime = _strict_finite_number(
+        result.get("separation_runtime", result.get("subproblem_runtime", 0.0)),
+        "result.separation_runtime",
+    )
+    iterations = _strict_nonnegative_integer(result.get("iterations"), "result.iterations")
+
     row = {field: "NOT_APPLICABLE" for field in RESULT_FIELDS}
     row.update({field: record.get(field, row[field]) for field in RESULT_FIELDS})
     row.update({
-        "algorithm_runtime": float(result.get("algorithm_runtime", result.get("runtime", 0.0))),
-        "master_runtime": float(result.get("master_runtime", 0.0)),
-        "separation_runtime": float(result.get("separation_runtime", 0.0)),
-        "post_evaluation_wall_runtime": float(result.get("post_evaluation_wall_runtime", 0.0)),
-        "total_wall_runtime": float(result.get("total_wall_runtime", result.get("runtime", 0.0))),
-        "penalized_runtime_par2": float(result.get("penalized_runtime_par2", 0.0)),
-        "baseline_robust_cost": float(record.get("baseline_robust_cost", result.get("upper_bound", 0.0))),
-        "cost_budget": float(record.get("cost_budget", 0.0)),
-        "actual_robust_cost": float(post.get("actual_robust_cost", zeros)),
-        "actual_price_of_fairness": float(post.get("actual_price_of_fairness", zeros)),
-        "objective_t": float(result.get("objective_t", zeros)),
-        "robust_minimum_fill_rate": float(result.get("robust_minimum_fill_rate", zeros)),
-        "wminfr": float(post.get("wminfr", zeros)),
-        "minimum_weighted_mean_fill_rate": float(post.get("minimum_weighted_mean_fill_rate", zeros)),
-        "inventory": float(sum(float(value) for value in result.get("x_values", {}).values())) if frontier else zeros,
-        "opened_warehouses": int(sum(float(value) >= 0.5 for value in result.get("y_values", {}).values())) if frontier else 0,
-        "iterations": int(result.get("iterations", len(result.get("iteration_log", [])))) if frontier else 0,
-        "scenario_block_count": int(result.get("metadata", {}).get("committed_scenario_count", 0)) if frontier else 0,
-        "certified_farkas_cut_count": int(result.get("cuts", 0)) if frontier else 0,
+        "algorithm_runtime": algorithm_runtime,
+        "master_runtime": master_runtime,
+        "separation_runtime": separation_runtime,
+        "post_evaluation_wall_runtime": _strict_finite_number(
+            result.get("post_evaluation_wall_runtime", 0.0), "result.post_evaluation_wall_runtime",
+        ),
+        "total_wall_runtime": total_wall_runtime,
+        "penalized_runtime_par2": par2_runtime,
+        "baseline_robust_cost": _strict_finite_number(
+            record.get("baseline_robust_cost", result.get("upper_bound")), "baseline_robust_cost",
+        ),
+        "inventory": inventory,
+        "opened_warehouses": opened_warehouses,
+        "iterations": iterations,
     })
+    if frontier:
+        metadata = result.get("metadata")
+        if not isinstance(metadata, dict):
+            raise ProtocolGateError("reporting frontier metadata must be a JSON object")
+        objective_value = result.get("objective_t")
+        fill_value = result.get("robust_minimum_fill_rate")
+        if (objective_value is None) != (fill_value is None):
+            raise ProtocolGateError("reporting objective_t and robust_minimum_fill_rate must appear together")
+        row.update({
+            "cost_budget": _strict_finite_number(record.get("cost_budget"), "cost_budget"),
+            "objective_t": "NOT_APPLICABLE" if objective_value is None else _strict_finite_number(
+                objective_value, "result.objective_t",
+            ),
+            "robust_minimum_fill_rate": "NOT_APPLICABLE" if fill_value is None else _strict_finite_number(
+                fill_value, "result.robust_minimum_fill_rate",
+            ),
+            "scenario_block_count": _strict_nonnegative_integer(
+                metadata.get("committed_scenario_count"), "result.metadata.committed_scenario_count",
+            ),
+            "certified_farkas_cut_count": _strict_nonnegative_integer(result.get("cuts"), "result.cuts"),
+        })
+        if record.get("scientific_status") == "certified_robust_optimal":
+            if not isinstance(post, dict) or post.get("valid") is not True:
+                raise ProtocolGateError("certified reporting row requires valid post-evaluation")
+            row.update({
+                name: _strict_finite_number(post.get(name), f"result.post_evaluation.{name}")
+                for name in (
+                    "actual_robust_cost", "actual_price_of_fairness", "wminfr",
+                    "minimum_weighted_mean_fill_rate",
+                )
+            })
     return row
 
 
@@ -1013,7 +1154,29 @@ def aggregate_output(output: Path, rows: list[dict[str, Any]], *, require_comple
     for planned in rows:
         record = read_json_strict(output / "runs" / planned["run_directory_id"] / "run.json")
         if record is not None:
-            result_rows.append(_result_projection(record))
+            frozen_instance_identity = {
+                "stage": record.get("stage"), "scale": record.get("scale"),
+                "seed": record.get("seed"), "gamma": record.get("gamma"),
+                "execution_attempt": record.get("execution_attempt"),
+                "git_commit": record.get("git_commit"),
+                "config_file_sha256": record.get("config_file_sha256"),
+                "protocol_sha256": record.get("protocol_sha256"),
+            }
+            archive = read_json_strict(
+                output / "instances" / f"s{planned['seed']}_g{planned['gamma']}.json",
+            )
+            if archive is None:
+                raise ProtocolGateError("reporting instance archive is missing")
+            serialized, _identity, canonical_sha, identity_sha = validate_instance_archive(
+                archive, frozen_instance_identity,
+            )
+            if (
+                record.get("instance_sha256") != canonical_sha
+                or record.get("instance_canonical_sha256") != canonical_sha
+                or record.get("instance_identity_sha256") != identity_sha
+            ):
+                raise ProtocolGateError("reporting run/instance identity mismatch")
+            result_rows.append(_result_projection(record, serialized))
     keys = [str(row["run_key"]) for row in result_rows]
     if len(keys) != len(set(keys)):
         raise ProtocolGateError("duplicate results CSV run key")
@@ -1042,7 +1205,8 @@ def _load_baseline_checkpoint(path: Path, identity: dict[str, Any]) -> dict[str,
 
 def _run_scale(
     config_path: Path, config: dict[str, Any], scale: str, rows: list[dict[str, Any]], deps: GammaDependencies,
-    git_commit_value: str, *, failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
+    git_commit_value: str, *, reporting_successor: dict[str, Any] | None = None,
+    failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     root = Path(__file__).resolve().parents[1]
     output = root / SCALES[scale]["output_dir"]
@@ -1064,6 +1228,12 @@ def _run_scale(
         atomic_write_yaml(output / "resolved_config.yaml", config)
         manifest = expected_manifest
         atomic_write_json(manifest_path, manifest)
+    if reporting_successor is not None:
+        prior = manifest.get("reporting_successor")
+        if prior is not None and prior != reporting_successor:
+            raise ProtocolGateError(f"strict resume {scale} reporting successor identity mismatch")
+        manifest["reporting_successor"] = deepcopy(reporting_successor)
+        atomic_write_json(manifest_path, manifest)
     audit_identity = {
         "schema": "fairness_hybrid_gamma_sensitivity_audit_log_v3",
         "identity": expected_manifest["identity"],
@@ -1073,7 +1243,13 @@ def _run_scale(
     existing_audit = read_json_strict(output / "audit.log")
     if existing_audit is not None and existing_audit.get("identity") != audit_identity["identity"]:
         raise ProtocolGateError(f"strict resume {scale} audit log identity mismatch")
-    atomic_write_json(output / "audit.log", existing_audit or audit_identity)
+    audit_record = existing_audit or audit_identity
+    if reporting_successor is not None:
+        prior = audit_record.get("reporting_successor")
+        if prior is not None and prior != reporting_successor:
+            raise ProtocolGateError(f"strict resume {scale} audit reporting successor identity mismatch")
+        audit_record["reporting_successor"] = deepcopy(reporting_successor)
+    atomic_write_json(output / "audit.log", audit_record)
 
     completed: dict[str, dict[str, Any]] = {}
     for seed in SEEDS:
@@ -1266,11 +1442,19 @@ def run_sensitivity(
     root = Path(__file__).resolve().parents[1]
     if test_authorization:
         git_commit_value = formal_git_gate(test_git_root) if test_git_root is not None else "T" * 40
+        reporting_successor = None
     else:
         if authorization_file is None:
             raise ProtocolGateError("formal_run_not_authorized: reviewed authorization file is required")
-        git_commit_value = formal_git_gate(root)
-        validate_authorization(authorization_file, path, root)
+        reporting_head = formal_git_gate(root)
+        authorization = validate_authorization(authorization_file, path, root)
+        git_commit_value = authorization["optimization_commit"]
+        reporting_successor = {
+            "optimization_commit": git_commit_value,
+            "reporting_hotfix_commit": authorization["reporting_hotfix_commit"],
+            "authorization_head_commit": reporting_head,
+            "changed_files": list(REPORTING_ONLY_CHANGED_FILES),
+        }
         pre_run_seed_gate(root)
     rows = expand_plan()
     paths = _planned_paths(root, rows, config)
@@ -1296,7 +1480,8 @@ def run_sensitivity(
     for scale in SCALES:
         manifests[scale] = _run_scale(
             path, config, scale, [row for row in rows if row["scale"] == scale], deps,
-            git_commit_value, failure_injector=failure_injector,
+            git_commit_value, reporting_successor=reporting_successor,
+            failure_injector=failure_injector,
         )
     return {
         "stage": STAGE, "completed_run_count": sum(m["completed_run_count"] for m in manifests.values()),

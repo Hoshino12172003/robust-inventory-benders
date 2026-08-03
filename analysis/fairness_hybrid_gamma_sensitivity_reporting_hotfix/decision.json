@@ -1,0 +1,29 @@
+{
+  "decision": "approve_reporting_hotfix_and_resume_without_completed_optimization_rerun",
+  "attempt2": {
+    "execution_incomplete": true,
+    "pipeline_identity_defect": true,
+    "scientifically_usable": false,
+    "results_reused": false,
+    "medium_large_completed_baselines": 1,
+    "medium_large_completed_frontiers": 0,
+    "large_output_exists": false,
+    "frontier_algorithm_checkpoint_count": 0,
+    "final_exact_certification_count": 0,
+    "post_evaluation_count": 0
+  },
+  "attempt3": {
+    "execution_attempt": 3,
+    "previous_attempt_results_reused": false,
+    "baseline_runs": 30,
+    "frontier_runs": 30,
+    "formal_run_started": true,
+    "completed_baselines": 1,
+    "completed_frontiers": 1,
+    "completed_frontier_exact_certified": 1,
+    "completed_frontier_post_evaluation_valid": 1,
+    "completed_optimization_rerun_required": false
+  },
+  "hotfix_scope": "reporting_projection_and_status_classification_only",
+  "optimization_rerun_of_completed_frontiers_required": false
+}
