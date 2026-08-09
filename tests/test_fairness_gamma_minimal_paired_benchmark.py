@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "experiments/configs/fairness_gamma_minimal_paired_benchmark.yaml"
 SOURCE_ZIP = Path(r"E:\论文代码\fairness_hybrid_gamma_sensitivity_attempt3_results.zip")
 S1_ZIP = Path(r"E:\论文代码\fairness_scalability_s1_attempt2_medium_large_results.zip")
+S1_LARGE_ZIP = Path(r"E:\论文代码\fairness_scalability_s1_attempt2_large_results.zip")
 
 
 def _instance(_source: Path, _cell: dict) -> dict:
@@ -201,6 +202,21 @@ def test_production_single_cut_final_certificate_schema() -> None:
         )
     assert result.get("robust_feasibility_certified") is None
     assert _final_certificate(result) is True
+
+
+@pytest.mark.skipif(not S1_LARGE_ZIP.exists(), reason="S1 Large production archive is not mounted")
+def test_production_single_cut_timeout_null_solution_schema() -> None:
+    import zipfile
+    with zipfile.ZipFile(S1_LARGE_ZIP) as archive:
+        result = next(
+            json.loads(archive.read(name))["result"]
+            for name in archive.namelist()
+            if name.endswith("/run.json") and json.loads(archive.read(name)).get("candidate") == "single_cut"
+        )
+    assert result["status"] == "time_limit"
+    assert result["x_values"] is result["y_values"] is None
+    validate_solution_payload(result, {"num_warehouses": 8, "num_products": 8}, allow_absent=True)
+    assert classify_status(result, None, 4657) == "time_limit_uncertified"
 
 
 def test_reference_candidate_disables_every_acceleration() -> None:
