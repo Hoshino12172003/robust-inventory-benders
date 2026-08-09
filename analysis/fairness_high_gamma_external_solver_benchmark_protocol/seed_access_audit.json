@@ -1,0 +1,19 @@
+{
+  "schema": "fairness_high_gamma_external_seed_access_audit_v1",
+  "audit_date": "2026-08-09",
+  "candidate_seeds": [185, 186, 187, 188, 189],
+  "scopes": [
+    "git_history_and_tracked_files",
+    "known_experiment_configs",
+    "known_formal_result_roots",
+    "top_level_E_paper_code_ZIP_members",
+    "instance_directories",
+    "manifest_run_status_and_checkpoint_files"
+  ],
+  "preregistration_text_occurrences_are_not_access": true,
+  "numeric_false_positives_excluded": true,
+  "formal_instance_or_solve_access_evidence": [],
+  "formal_instance_or_solve_access_evidence_count": 0,
+  "replacement_required": false,
+  "decision": "seed_access_clear"
+}
