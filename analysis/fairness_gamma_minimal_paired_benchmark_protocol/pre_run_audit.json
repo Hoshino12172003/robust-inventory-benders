@@ -1,0 +1,49 @@
+{
+  "checks": {
+    "complete_blocks_disabled": true,
+    "dry_run_no_solver_import": true,
+    "dry_run_zero_side_effect": true,
+    "final_exact_required": true,
+    "matrix_10": true,
+    "persistent_and_cache_disabled": true,
+    "protected_files_zero_diff": true,
+    "single_cut": true,
+    "source_catalog_exact": true,
+    "source_zip_unchanged": true,
+    "windows_path": true
+  },
+  "decision": "approve_benchmark_protocol",
+  "dry_run": {
+    "baseline_new": 0,
+    "directory_collisions": 0,
+    "gamma": 2,
+    "gurobipy_imported": false,
+    "gurobipy_imported_by_dry_run": false,
+    "hybrid_new": 0,
+    "instances_generated": false,
+    "longest_windows_path": "E:\\rfab1\\experiments\\results_fgmpb\\a1\\runs\\r_a8d4b31b5bf8ce46e508763a\\post_evaluation\\checkpoint\\.chunk_000073.json.tmp",
+    "longest_windows_path_length": 119,
+    "longest_windows_path_type": "checkpoint/chunk_000073.json_tmp",
+    "output_dir_exists": false,
+    "reference_frontier": 10,
+    "rho": 0.025,
+    "scales": [
+      "medium_large",
+      "large"
+    ],
+    "seeds": [
+      180,
+      181,
+      182,
+      183,
+      184
+    ],
+    "solver_called": false,
+    "source_instance_payloads_read": false,
+    "source_pairing_cells_verified": 10,
+    "stage": "FAIRNESS_GAMMA_MINIMAL_PAIRED_BENCHMARK",
+    "unique_directory_ids": 10,
+    "unique_run_keys": 10
+  },
+  "source_pairing_cells": 10
+}

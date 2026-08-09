@@ -16,3 +16,4 @@ experiments/results_fairness_scalability/
 experiments/results_fairness_hybrid_ccg_benders/
 /experiments/results_fh_gamma/
 .idea/
+/experiments/results_fgmpb/
