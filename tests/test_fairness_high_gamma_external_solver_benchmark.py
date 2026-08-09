@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import sys
+import subprocess
 
 import pytest
 import src.fairness_high_gamma_external_solver_benchmark_runner as runner_module
@@ -16,6 +17,7 @@ from src.fairness_high_gamma_external_solver_benchmark_runner import (
     HighGammaGateError,
     SEEDS,
     _frontier_scientific,
+    _git_gate,
     _par2,
     _solution_values,
     dry_run,
@@ -286,3 +288,25 @@ def test_aggregation_interruption_resumes_without_resolve(tmp_path: Path, monkey
                test_authorization=True, test_root=tmp_path)
     assert calls["baseline"] == calls["hybrid"] == calls["direct"] == 15
     assert len(list((tmp_path / "experiments/results_fh_ext/hg1").glob("runs/*/run.json"))) == 45
+
+
+def test_real_git_gate_ignores_only_frozen_output_root(tmp_path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "test"], cwd=tmp_path, check=True)
+    (tmp_path / ".gitignore").write_text("/experiments/results_fh_ext/\n", encoding="utf-8")
+    (tmp_path / "tracked.txt").write_text("clean\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, check=True, capture_output=True)
+    output = tmp_path / "experiments/results_fh_ext/hg1"
+    output.mkdir(parents=True)
+    (output / "checkpoint.json").write_text("{}", encoding="utf-8")
+    assert len(_git_gate(tmp_path, {"formal_worktree_root": str(tmp_path)})) == 40
+    unrelated = tmp_path / "unrelated.tmp"
+    unrelated.write_text("x", encoding="utf-8")
+    with pytest.raises(HighGammaGateError, match="dirty"):
+        _git_gate(tmp_path, {"formal_worktree_root": str(tmp_path)})
+    unrelated.unlink()
+    (tmp_path / "tracked.txt").write_text("changed\n", encoding="utf-8")
+    with pytest.raises(HighGammaGateError, match="dirty"):
+        _git_gate(tmp_path, {"formal_worktree_root": str(tmp_path)})

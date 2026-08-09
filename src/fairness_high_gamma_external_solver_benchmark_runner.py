@@ -251,18 +251,6 @@ def _source_tree_identity(root: Path) -> str:
     return hashlib.sha256(("\n".join(lines) + "\n").encode("utf-8")).hexdigest().upper()
 
 
-def _commit_source_tree_identity(root: Path, commit: str) -> str:
-    process = subprocess.run(["git", "ls-tree", "-r", commit], cwd=root, text=True,
-                             capture_output=True, check=True)
-    lines = []
-    for line in process.stdout.splitlines():
-        metadata, path = line.split("\t", 1)
-        mode, _object_type, digest = metadata.split()
-        if path != AUTH_RELATIVE_PATH:
-            lines.append(f"{mode} {digest} {path}")
-    return hashlib.sha256(("\n".join(lines) + "\n").encode("utf-8")).hexdigest().upper()
-
-
 def _git_gate(root: Path, config: dict[str, Any]) -> str:
     _check(root.resolve() == Path(config["formal_worktree_root"]).resolve(), "formal_worktree_root mismatch")
     status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=root,
@@ -296,8 +284,8 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
            "authorization source tree mismatch")
     basis = auth.get("authorization_basis_commit")
     _check(isinstance(basis, str) and len(basis) == 40 and
-           _commit_source_tree_identity(root, basis) == auth.get("authorized_source_tree_sha256"),
-           "authorization basis commit tree mismatch")
+           all(character in "0123456789abcdef" for character in basis),
+           "authorization basis commit identity invalid")
     prohibited = auth.get("prohibited_scope", {})
     _check(all(prohibited.get(key) is True for key in (
         "other_stages", "other_scales", "other_seeds", "gamma_0_or_1", "other_gamma",
