@@ -242,7 +242,24 @@ def dry_run(config_path: str | Path, *, root_override: Path | None = None) -> di
 
 def _source_tree_identity(root: Path) -> str:
     process = subprocess.run(["git", "ls-files", "-s"], cwd=root, text=True, capture_output=True, check=True)
-    lines = [line for line in process.stdout.splitlines() if not line.endswith("\t" + AUTH_RELATIVE_PATH)]
+    lines = []
+    for line in process.stdout.splitlines():
+        metadata, path = line.split("\t", 1)
+        mode, digest, _stage = metadata.split()
+        if path != AUTH_RELATIVE_PATH:
+            lines.append(f"{mode} {digest} {path}")
+    return hashlib.sha256(("\n".join(lines) + "\n").encode("utf-8")).hexdigest().upper()
+
+
+def _commit_source_tree_identity(root: Path, commit: str) -> str:
+    process = subprocess.run(["git", "ls-tree", "-r", commit], cwd=root, text=True,
+                             capture_output=True, check=True)
+    lines = []
+    for line in process.stdout.splitlines():
+        metadata, path = line.split("\t", 1)
+        mode, _object_type, digest = metadata.split()
+        if path != AUTH_RELATIVE_PATH:
+            lines.append(f"{mode} {digest} {path}")
     return hashlib.sha256(("\n".join(lines) + "\n").encode("utf-8")).hexdigest().upper()
 
 
@@ -277,6 +294,10 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
            "authorization SHA identity mismatch")
     _check(auth.get("authorized_source_tree_sha256") == _source_tree_identity(root),
            "authorization source tree mismatch")
+    basis = auth.get("authorization_basis_commit")
+    _check(isinstance(basis, str) and len(basis) == 40 and
+           _commit_source_tree_identity(root, basis) == auth.get("authorized_source_tree_sha256"),
+           "authorization basis commit tree mismatch")
     prohibited = auth.get("prohibited_scope", {})
     _check(all(prohibited.get(key) is True for key in (
         "other_stages", "other_scales", "other_seeds", "gamma_0_or_1", "other_gamma",
