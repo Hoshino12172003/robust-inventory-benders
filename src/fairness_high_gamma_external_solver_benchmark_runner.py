@@ -454,17 +454,22 @@ def _hybrid_counters(result: dict[str, Any]) -> dict[str, int]:
 
 def _frontier_scientific(task_type: str, result: dict[str, Any], evaluation: dict[str, Any] | None,
                          count: int, tol: float) -> str:
+    lower = result.get("lower_bound")
+    upper = result.get("upper_bound")
+    bounds_valid = (type(lower) in {int, float} and type(upper) in {int, float} and
+                    math.isfinite(float(lower)) and math.isfinite(float(upper)) and
+                    float(lower) <= float(upper) + float(tol))
     if task_type == "hybrid_frontier":
         log = result.get("iteration_log") if isinstance(result.get("iteration_log"), list) else []
         final = log[-1] if log else {}
-        certified = (result.get("status") == "optimal" and
+        certified = (result.get("status") == "optimal" and bounds_valid and
                      (result.get("metadata") or {}).get("robust_feasibility_certified") is True and
                      final.get("final_exact_separation_performed") is True and
                      final.get("robust_feasibility_certified") is True and
                      type(final.get("separation_objective_bound")) in {int, float} and
                      float(final["separation_objective_bound"]) <= tol)
     else:
-        certified = (result.get("status") == "optimal" and result.get("complete_model_built") is True and
+        certified = (result.get("status") == "optimal" and bounds_valid and result.get("complete_model_built") is True and
                      result.get("resource_failure") is False and type(result.get("lower_bound")) in {int, float} and
                      type(result.get("upper_bound")) in {int, float} and type(result.get("gap")) in {int, float} and
                      float(result["gap"]) <= tol)

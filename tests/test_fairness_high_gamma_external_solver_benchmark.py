@@ -134,6 +134,11 @@ def test_scientific_status_and_par2() -> None:
                "resource_failure": False, "lower_bound": 0.1, "upper_bound": 0.2, "gap": 0.1}
     assert _frontier_scientific("direct_extensive_frontier", timeout, None, 211, 1e-4) == "time_limit_uncertified"
     assert _par2("time_limit_uncertified", 2.0) == 3600.0
+    crossing = {"status": "optimal", "complete_model_built": True,
+                "resource_failure": False, "lower_bound": 0.2, "upper_bound": 0.1, "gap": 0.0}
+    assert _frontier_scientific("direct_extensive_frontier", crossing,
+                                {"valid": True, "errors": [], "objective_t_consistent": True,
+                                 "scenario_count": 211}, 211, 1e-4) == "robust_uncertified"
 
 
 def test_synthetic_45_task_disk_pipeline_and_zero_repeat_resume(tmp_path: Path) -> None:
