@@ -44,6 +44,14 @@ def _result(runtime: float = 0.1) -> dict:
     }
 
 
+def _timeout_result() -> dict:
+    return {
+        "status": "time_limit", "runtime": 1800.0, "gap": None, "iterations": 17,
+        "cuts": 16, "objective_t": None, "x_values": None, "y_values": None,
+        "iteration_log": [{"master_time": 1.0, "subproblem_time": 2.0}],
+    }
+
+
 class FakePipeline:
     def __init__(self) -> None:
         self.solve_calls = 0
@@ -145,6 +153,16 @@ def test_baseline_production_field_names_are_validated() -> None:
         validate_solution_payload({"x_values": baseline["best_x_values"], "y_values": baseline["best_y_values"]}, _instance(Path(), {}), baseline=True)
 
 
+def test_uncertified_absent_solution_is_allowed_but_partial_solution_is_rejected() -> None:
+    validate_solution_payload(_timeout_result(), _instance(Path(), {}), allow_absent=True)
+    with pytest.raises(BenchmarkGateError, match="required"):
+        validate_solution_payload(_timeout_result(), _instance(Path(), {}))
+    partial = _timeout_result()
+    partial["x_values"] = [[1.0, 2.0], [3.0, 4.0]]
+    with pytest.raises(BenchmarkGateError, match="present together"):
+        validate_solution_payload(partial, _instance(Path(), {}), allow_absent=True)
+
+
 def test_certification_and_post_evaluation_are_both_required() -> None:
     post = {"valid": True, "errors": [], "objective_t_consistent": True, "scenario_count": 1831}
     assert classify_status(_result(), post, 1831) == "certified_robust_optimal"
@@ -210,6 +228,36 @@ def test_synthetic_ten_task_disk_pipeline_and_second_resume_are_deterministic(tm
     execute_plan(CONFIG_PATH, config, cells, output, commit="1" * 40, dependencies=second.dependencies(), source_zip=SOURCE_ZIP, source_instance_loader=_instance)
     assert second.solve_calls == second.post_calls == 0
     assert files == {name: (output / name).read_bytes() for name in files}
+
+
+@pytest.mark.skipif(not SOURCE_ZIP.exists(), reason="formal source ZIP is not mounted")
+def test_production_timeout_schema_commits_all_tasks_and_resume_calls_solver_zero(tmp_path: Path) -> None:
+    config, cells = _config_and_cells()
+    output = tmp_path / "timeouts"
+    calls = {"solve": 0}
+
+    def solve(_config, _instance_value, _cell):
+        calls["solve"] += 1
+        return _timeout_result()
+
+    def no_post(*_args, **_kwargs):
+        raise AssertionError("uncertified result must not enter post-evaluation")
+
+    deps = Dependencies(solve, no_post, lambda value: value)
+    result = execute_plan(CONFIG_PATH, config, cells, output, commit="6" * 40, dependencies=deps, source_zip=SOURCE_ZIP, source_instance_loader=_instance)
+    assert result == {"output": str(output), "completed": 10, "certified_solved": 0}
+    assert calls["solve"] == 10
+    assert len(list(output.glob("runs/*/algorithm_checkpoint.json"))) == 10
+    assert len(list(output.glob("runs/*/run.json"))) == 10
+    with (output / "results.csv").open(newline="", encoding="utf-8") as handle:
+        rows = list(__import__("csv").DictReader(handle))
+    assert len(rows) == 10
+    assert all(row["scientific_status"] == "time_limit_uncertified" for row in rows)
+    assert all(row["penalized_runtime_par2"] == "3600.0" for row in rows)
+    assert all(row["final_gap"] == "NOT_APPLICABLE" for row in rows)
+    calls["solve"] = 0
+    execute_plan(CONFIG_PATH, config, cells, output, commit="6" * 40, dependencies=deps, source_zip=SOURCE_ZIP, source_instance_loader=_instance)
+    assert calls["solve"] == 0
 
 
 @pytest.mark.skipif(not SOURCE_ZIP.exists(), reason="formal source ZIP is not mounted")

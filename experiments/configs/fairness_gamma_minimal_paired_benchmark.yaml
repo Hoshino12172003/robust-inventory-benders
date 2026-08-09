@@ -1,11 +1,12 @@
 schema_version: 1
 experiment_name: fairness_gamma_minimal_paired_benchmark
 stage: FAIRNESS_GAMMA_MINIMAL_PAIRED_BENCHMARK
-execution_attempt: 1
+execution_attempt: 2
 previous_benchmark_results_reused: false
 formal_run_authorized: false
 formal_worktree_root: 'E:\rfab1'
-output_relative_path: experiments/results_fgmpb/a1
+output_relative_path: experiments/results_fgmpb/a2
+prior_attempt_incident: analysis/fairness_gamma_minimal_paired_benchmark_protocol/attempt1_pipeline_incident.json
 source_zip: 'E:\论文代码\fairness_hybrid_gamma_sensitivity_attempt3_results.zip'
 source_zip_sha256: EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F
 source_catalog: analysis/fairness_gamma_minimal_paired_benchmark_protocol/source_pairing_catalog.json

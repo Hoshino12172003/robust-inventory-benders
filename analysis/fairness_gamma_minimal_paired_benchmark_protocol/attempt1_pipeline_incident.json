@@ -1,0 +1,34 @@
+{
+  "artifact_count": 87,
+  "artifact_inventory_sha256": "404F60E06F2AEB6C1ABCF77E1AE2888A9089D3084C3E2039FE4E3EC270C9EBC0",
+  "classification": "reporting_projection_schema_defect",
+  "completed_reference_count": 1,
+  "execution_attempt": 1,
+  "failed_cell": {
+    "algorithm_checkpoint_exists": false,
+    "gamma": 2,
+    "rho": "0.025",
+    "run_directory_id": "r_e77b86d3d6f23ba62136ffee",
+    "scale": "medium_large",
+    "seed": 181,
+    "status_state": "running"
+  },
+  "failure": "uncertified time-limit result with null x_values and y_values was rejected before checkpoint commit",
+  "formal_output_relative_path": "experiments/results_fgmpb/a1",
+  "git_commit": "9bd9d2d1dbc0e10d763d9c58c756f47c7ef05df8",
+  "pipeline_status": "execution_incomplete",
+  "post_evaluation_complete_count": 1,
+  "previous_benchmark_results_reused": false,
+  "results_reused_by_attempt2": false,
+  "scientifically_usable": false,
+  "source_zip_sha256": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F",
+  "successful_cell": {
+    "algorithm_checkpoint_sha256": "8B0CAF0F822D30CE1F5EEEDAEE9D9798037404B7090B9A58F6B59E73CDF78F58",
+    "gamma": 2,
+    "rho": "0.025",
+    "run_directory_id": "r_a8d4b31b5bf8ce46e508763a",
+    "scale": "medium_large",
+    "scientific_status": "certified_robust_optimal",
+    "seed": 180
+  }
+}

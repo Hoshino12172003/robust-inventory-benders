@@ -21,7 +21,7 @@
     "gurobipy_imported_by_dry_run": false,
     "hybrid_new": 0,
     "instances_generated": false,
-    "longest_windows_path": "E:\\rfab1\\experiments\\results_fgmpb\\a1\\runs\\r_a8d4b31b5bf8ce46e508763a\\post_evaluation\\checkpoint\\.chunk_00073.json.tmp",
+    "longest_windows_path": "E:\\rfab1\\experiments\\results_fgmpb\\a2\\runs\\r_2c6abf4688574eeac902bcd0\\post_evaluation\\checkpoint\\.chunk_00073.json.tmp",
     "longest_windows_path_length": 118,
     "longest_windows_path_type": "checkpoint/chunk_00073.json_tmp",
     "output_dir_exists": false,

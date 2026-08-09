@@ -26,7 +26,7 @@ SEEDS = tuple(range(180, 185))
 GAMMA = 2
 RHO = 0.025
 CANDIDATE = "certified_single_cut_without_complete_scenario_blocks"
-ATTEMPT = 1
+ATTEMPT = 2
 SOURCE_ZIP_SHA256 = "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F"
 SOURCE_COMMIT = "b1b5e9908bbb685b8a852aff762f08ce7226aba1"
 SOURCE_CONFIG_SHA256 = "C26236A93E669B877D74DE0F08D0BC86817345821DEF91066911D723788C7C07"
@@ -131,6 +131,7 @@ def validate_config(config_path: str | Path, config: dict[str, Any]) -> None:
         "reference_candidate": CANDIDATE, "reference_frontier_count": 10,
         "baseline_new_count": 0, "hybrid_new_count": 0, "overwrite_supported": False,
         "algorithm_time_limit_seconds": 1800, "checkpoint_chunk_size": 25,
+        "output_relative_path": "experiments/results_fgmpb/a2",
     }
     for field, wanted in expected.items():
         if config.get(field) != wanted:
@@ -142,6 +143,13 @@ def validate_config(config_path: str | Path, config: dict[str, Any]) -> None:
     if config.get("par2") != {"basis": "algorithm_runtime", "multiplier": 2}:
         raise BenchmarkGateError("PAR-2 identity drift")
     root = Path(__file__).resolve().parents[1]
+    incident = load_json(root / config.get("prior_attempt_incident", "missing"))
+    if (
+        incident.get("execution_attempt") != 1
+        or incident.get("scientifically_usable") is not False
+        or incident.get("results_reused_by_attempt2") is not False
+    ):
+        raise BenchmarkGateError("Attempt 1 incident isolation mismatch")
     checks = {
         "protocol_sha256": file_sha256(root / config["protocol_document"]).upper(),
         "candidate_sha256": file_sha256(root / config["candidate_definition"]).upper(),
@@ -267,11 +275,20 @@ def _strict_int(value: Any, field: str) -> int:
     return value
 
 
-def validate_solution_payload(result: dict[str, Any], serialized_instance: dict[str, Any], *, baseline: bool = False) -> None:
+def validate_solution_payload(
+    result: dict[str, Any], serialized_instance: dict[str, Any], *,
+    baseline: bool = False, allow_absent: bool = False,
+) -> None:
     warehouses = _strict_int(serialized_instance.get("num_warehouses"), "instance.num_warehouses")
     products = _strict_int(serialized_instance.get("num_products"), "instance.num_products")
     x_name, y_name = ("best_x_values", "best_y_values") if baseline else ("x_values", "y_values")
     x_values, y_values = result.get(x_name), result.get(y_name)
+    if x_values is None and y_values is None:
+        if allow_absent:
+            return
+        raise BenchmarkGateError(f"{x_name} and {y_name} are required")
+    if (x_values is None) != (y_values is None):
+        raise BenchmarkGateError(f"{x_name} and {y_name} must be present together")
     if not isinstance(x_values, list) or len(x_values) != warehouses:
         raise BenchmarkGateError(f"{x_name} must follow frozen warehouse order")
     for i, row in enumerate(x_values):
@@ -291,6 +308,8 @@ def _final_certificate(result: dict[str, Any]) -> bool:
     bound = final.get("separation_objective_bound")
     return bool(
         result.get("status") == "optimal"
+        and isinstance(result.get("objective_t"), (int, float)) and not isinstance(result.get("objective_t"), bool)
+        and math.isfinite(float(result["objective_t"]))
         and isinstance(result.get("gap"), (int, float)) and not isinstance(result.get("gap"), bool)
         and math.isfinite(float(result["gap"])) and float(result["gap"]) <= 1e-4
         and final.get("certification_active") is True
@@ -317,7 +336,7 @@ def _solve_and_checkpoint_with_deferred_ctrl_c(
     signal.signal(signal.SIGINT, defer)
     try:
         result = solve()
-        validate_solution_payload(result, serialized)
+        validate_solution_payload(result, serialized, allow_absent=not _final_certificate(result))
         atomic_write_json(checkpoint_path, {"identity": identity, "result": result})
     finally:
         signal.signal(signal.SIGINT, previous)
@@ -456,7 +475,8 @@ def _result_row(record: dict[str, Any]) -> dict[str, Any]:
         "algorithm_runtime": algorithm_runtime, "master_runtime": master_runtime,
         "separation_runtime": separation_runtime, "post_evaluation_wall_runtime": post_wall,
         "total_wall_runtime": algorithm_runtime + post_wall,
-        "penalized_runtime_par2": par2, "final_gap": result.get("gap", "NOT_APPLICABLE"),
+        "penalized_runtime_par2": par2,
+        "final_gap": "NOT_APPLICABLE" if result.get("gap") is None else result["gap"],
         "iterations": _strict_int(result.get("iterations", len(logs)), "iterations"),
         "scenario_blocks": 0, "certified_farkas_cuts": _strict_int(result.get("cuts", 0), "cuts"),
         "objective_t": result.get("objective_t", "NOT_APPLICABLE") if scientific == "certified_robust_optimal" else "NOT_APPLICABLE",
@@ -583,7 +603,7 @@ def execute_plan(config_path: Path, config: dict[str, Any], cells: list[dict[str
             else:
                 result = checkpoint["result"]
                 serialized = source_instance_loader(source_zip, cell)
-                validate_solution_payload(result, serialized)
+                validate_solution_payload(result, serialized, allow_absent=not _final_certificate(result))
             post: dict[str, Any] | None = None
             timings = {"post_evaluation_wall_runtime": 0.0}
             if _final_certificate(result):
@@ -653,7 +673,7 @@ def formal_git_gate(root: Path, authorization: dict[str, Any]) -> str:
     changed = [line for line in _git(root, "diff", "--name-only", implementation, commit).splitlines() if line]
     if changed != [auth_path]:
         raise BenchmarkGateError("current commit is not an authorization-only successor")
-    output_root = str(authorization["output_relative_path"]).split("/a1", 1)[0] + "/"
+    output_root = Path(str(authorization["output_relative_path"])).parent.as_posix() + "/"
     ignored = subprocess.run(["git", "check-ignore", "-q", output_root], cwd=root, check=False)
     if ignored.returncode != 0:
         raise BenchmarkGateError("formal output root is not ignored")
