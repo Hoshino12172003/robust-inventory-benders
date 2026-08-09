@@ -15,7 +15,7 @@ from src.fairness_gamma_minimal_paired_benchmark_audit import build_source_catal
 from src.fairness_gamma_minimal_paired_benchmark_runner import (
     BenchmarkGateError, Dependencies, STAGE, _final_certificate, classify_status, dry_run, execute_plan,
     expand_plan, formal_git_gate, load_catalog, load_yaml, run_directory_id,
-    validate_solution_payload,
+    validate_authorization, validate_solution_payload,
 )
 
 
@@ -277,3 +277,16 @@ def test_real_git_gate_allows_only_ignored_output_and_authorization_successor(tm
     (repo / "code.py").write_text("VALUE = 2\n", encoding="utf-8")
     with pytest.raises(BenchmarkGateError, match="tracked"):
         formal_git_gate(repo, auth)
+
+
+def test_authorization_identity_and_scope_drift_fail_closed(tmp_path: Path) -> None:
+    config = load_yaml(CONFIG_PATH)
+    auth_path = ROOT / "experiments/configs/fairness_gamma_minimal_paired_benchmark_authorization.json"
+    authorization, digest = validate_authorization(auth_path, CONFIG_PATH.resolve(), config, Path(r"E:\rfab1"))
+    assert authorization["formal_run_authorized"] is True and len(digest) == 64
+    drifted = deepcopy(authorization)
+    drifted["gamma"] = [1, 2]
+    drift_path = tmp_path / "authorization.json"
+    drift_path.write_text(json.dumps(drifted), encoding="utf-8")
+    with pytest.raises(BenchmarkGateError, match="authorization gamma mismatch"):
+        validate_authorization(drift_path, CONFIG_PATH.resolve(), config, Path(r"E:\rfab1"))
