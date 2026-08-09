@@ -1,0 +1,14 @@
+candidate: gurobi_direct_extensive_form
+model: complete_deterministic_equivalent
+explicit_complete_scenario_enumeration: true
+shared_first_stage_across_scenarios: true
+scenario_specific_complete_recourse: true
+hybrid_separation_used: false
+farkas_cuts_used: false
+scenario_cache_used: false
+candidate_pool_used: false
+gurobi_benders_strategy: 0
+gurobi_benders_strategy_compatibility: explicit_zero_when_parameter_exists_otherwise_parameter_absence_proves_unavailable
+lexicographic_secondary_cost_objective: false
+algorithm_time_limit_includes: [model_build, optimize]
+scientific_success_requires: [complete_model_build, optimal_status, legal_bound, gap_within_1e-4, valid_post_evaluation]

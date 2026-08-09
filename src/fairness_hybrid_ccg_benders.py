@@ -308,6 +308,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
     best_x = deepcopy(initial.x_values)
     iteration_start = 1
     log: list[dict[str, Any]] = []
+    evicted_proposal_sha256_values: set[str] = set()
     checkpoint = None if checkpoint_path is None else _load_checkpoint(Path(checkpoint_path), identity)
     if checkpoint is not None:
         scenario_order = list(checkpoint["committed_scenario_sha256_values"])
@@ -325,6 +326,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
         if checkpoint.get("incumbent_identity_sha256") != _incumbent_identity(best_y, best_x, upper_bound):
             raise RemediationIdentityError("checkpoint incumbent identity drifted")
         log = list(checkpoint["iteration_log"])
+        evicted_proposal_sha256_values = set(checkpoint.get("reporting_evicted_proposal_sha256_values", []))
         iteration_start = int(checkpoint["iteration"]) + 1
     for digest in scenario_order:
         scenario = scenario_from_payload(scenario_payloads[digest])
@@ -373,6 +375,15 @@ def solve_certified_hybrid_scenario_benders_fairness(
             )
             separation_runtime += time.perf_counter() - tick
             full = separated.full_separation
+            proposal_sha256_values = []
+            for proposal in separated.candidates:
+                proposal_active = tuple(sorted(
+                    (int(item["region"]), int(item["product"]))
+                    for item in proposal.cut.active_deviations
+                ))
+                proposal_sha256_values.append(
+                    scenario_sha256(instance, _scenario_from_units(instance, proposal_active))
+                )
             chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
             final_separation_performed = False
             if chosen is None:
@@ -388,8 +399,23 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 )
                 separation_runtime += time.perf_counter() - tick
                 full = separated.full_separation
+                proposal_sha256_values = []
+                for proposal in separated.candidates:
+                    proposal_active = tuple(sorted(
+                        (int(item["region"]), int(item["product"]))
+                        for item in proposal.cut.active_deviations
+                    ))
+                    proposal_sha256_values.append(
+                        scenario_sha256(instance, _scenario_from_units(instance, proposal_active))
+                    )
                 chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
                 final_separation_performed = True
+            unique_proposals = set(proposal_sha256_values)
+            rediscovered_evicted_count = len(unique_proposals & evicted_proposal_sha256_values)
+            duplicate_proposal_count = len(proposal_sha256_values) - len(unique_proposals)
+            chosen_sha = None if chosen is None else chosen[2]
+            newly_evicted = unique_proposals - ({chosen_sha} if chosen_sha is not None else set())
+            evicted_proposal_sha256_values.update(newly_evicted)
             if final_separation_performed and full.robust_feasibility_certified:
                 upper_bound = min(upper_bound, candidate_t)
                 best_y, best_x = candidate_y, candidate_x
@@ -426,6 +452,10 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 "committed_scenario_sha256": committed_scenario,
                 "committed_farkas_cut_sha256": committed_cut,
                 "scenario_count": len(scenario_order),
+                "pool_candidate_count": len(unique_proposals),
+                "evicted_proposal_count": len(newly_evicted),
+                "rediscovered_evicted_scenario_count": rediscovered_evicted_count,
+                "duplicate_proposal_count": duplicate_proposal_count,
             }
             log.append(entry)
             state = {
@@ -443,6 +473,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 "incumbent_identity_sha256": _incumbent_identity(best_y, best_x, upper_bound),
                 "final_certification_state": "complete_exact_certified" if final_certified else "not_certified",
                 "iteration_log": log,
+                "reporting_evicted_proposal_sha256_values": sorted(evicted_proposal_sha256_values),
             }
             if checkpoint_path is not None:
                 _write_checkpoint(Path(checkpoint_path), identity, state)
