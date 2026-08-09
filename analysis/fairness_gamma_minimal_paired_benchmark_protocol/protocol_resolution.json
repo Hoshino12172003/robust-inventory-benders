@@ -1,0 +1,19 @@
+{
+  "algorithm_time_limit_seconds": 1800,
+  "batch_size": 1,
+  "candidate": "certified_single_cut_without_complete_scenario_blocks",
+  "certified_farkas_separation_required": true,
+  "certified_scenario_cache_enabled": false,
+  "complete_scenario_recourse_blocks_enabled": false,
+  "final_exact_separation_required": true,
+  "max_certified_cuts_per_iteration": 1,
+  "new_baseline_count": 0,
+  "new_hybrid_count": 0,
+  "new_reference_frontier_count": 10,
+  "par2_basis": "algorithm_runtime",
+  "par2_uncertified_seconds": 3600,
+  "persistent_separation_enabled": false,
+  "scientific_success_requires_valid_post_evaluation": true,
+  "separation_solution_pool_enabled": false,
+  "source_zip_sha256": "EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F"
+}

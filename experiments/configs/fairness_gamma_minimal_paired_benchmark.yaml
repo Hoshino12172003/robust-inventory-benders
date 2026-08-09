@@ -1,0 +1,35 @@
+schema_version: 1
+experiment_name: fairness_gamma_minimal_paired_benchmark
+stage: FAIRNESS_GAMMA_MINIMAL_PAIRED_BENCHMARK
+execution_attempt: 1
+previous_benchmark_results_reused: false
+formal_run_authorized: false
+formal_worktree_root: 'E:\rfab1'
+output_relative_path: experiments/results_fgmpb/a1
+source_zip: 'E:\论文代码\fairness_hybrid_gamma_sensitivity_attempt3_results.zip'
+source_zip_sha256: EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F
+source_catalog: analysis/fairness_gamma_minimal_paired_benchmark_protocol/source_pairing_catalog.json
+source_catalog_sha256: 07F216BAB8B578BB00452A29F5AEC607291E652618A4C3D5D37B03CC4913AE26
+protocol_document: docs/fairness_gamma_minimal_paired_algorithm_benchmark_protocol.md
+protocol_sha256: 478AF6A88D4DF1678F7902C097EBAEC1DAF41984E33B16A0F1B871FF92790E94
+candidate_definition: experiments/configs/fairness_gamma_minimal_paired_reference_candidate.yaml
+candidate_sha256: 8F96E691E080FBC7CBCC3240BDEE26B08AC040FD049BF808178DA8772C08E009
+algorithm_template: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+reference_candidate: certified_single_cut_without_complete_scenario_blocks
+scales: [medium_large, large]
+seeds: [180, 181, 182, 183, 184]
+gamma: 2
+rho: 0.025
+reference_frontier_count: 10
+baseline_new_count: 0
+hybrid_new_count: 0
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7}
+algorithm_time_limit_seconds: 1800
+post_evaluation_time_limit_per_scenario_seconds: 30
+checkpoint_chunk_size: 25
+post_evaluation_pipeline_generation: 4
+max_iterations: 10000
+tol: 1.0e-4
+par2: {basis: algorithm_runtime, multiplier: 2}
+resume_required: true
+overwrite_supported: false
