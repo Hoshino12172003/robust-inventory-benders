@@ -10,6 +10,7 @@ import json
 import math
 from pathlib import Path
 import signal
+import statistics
 import subprocess
 import sys
 import time
@@ -596,6 +597,8 @@ def _result_row(record: dict[str, Any]) -> dict[str, Any]:
             "objective_t": result.get("objective_t", "NOT_APPLICABLE"),
             "actual_robust_cost": post.get("actual_robust_cost", "NOT_APPLICABLE"),
             "iterations": result.get("iterations", "NOT_APPLICABLE"), "cuts": result.get("cuts", "NOT_APPLICABLE"),
+            "master_runtime": result.get("master_runtime", "NOT_APPLICABLE"),
+            "separation_runtime": result.get("separation_runtime", "NOT_APPLICABLE"),
             "scenario_blocks": (result.get("metadata") or {}).get("committed_scenario_count", 0),
             "model_build_runtime": result.get("model_build_runtime", "NOT_APPLICABLE"),
             "optimize_runtime": result.get("optimize_runtime", "NOT_APPLICABLE"),
@@ -603,6 +606,8 @@ def _result_row(record: dict[str, Any]) -> dict[str, Any]:
             "binaries": result.get("binaries", "NOT_APPLICABLE"),
             "continuous_variables": result.get("continuous_variables", "NOT_APPLICABLE"),
             "nonzeros": result.get("nonzeros", "NOT_APPLICABLE"),
+            "incumbent": result.get("incumbent", "NOT_APPLICABLE"),
+            "objective_bound": result.get("objective_bound", "NOT_APPLICABLE"),
             "candidate_pool_maximum_size": counters.get("candidate_pool_maximum_size", "NOT_APPLICABLE"),
             "eviction_count": counters.get("eviction_count", "NOT_APPLICABLE"),
             "rediscovered_evicted_scenario_count": counters.get("rediscovered_evicted_scenario_count", "NOT_APPLICABLE"),
@@ -612,6 +617,28 @@ def _result_row(record: dict[str, Any]) -> dict[str, Any]:
             "instance_archive_file_sha256": record["instance_archive_file_sha256"],
             "baseline_run_key": record.get("baseline_run_key", record["run_key"]),
             "anchor_sha256": record.get("anchor_sha256", "NOT_APPLICABLE")}
+
+
+def _describe(values: list[float], prefix: str) -> dict[str, float]:
+    ordered = sorted(float(value) for value in values)
+    _check(ordered and all(math.isfinite(value) for value in ordered), f"empty or nonfinite statistic: {prefix}")
+    midpoint = len(ordered) // 2
+    lower = ordered[:midpoint]
+    upper = ordered[midpoint + (len(ordered) % 2):]
+    q1 = statistics.median(lower) if lower else ordered[0]
+    q3 = statistics.median(upper) if upper else ordered[-1]
+    return {
+        f"{prefix}_mean": statistics.fmean(ordered),
+        f"{prefix}_median": statistics.median(ordered),
+        f"{prefix}_std": statistics.stdev(ordered) if len(ordered) > 1 else 0.0,
+        f"{prefix}_iqr": q3 - q1,
+        f"{prefix}_min": ordered[0],
+        f"{prefix}_max": ordered[-1],
+    }
+
+
+def _field_union(rows: list[dict[str, Any]], fallback: str) -> list[str]:
+    return list(dict.fromkeys(key for row in rows for key in row)) if rows else [fallback]
 
 
 def aggregate(output: Path, rows: list[dict[str, Any]], require_complete: bool = False) -> list[dict[str, Any]]:
@@ -631,12 +658,26 @@ def aggregate(output: Path, rows: list[dict[str, Any]], require_complete: bool =
             selected = [item for item in records if item["task_type"] == task and (gamma == "ALL" or item["gamma"] == gamma)]
             if not selected:
                 continue
+            if gamma == "ALL":
+                by_seed_values = []
+                for seed in sorted({item["seed"] for item in selected}):
+                    seed_rows = [item for item in selected if item["seed"] == seed]
+                    by_seed_values.append({
+                        "algorithm_runtime": statistics.fmean(float(item["algorithm_runtime"]) for item in seed_rows),
+                        "par2": statistics.fmean(float(item["penalized_runtime_par2"]) for item in seed_rows),
+                    })
+                runtime_values = [item["algorithm_runtime"] for item in by_seed_values]
+                par2_values = [item["par2"] for item in by_seed_values]
+            else:
+                runtime_values = [float(item["algorithm_runtime"]) for item in selected]
+                par2_values = [float(item["penalized_runtime_par2"]) for item in selected]
             certified = sum(item["scientific_status"] == "certified_robust_optimal" for item in selected)
-            summary.append({"task_type": task, "gamma": gamma, "planned": len(selected), "completed": len(selected),
+            summary.append({"task_type": task, "gamma": gamma, "planned_tasks": len(selected), "completed_tasks": len(selected),
+                            "independent_seed_count": len({item["seed"] for item in selected}),
                             "certified": certified, "certification_rate": certified / len(selected),
-                            "mean_algorithm_runtime": sum(float(item["algorithm_runtime"]) for item in selected) / len(selected),
-                            "mean_par2": sum(float(item["penalized_runtime_par2"]) for item in selected) / len(selected)})
-    atomic_write_csv(output / "summary.csv", summary, list(summary[0]) if summary else ["task_type"])
+                            **_describe(runtime_values, "algorithm_runtime"),
+                            **_describe(par2_values, "par2")})
+    atomic_write_csv(output / "summary.csv", summary, _field_union(summary, "task_type"))
     paired = []
     if len(by_key) == 45:
         for seed in SEEDS:
@@ -652,6 +693,10 @@ def aggregate(output: Path, rows: list[dict[str, Any]], require_complete: bool =
                                "hybrid_status": hybrid["scientific_status"], "direct_status": direct["scientific_status"],
                                "hybrid_runtime": hr["algorithm_runtime"], "direct_runtime": dr["algorithm_runtime"],
                                "hybrid_par2": hr["penalized_runtime_par2"], "direct_par2": dr["penalized_runtime_par2"],
+                               "runtime_difference_direct_minus_hybrid": dr["algorithm_runtime"] - hr["algorithm_runtime"],
+                               "runtime_ratio_direct_over_hybrid": dr["algorithm_runtime"] / hr["algorithm_runtime"] if hr["algorithm_runtime"] > 0 else "NOT_APPLICABLE",
+                               "par2_difference_direct_minus_hybrid": dr["penalized_runtime_par2"] - hr["penalized_runtime_par2"],
+                               "par2_ratio_direct_over_hybrid": dr["penalized_runtime_par2"] / hr["penalized_runtime_par2"] if hr["penalized_runtime_par2"] > 0 else "NOT_APPLICABLE",
                                "objective_difference_direct_minus_hybrid": dr["objective_t"] - hr["objective_t"] if both else "NOT_APPLICABLE",
                                "cost_difference_direct_minus_hybrid": (dr["post_evaluation"]["actual_robust_cost"] - hr["post_evaluation"]["actual_robust_cost"]) if both else "NOT_APPLICABLE",
                                "hybrid_lower_bound": hr.get("lower_bound"), "hybrid_upper_bound": hr.get("upper_bound"), "hybrid_gap": hr.get("gap"),
@@ -661,8 +706,39 @@ def aggregate(output: Path, rows: list[dict[str, Any]], require_complete: bool =
                                "direct_columns": dr.get("columns"), "direct_nonzeros": dr.get("nonzeros"),
                                "certification_agreement": hybrid["scientific_status"] == direct["scientific_status"]})
     atomic_write_csv(output / "paired_comparison.csv", paired, list(paired[0]) if paired else ["seed"])
+    if paired:
+        for gamma in GAMMAS + ["ALL"]:
+            chosen = [item for item in paired if gamma == "ALL" or item["gamma"] == gamma]
+            if gamma == "ALL":
+                runtime_values = [statistics.fmean(
+                    float(item["runtime_difference_direct_minus_hybrid"])
+                    for item in chosen if item["seed"] == seed) for seed in SEEDS]
+                par2_values = [statistics.fmean(
+                    float(item["par2_difference_direct_minus_hybrid"])
+                    for item in chosen if item["seed"] == seed) for seed in SEEDS]
+            else:
+                runtime_values = [float(item["runtime_difference_direct_minus_hybrid"]) for item in chosen]
+                par2_values = [float(item["par2_difference_direct_minus_hybrid"]) for item in chosen]
+            summary.append({"task_type": "paired_direct_minus_hybrid", "gamma": gamma,
+                            "planned_tasks": len(chosen), "completed_tasks": len(chosen),
+                            "independent_seed_count": len({item["seed"] for item in chosen}),
+                            "certified": sum(item["hybrid_status"] == item["direct_status"] == "certified_robust_optimal" for item in chosen),
+                            "certification_rate": sum(item["hybrid_status"] == item["direct_status"] == "certified_robust_optimal" for item in chosen) / len(chosen),
+                            **_describe(runtime_values, "runtime_difference"),
+                            **_describe(par2_values, "par2_difference")})
+        atomic_write_csv(output / "summary.csv", summary, _field_union(summary, "task_type"))
     model_rows = [item for item in records if item["task_type"] == "direct_extensive_frontier"]
-    stability_rows = [item for item in records if item["task_type"] == "hybrid_frontier"]
+    stability_rows = []
+    if paired:
+        for seed in SEEDS:
+            chosen = [item for item in paired if item["seed"] == seed]
+            stability_rows.append({"seed": seed, "gamma_cells": 3,
+                                   "mean_hybrid_runtime": statistics.fmean(float(item["hybrid_runtime"]) for item in chosen),
+                                   "mean_direct_runtime": statistics.fmean(float(item["direct_runtime"]) for item in chosen),
+                                   "mean_hybrid_par2": statistics.fmean(float(item["hybrid_par2"]) for item in chosen),
+                                   "mean_direct_par2": statistics.fmean(float(item["direct_par2"]) for item in chosen),
+                                   "hybrid_certified_cells": sum(item["hybrid_status"] == "certified_robust_optimal" for item in chosen),
+                                   "direct_certified_cells": sum(item["direct_status"] == "certified_robust_optimal" for item in chosen)})
     atomic_write_csv(output / "model_size_summary.csv", model_rows, list(model_rows[0]) if model_rows else ["run_key"])
     atomic_write_csv(output / "high_gamma_stability.csv", stability_rows, list(stability_rows[0]) if stability_rows else ["run_key"])
     return records

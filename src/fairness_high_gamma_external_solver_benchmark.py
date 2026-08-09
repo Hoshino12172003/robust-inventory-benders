@@ -205,6 +205,13 @@ def solve_gurobi_direct_extensive_form(
             benders_strategy=0,
         )
     except (MemoryError, gp.GurobiError) as exc:
+        if isinstance(exc, gp.GurobiError) and getattr(exc, "errno", None) not in {
+            GRB.Error.OUT_OF_MEMORY,
+            GRB.Error.SIZE_LIMIT_EXCEEDED,
+            GRB.Error.EXCEED_2B_NONZEROS,
+            GRB.Error.FAILED_TO_CREATE_MODEL,
+        }:
+            raise
         elapsed = time.perf_counter() - start
         rows = int(model.NumConstrs) if model is not None else 0
         columns = int(model.NumVars) if model is not None else 0
