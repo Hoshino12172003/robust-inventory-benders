@@ -1,0 +1,33 @@
+{
+  "archive_sha256_after": "8EA91B574748779CAD7E1329A6AE8BCF26D4B6B06655A806A10BDC8CB59C902A",
+  "archive_sha256_before": "8EA91B574748779CAD7E1329A6AE8BCF26D4B6B06655A806A10BDC8CB59C902A",
+  "authorization_provenance_note": "The immutable manifest omits the external authorization SHA. The original config kept formal_run_authorized=false; the separately reviewed authorization file activated the run. This is derived provenance, not an original run field.",
+  "authorization_sha256": "569A37D2F33CC6206AD415C08762D4C0972EDB27E2A8DD58F4F99755657DAEEC",
+  "coverage": {
+    "acceptance_evidence": 60426,
+    "accepted": 60426,
+    "certified": 3,
+    "checkpoints": 10,
+    "chunks": 222,
+    "post_evaluations": 3,
+    "runs": 10,
+    "scenarios": 5493,
+    "statuses": 10,
+    "time_limit_uncertified": 7
+  },
+  "crc_valid": true,
+  "decision": "approve_minimal_paired_benchmark_after_reporting_reconciliation",
+  "maximum_acceptance_residual": 1.1314114090055227e-09,
+  "pipeline_failures": 0,
+  "reference_algorithm": {
+    "batch_size": 1,
+    "candidate": "certified_single_cut_without_complete_scenario_blocks",
+    "certified_cache": false,
+    "certified_farkas_separation": true,
+    "complete_scenario_recourse_blocks": false,
+    "final_exact_separation": true,
+    "maximum_certified_farkas_cuts_per_iteration": 1,
+    "persistent_separation": false,
+    "solution_pool": false
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "both_certified_cells": 3,
+  "cost_interpretation": "Cost is a feasibility budget, not a secondary optimization objective. Equal T does not imply a unique cost-minimizing fairness solution.",
+  "maximum_absolute_objective_t_difference": 4.280214990923237e-06,
+  "medium_large_seed_184": {
+    "certification_status_changed": false,
+    "classification": "numerical_reconciliation_within_frozen_tolerance",
+    "raw_bound_crossing": 1.5699247457590104e-16
+  },
+  "medium_large_seed_184_cost_difference": 55.57661615139659,
+  "objective_t_difference_within_tolerance": true,
+  "tolerance": 0.0001
+}

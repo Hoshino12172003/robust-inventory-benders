@@ -1,0 +1,7 @@
+{
+  "decision": "approve_minimal_paired_benchmark_after_reporting_reconciliation",
+  "gurobi_called": false,
+  "optimization_rerun_required": false,
+  "scientific_results_valid": true,
+  "source_archives_modified": false
+}

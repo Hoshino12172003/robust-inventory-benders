@@ -1,0 +1,9 @@
+{
+  "all_baseline_gaps_within_1e_4": true,
+  "archive_sha256_after": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "archive_sha256_before": "BD253A4DE967143B8CD88E7DEADCB821D6062208CB71664B900F9BD8EBDF3839",
+  "baseline_count": 20,
+  "frontier_pairs_rho_0_to_001": 20,
+  "full_holdout_audit_status": "pass",
+  "interpretation": "The certified anchor error bound is too small to explain the observed service jump from rho=0 to rho=0.01."
+}
