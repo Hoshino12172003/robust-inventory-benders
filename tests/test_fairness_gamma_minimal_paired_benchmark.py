@@ -4,6 +4,7 @@ from copy import deepcopy
 import json
 import math
 from pathlib import Path
+import signal
 import subprocess
 import sys
 
@@ -13,7 +14,7 @@ from src.experiment_protocol import atomic_write_json
 from src.experiment_protocol import file_sha256
 from src.fairness_gamma_minimal_paired_benchmark_audit import build_source_catalog, static_audit
 from src.fairness_gamma_minimal_paired_benchmark_runner import (
-    BenchmarkGateError, Dependencies, STAGE, _final_certificate, classify_status, dry_run, execute_plan,
+    BenchmarkGateError, Dependencies, STAGE, _final_certificate, _paired_row, classify_status, dry_run, execute_plan,
     expand_plan, formal_git_gate, load_catalog, load_yaml, run_directory_id,
     validate_authorization, validate_solution_payload,
 )
@@ -93,6 +94,8 @@ def test_dry_run_is_solver_free_and_side_effect_free() -> None:
     assert report["unique_run_keys"] == report["unique_directory_ids"] == 10
     assert report["instances_generated"] is report["solver_called"] is False
     assert report["source_instance_payloads_read"] is False
+    assert report["source_metadata_cells_verified"] == 10
+    assert Path(report["longest_windows_path"]).name in {".chunk_00073.json.tmp", ".chunk_00186.json.tmp"}
     assert report["longest_windows_path_length"] < 220
 
 
@@ -149,6 +152,24 @@ def test_certification_and_post_evaluation_are_both_required() -> None:
     bad["iteration_log"][-1]["separation_objective_bound"] = 1e-3
     assert classify_status(bad, post, 1831) != "certified_robust_optimal"
     assert classify_status(_result(), {**post, "valid": False}, 1831) == "invalid_post_evaluation"
+    gap = _result()
+    gap["gap"] = 2e-4
+    assert classify_status(gap, post, 1831) != "certified_robust_optimal"
+
+
+def test_uncertified_pair_reports_par2_but_not_raw_runtime_comparison() -> None:
+    _, cells = _config_and_cells()
+    reference = {
+        "scale": "medium_large", "seed": 180, "scientific_status": "time_limit_uncertified",
+        "algorithm_runtime": 1.0, "penalized_runtime_par2": 3600.0, "instance_sha256": cells[0]["instance_canonical_sha256"],
+        "baseline_run_key": cells[0]["baseline_run_key"], "anchor_sha256": cells[0]["anchor_sha256"],
+        "iterations": 1, "scenario_blocks": 0, "certified_farkas_cuts": 1,
+        "objective_t": "NOT_APPLICABLE", "actual_robust_cost": "NOT_APPLICABLE",
+    }
+    paired = _paired_row(reference, cells[0])
+    assert paired["reference_par2"] == 3600.0
+    assert paired["runtime_difference_reference_minus_hybrid"] == "NOT_APPLICABLE"
+    assert paired["runtime_ratio_reference_over_hybrid"] == "NOT_APPLICABLE"
 
 
 @pytest.mark.skipif(not S1_ZIP.exists(), reason="S1 production archive is not mounted")
@@ -239,6 +260,31 @@ def test_post_interruption_resumes_without_repeating_algorithm(tmp_path: Path) -
     assert calls == {"solve": 1, "post": 1}
     recovery = FakePipeline()
     execute_plan(CONFIG_PATH, config, cells, output, commit="4" * 40, dependencies=recovery.dependencies(), source_zip=SOURCE_ZIP, source_instance_loader=_instance)
+    assert recovery.solve_calls == 9
+    assert recovery.post_calls == 10
+
+
+@pytest.mark.skipif(not SOURCE_ZIP.exists(), reason="formal source ZIP is not mounted")
+def test_ctrl_c_inside_algorithm_is_deferred_until_checkpoint_then_resume_does_not_repeat(tmp_path: Path) -> None:
+    config, cells = _config_and_cells()
+    output = tmp_path / "out"
+    calls = {"solve": 0}
+
+    def solve(_config, _instance_value, _cell):
+        calls["solve"] += 1
+        signal.raise_signal(signal.SIGINT)
+        return _result()
+
+    def should_not_post(*_args, **_kwargs):
+        raise AssertionError("deferred Ctrl+C must stop after algorithm checkpoint")
+
+    with pytest.raises(KeyboardInterrupt):
+        execute_plan(CONFIG_PATH, config, cells, output, commit="5" * 40, dependencies=Dependencies(solve, should_not_post, lambda v: v), source_zip=SOURCE_ZIP, source_instance_loader=_instance)
+    first = expand_plan()[0]
+    assert (output / "runs" / first["run_directory_id"] / "algorithm_checkpoint.json").is_file()
+    assert calls["solve"] == 1
+    recovery = FakePipeline()
+    execute_plan(CONFIG_PATH, config, cells, output, commit="5" * 40, dependencies=recovery.dependencies(), source_zip=SOURCE_ZIP, source_instance_loader=_instance)
     assert recovery.solve_calls == 9
     assert recovery.post_calls == 10
 

@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -191,10 +192,37 @@ def _planned_paths(root: Path, rows: list[dict[str, Any]], chunk_size: int) -> l
             paths.extend(((name, rr / name), (name + "_tmp", rr / ("." + name + ".tmp"))))
         count = 1831 if row["scale"] == "medium_large" else 4657
         chunk = math.ceil(count / chunk_size) - 1
-        for name in ("post_evaluation_final.json", "post_evaluation_index.json", f"checkpoint/chunk_{chunk:06d}.json"):
+        for name in ("post_evaluation.json", "checkpoint/index.json", f"checkpoint/chunk_{chunk:05d}.json"):
             path = rr / "post_evaluation" / name
             paths.extend(((name, path), (name + "_tmp", path.with_name("." + path.name + ".tmp"))))
     return paths
+
+
+def verify_source_metadata(source_zip: str | Path, cells: list[dict[str, Any]]) -> int:
+    source_zip = Path(source_zip)
+    if file_sha256(source_zip).upper() != SOURCE_ZIP_SHA256:
+        raise BenchmarkGateError("source ZIP SHA mismatch during dry-run")
+    with zipfile.ZipFile(source_zip) as archive:
+        for cell in cells:
+            prefix = _source_prefix(cell["scale"])
+            manifest = json.loads(archive.read(f"{prefix}/manifest.json"))
+            mapping = manifest.get("run_key_to_directory_id", {})
+            hdir = mapping.get(cell["source_hybrid_run_key"])
+            bdir = mapping.get(cell["baseline_run_key"])
+            if hdir != cell["source_hybrid_directory_id"] or not isinstance(bdir, str):
+                raise BenchmarkGateError("source dry-run mapping mismatch")
+            hybrid = json.loads(archive.read(f"{prefix}/runs/{hdir}/run.json"))
+            baseline = json.loads(archive.read(f"{prefix}/runs/{bdir}/run.json"))
+            if (
+                hybrid.get("scientific_status") != "certified_robust_optimal"
+                or hybrid.get("instance_canonical_sha256") != cell["instance_canonical_sha256"]
+                or hybrid.get("baseline_run_key") != cell["baseline_run_key"]
+                or hybrid.get("anchor_sha256") != cell["anchor_sha256"]
+                or baseline.get("scientific_status") != "certified_robust_optimal"
+                or float(baseline.get("result", {}).get("upper_bound")).hex() != cell["anchor_value_hex"]
+            ):
+                raise BenchmarkGateError("source dry-run scientific identity mismatch")
+    return len(cells)
 
 
 def dry_run(config_path: str | Path, *, formal_root: str | Path | None = None) -> dict[str, Any]:
@@ -202,6 +230,7 @@ def dry_run(config_path: str | Path, *, formal_root: str | Path | None = None) -
     config = load_yaml(config_path)
     validate_config(config_path, config)
     cells = load_catalog(config)
+    verified_metadata = verify_source_metadata(config["source_zip"], cells)
     rows = expand_plan()
     root = Path(formal_root or config["formal_worktree_root"])
     output = root / config["output_relative_path"]
@@ -215,6 +244,7 @@ def dry_run(config_path: str | Path, *, formal_root: str | Path | None = None) -
         "gurobipy_imported": "gurobipy" in sys.modules,
         "gurobipy_imported_by_dry_run": "gurobipy" in sys.modules and not gurobi_before,
         "output_dir_exists": output.exists(),
+        "source_metadata_cells_verified": verified_metadata,
         "source_instance_payloads_read": False, "longest_windows_path": str(longest),
         "longest_windows_path_length": len(str(longest)), "longest_windows_path_type": path_type,
     }
@@ -261,6 +291,8 @@ def _final_certificate(result: dict[str, Any]) -> bool:
     bound = final.get("separation_objective_bound")
     return bool(
         result.get("status") == "optimal"
+        and isinstance(result.get("gap"), (int, float)) and not isinstance(result.get("gap"), bool)
+        and math.isfinite(float(result["gap"])) and float(result["gap"]) <= 1e-4
         and final.get("certification_active") is True
         and final.get("robust_feasibility_certified") is True
         and final.get("master_status") in {2, "optimal"}
@@ -269,6 +301,27 @@ def _final_certificate(result: dict[str, Any]) -> bool:
         and isinstance(bound, (int, float)) and not isinstance(bound, bool)
         and math.isfinite(float(bound)) and float(bound) <= 1e-7
     )
+
+
+def _solve_and_checkpoint_with_deferred_ctrl_c(
+    solve: Callable[[], dict[str, Any]], checkpoint_path: Path,
+    identity: dict[str, Any], serialized: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    interrupted = False
+    previous = signal.getsignal(signal.SIGINT)
+
+    def defer(_signum: int, _frame: Any) -> None:
+        nonlocal interrupted
+        interrupted = True
+
+    signal.signal(signal.SIGINT, defer)
+    try:
+        result = solve()
+        validate_solution_payload(result, serialized)
+        atomic_write_json(checkpoint_path, {"identity": identity, "result": result})
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    return result, interrupted
 
 
 def classify_status(result: dict[str, Any], post: dict[str, Any] | None, expected_scenarios: int) -> str:
@@ -425,8 +478,8 @@ def _paired_row(reference: dict[str, Any], cell: dict[str, Any]) -> dict[str, An
         "reference_scientific_status": reference["scientific_status"],
         "hybrid_algorithm_runtime": hybrid_runtime, "reference_algorithm_runtime": reference_runtime,
         "hybrid_par2": cell["source_hybrid_par2"], "reference_par2": reference["penalized_runtime_par2"],
-        "runtime_difference_reference_minus_hybrid": reference_runtime - hybrid_runtime,
-        "runtime_ratio_reference_over_hybrid": reference_runtime / hybrid_runtime,
+        "runtime_difference_reference_minus_hybrid": reference_runtime - hybrid_runtime if both else "NOT_APPLICABLE",
+        "runtime_ratio_reference_over_hybrid": reference_runtime / hybrid_runtime if both else "NOT_APPLICABLE",
         "hybrid_iterations": cell["source_hybrid_iterations"], "reference_iterations": reference["iterations"],
         "hybrid_scenario_blocks": cell["source_hybrid_scenario_blocks"], "reference_scenario_blocks": reference["scenario_blocks"],
         "hybrid_certified_farkas_cuts": cell["source_hybrid_certified_farkas_cuts"],
@@ -521,9 +574,12 @@ def execute_plan(config_path: Path, config: dict[str, Any], cells: list[dict[str
             if checkpoint is None:
                 _write_status(status_path, identity, "running", "algorithm", "not_yet_certified")
                 serialized = source_instance_loader(source_zip, cell)
-                result = dependencies.solve_reference(config, dependencies.deserialize_instance(serialized), cell)
-                validate_solution_payload(result, serialized)
-                atomic_write_json(checkpoint_path, {"identity": identity, "result": result})
+                result, ctrl_c_deferred = _solve_and_checkpoint_with_deferred_ctrl_c(
+                    lambda: dependencies.solve_reference(config, dependencies.deserialize_instance(serialized), cell),
+                    checkpoint_path, identity, serialized,
+                )
+                if ctrl_c_deferred:
+                    raise KeyboardInterrupt
             else:
                 result = checkpoint["result"]
                 serialized = source_instance_loader(source_zip, cell)
