@@ -1,7 +1,7 @@
 {
   "authorization_only_path": "experiments/configs/fairness_gamma_minimal_paired_benchmark_authorization.json",
   "authorization_purpose": "Run clean Attempt 2 of exactly ten EJOR minimal strictly paired reference frontiers; Attempt 1, baseline, and Hybrid results are not reused",
-  "authorized_implementation_commit": "79e2decd81646d0ac79f635ec0a60a7f03fe18f1",
+  "authorized_implementation_commit": "71a6ee122960e7c7101202f5e1793fa5010e2f6a",
   "authorized_on": "2026-08-09",
   "baseline_new_count": 0,
   "candidate_sha256": "8F96E691E080FBC7CBCC3240BDEE26B08AC040FD049BF808178DA8772C08E009",
