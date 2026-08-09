@@ -22,7 +22,7 @@ The uncertainty dimension is 20. Complete scenario counts are
 
 ## Frozen scientific identity
 
-Every instance archive, baseline, anchor, run, status, checkpoint, post-evaluation checkpoint, CSV projection, and manifest records scale, seed, Gamma, rho applicability, method, execution attempt, Git commit, config SHA, protocol SHA, candidate SHA, solver parameters, instance canonical SHA, instance archive file SHA, baseline run key, and anchor SHA. Canonical and file SHA fields are distinct. Cross-Gamma or cross-method checkpoint reuse fails closed.
+Identity is projected in dependency order rather than claiming a self-referential archive hash. The immutable instance archive records stage, scale, seed, Gamma, execution attempt, Git commit, config SHA, protocol SHA, and its canonical scientific instance SHA. After the archive is written, the manifest, baseline, anchor, frontier run/status/checkpoint, post-evaluation checkpoint, and CSV projection record the distinct archive file SHA. Baseline artifacts additionally record the solver and baseline-run identity; anchor and frontier artifacts add the anchor SHA, rho applicability, method, and candidate identity. The manifest provides the complete chain. Canonical scientific SHA and exact archive file SHA are never interchanged. Cross-Gamma or cross-method checkpoint reuse fails closed.
 
 ## Hybrid method
 
