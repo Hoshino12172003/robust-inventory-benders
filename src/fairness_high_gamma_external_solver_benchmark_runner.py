@@ -22,9 +22,9 @@ from .experiment_protocol import atomic_write_csv, atomic_write_json, atomic_wri
 
 
 STAGE = "HIGH_GAMMA_EXTERNAL_BENCHMARK"
-SCHEMA = "fairness_high_gamma_external_solver_benchmark_v1"
-AUTH_SCHEMA = "fairness_high_gamma_external_solver_benchmark_authorization_v1"
-ATTEMPT = 1
+SCHEMA = "fairness_high_gamma_external_solver_benchmark_v2"
+AUTH_SCHEMA = "fairness_high_gamma_external_solver_benchmark_authorization_v2"
+ATTEMPT = 2
 SEEDS = [185, 186, 187, 188, 189]
 GAMMAS = [2, 3, 4]
 RHO = 0.025
@@ -33,12 +33,12 @@ SOLVER_PARAMETERS = {"Threads": 1, "Seed": 0, "FeasibilityTol": 1e-7}
 HYBRID = "certified_hybrid_scenario_benders_fairness"
 HYBRID_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
 DIRECT = "gurobi_direct_extensive_form"
-EXPECTED_PROTOCOL_SHA256 = "7191FE6813AC43FA3AB9439B48A2348C14717D1584531AD823B90079BFF5B7EE"
-EXPECTED_CONFIG_SHA256 = "67DF16C569B4FC44BB8EC6E5273C44B7E463B2752AB4F60D824EB985E41346C2"
+EXPECTED_PROTOCOL_SHA256 = "4C76B5C7A02E245174BE02B6FCEBBCD744EB6B684A1F0CA71D05964EB1F1A32F"
+EXPECTED_CONFIG_SHA256 = "A377D5B040FED160B323B58D42D9FFD1DE57E52F6C64D2050D6667E47DCA9334"
 EXPECTED_DIRECT_SHA256 = "4A0CA29C6367858A96D62F9B30DC45BBA969CBF0679E758EBB7229AFD999DFAF"
-AUTH_RELATIVE_PATH = "experiments/configs/fairness_high_gamma_external_solver_benchmark_authorization.json"
-OUTPUT_RELATIVE_PATH = "experiments/results_fh_ext/hg1"
-SEED_AUDIT_RELATIVE_PATH = "analysis/fairness_high_gamma_external_solver_benchmark_protocol/seed_access_audit.json"
+AUTH_RELATIVE_PATH = "experiments/configs/fairness_high_gamma_external_solver_benchmark_attempt2_authorization.json"
+OUTPUT_RELATIVE_PATH = "experiments/results_fh_ext/hg2"
+SEED_AUDIT_RELATIVE_PATH = "analysis/fairness_high_gamma_external_solver_benchmark_attempt2_protocol/seed_access_audit.json"
 
 
 class HighGammaGateError(RuntimeError):
@@ -89,6 +89,16 @@ def read_json(path: str | Path) -> dict[str, Any] | None:
     return value
 
 
+def _artifact_tree_sha256(root: Path) -> str:
+    entries = []
+    if root.exists():
+        for path in sorted((item for item in root.rglob("*") if item.is_file()),
+                           key=lambda item: item.relative_to(root).as_posix()):
+            entries.append({"path": path.relative_to(root).as_posix(),
+                            "sha256": file_sha256(path).upper()})
+    return sha256_value(entries)
+
+
 def run_directory_id(run_key: str) -> str:
     return "r_" + hashlib.sha256(run_key.encode("utf-8")).hexdigest()[:24]
 
@@ -136,9 +146,9 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
         _check(actual_sha == EXPECTED_CONFIG_SHA256, "config SHA mismatch")
     expected = {
         "experiment_name": "fairness_high_gamma_external_solver_benchmark",
-        "stage": STAGE, "schema_version": 1, "execution_attempt": ATTEMPT,
+        "stage": STAGE, "schema_version": 2, "execution_attempt": ATTEMPT,
         "previous_attempt_results_reused": False, "formal_run_authorized": False,
-        "formal_worktree_root": r"E:\rfext1", "output_dir": OUTPUT_RELATIVE_PATH,
+        "formal_worktree_root": r"E:\rfext2", "output_dir": OUTPUT_RELATIVE_PATH,
         "hybrid_candidate": HYBRID, "direct_candidate": DIRECT, "scale": "small",
         "protocol_sha256": EXPECTED_PROTOCOL_SHA256,
         "hybrid_candidate_sha256": HYBRID_SHA256,
@@ -160,7 +170,15 @@ def validate_config(path: str | Path, config: dict[str, Any]) -> None:
            "solver identity drift")
     _check(config.get("post_evaluation") == {"time_limit_per_scenario_seconds": 30,
                                               "checkpoint_chunk_size": 25,
-                                              "pipeline_generation": 1}, "post-evaluation identity drift")
+                                              "pipeline_generation": 2}, "post-evaluation identity drift")
+    _check(config.get("prior_attempt_incident") == {
+        "execution_attempt": 1,
+        "archive_sha256": "17ABAC73952D7A6C62EFAC313EC5A3771D904750BEE917BC51FBA3F1C76FDD47",
+        "classification": "baseline_gamma_identity_defect",
+        "scientifically_usable_gamma2_subset": True,
+        "scientifically_usable_gamma3_4": False,
+        "results_reused": False,
+    }, "Attempt 1 incident identity drift")
     root = _root()
     protocol_sha = file_sha256(root / config["protocol_document"]).upper()
     direct_sha = file_sha256(root / config["direct_candidate_definition"]).upper()
@@ -209,6 +227,16 @@ def _planned_paths(root: Path, rows: list[dict[str, Any]], config: dict[str, Any
             for chunk in range(last + 1):
                 paths.extend([("post_chunk", post / "checkpoint" / f"chunk_{chunk:05d}.json"),
                               ("post_chunk_tmp", post / "checkpoint" / f".chunk_{chunk:05d}.json.tmp")])
+        else:
+            lifting = run / "baseline_t1_lifting"
+            last = math.ceil(scenario_count(row["gamma"]) / 25) - 1
+            paths.extend([("baseline_lifting_final", lifting / "post_evaluation.json"),
+                          ("baseline_lifting_final_tmp", lifting / ".post_evaluation.json.tmp"),
+                          ("baseline_lifting_index", lifting / "checkpoint" / "index.json"),
+                          ("baseline_lifting_index_tmp", lifting / "checkpoint" / ".index.json.tmp")])
+            for chunk in range(last + 1):
+                paths.extend([("baseline_lifting_chunk", lifting / "checkpoint" / f"chunk_{chunk:05d}.json"),
+                              ("baseline_lifting_chunk_tmp", lifting / "checkpoint" / f".chunk_{chunk:05d}.json.tmp")])
     for seed in SEEDS:
         for gamma in GAMMAS:
             instance = output / "instances" / f"s{seed}_g{gamma}.json"
@@ -236,7 +264,7 @@ def dry_run(config_path: str | Path, *, root_override: Path | None = None) -> di
         "longest_windows_path": str(longest), "longest_windows_path_length": len(str(longest)),
         "longest_windows_path_type": longest_type,
         "algorithm_solver_limit_envelope_seconds": 45 * 1800,
-        "post_evaluation_solver_limit_envelope_seconds": 2 * 5 * sum(SCENARIOS.values()) * 30,
+        "post_evaluation_solver_limit_envelope_seconds": 3 * 5 * sum(SCENARIOS.values()) * 30,
         "solver_limit_envelopes_are_not_wall_time_predictions": True,
     }
 
@@ -271,7 +299,7 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
         "seeds": SEEDS, "gamma": GAMMAS, "rho": RHO,
         "baseline_count": 15, "hybrid_frontier_count": 15,
         "direct_extensive_frontier_count": 15, "total_tasks": 45,
-        "output_directory": OUTPUT_RELATIVE_PATH, "formal_worktree_root": r"E:\rfext1",
+        "output_directory": OUTPUT_RELATIVE_PATH, "formal_worktree_root": r"E:\rfext2",
         "previous_benchmark_results_reused": False,
     }
     for key, value in expected.items():
@@ -287,6 +315,9 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
     _check(isinstance(basis, str) and len(basis) == 40 and
            all(character in "0123456789abcdef" for character in basis),
            "authorization basis commit identity invalid")
+    changed = subprocess.run(["git", "diff", "--name-only", f"{basis}..HEAD"], cwd=root,
+                             text=True, capture_output=True, check=True).stdout.splitlines()
+    _check(changed == [AUTH_RELATIVE_PATH], "authorization successor contains non-authorization changes")
     prohibited = auth.get("prohibited_scope", {})
     _check(all(prohibited.get(key) is True for key in (
         "other_stages", "other_scales", "other_seeds", "gamma_0_or_1", "other_gamma",
@@ -298,8 +329,11 @@ def validate_authorization(path: str | Path, config_path: str | Path, root: Path
 def seed_access_gate(root: Path) -> dict[str, Any]:
     audit = read_json(root / SEED_AUDIT_RELATIVE_PATH)
     _check(audit is not None and audit.get("candidate_seeds") == SEEDS and
-           audit.get("formal_instance_or_solve_access_evidence_count") == 0 and
-           audit.get("decision") == "seed_access_clear", "seed-access evidence is not clear")
+           audit.get("attempt1_formal_access_exists") is True and
+           audit.get("attempt1_results_used_for_parameter_selection") is False and
+           audit.get("attempt2_previous_results_reused") is False and
+           audit.get("decision") == "attempt1_access_frozen_attempt2_full_restart_required",
+           "Attempt 2 seed-access incident evidence is not acceptable")
     return audit
 
 
@@ -311,6 +345,9 @@ def _identity(row: dict[str, Any], config_path: Path, commit: str) -> dict[str, 
             "protocol_sha256": EXPECTED_PROTOCOL_SHA256, "candidate_sha256": candidate_sha,
             "solver_parameters": deepcopy(SOLVER_PARAMETERS),
             "previous_attempt_results_reused": False, "scenario_count": scenario_count(row["gamma"]),
+            "requested_gamma": row["gamma"], "gamma_target": row["gamma"],
+            "active_gamma": row["gamma"], "active_gamma_policy": "fixed_requested_gamma",
+            "gamma_schedule": [row["gamma"]],
             "baseline_run_key": row["run_key"] if row["task_type"] == "baseline" else None}
 
 
@@ -382,6 +419,17 @@ def _finite_number(value: Any, field: str) -> float:
     return float(value)
 
 
+def _normalized_gamma_schedule(value: Any) -> list[int]:
+    if isinstance(value, list):
+        _check(all(type(item) is int for item in value), "baseline gamma_schedule contains invalid value")
+        return list(value)
+    _check(isinstance(value, str) and value != "", "baseline gamma_schedule missing")
+    try:
+        return [int(item) for item in value.split(",")]
+    except ValueError as exc:
+        raise HighGammaGateError("baseline gamma_schedule contains invalid value") from exc
+
+
 def _solution_values(result: dict[str, Any], task_type: str) -> tuple[list[float], list[list[float]]]:
     y_name = "best_y_values" if task_type == "baseline" else "y_values"
     x_name = "best_x_values" if task_type == "baseline" else "x_values"
@@ -405,6 +453,14 @@ def _validate_solver_result(result: dict[str, Any], task_type: str, gamma: int) 
         _check(result.get("valid_UB") is True, "baseline valid_UB missing")
         for field in ("lower_bound", "upper_bound", "gap"):
             _finite_number(result.get(field), field)
+        _check(result.get("requested_gamma") == gamma and
+               result.get("gamma_target") == gamma and
+               result.get("active_gamma") == gamma and
+               result.get("active_gamma_policy") == "fixed_requested_gamma" and
+               result.get("gamma_schedule") == [gamma] and
+               result.get("scenario_count") == scenario_count(gamma) and
+               result.get("max_scenarios") == scenario_count(gamma),
+               "baseline solver result Gamma identity mismatch")
         _solution_values(result, task_type)
         return
     if task_type == "direct_extensive_frontier":
@@ -452,6 +508,38 @@ def _hybrid_counters(result: dict[str, Any]) -> dict[str, int]:
             "maximum_consecutive_non_improving_iterations": maximum_run}
 
 
+def _hybrid_append_only_invariants(result: dict[str, Any]) -> bool:
+    metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+    scenarios = metadata.get("committed_scenario_sha256_values")
+    cuts = metadata.get("committed_farkas_cut_sha256_values")
+    log = result.get("iteration_log") if isinstance(result.get("iteration_log"), list) else []
+    if not isinstance(scenarios, list) or not isinstance(cuts, list):
+        return False
+    if len(scenarios) != len(set(scenarios)) or len(cuts) != len(set(cuts)):
+        return False
+    if metadata.get("committed_scenario_count") != len(scenarios) or result.get("cuts") != len(cuts):
+        return False
+    committed_scenarios = [item.get("committed_scenario_sha256") for item in log
+                           if item.get("committed_scenario_sha256") is not None]
+    committed_cuts = [item.get("committed_farkas_cut_sha256") for item in log
+                      if item.get("committed_farkas_cut_sha256") is not None]
+    if len(committed_scenarios) != len(set(committed_scenarios)):
+        return False
+    if len(committed_cuts) != len(set(committed_cuts)):
+        return False
+    counts = [item.get("scenario_count") for item in log]
+    if any(type(value) is not int for value in counts):
+        return False
+    if any(next_value < value or next_value - value > 1
+           for value, next_value in zip(counts, counts[1:])):
+        return False
+    return all((item.get("committed_scenario_sha256") is None or
+                item.get("committed_scenario_sha256") in scenarios) and
+               (item.get("committed_farkas_cut_sha256") is None or
+                item.get("committed_farkas_cut_sha256") in cuts)
+               for item in log)
+
+
 def _frontier_scientific(task_type: str, result: dict[str, Any], evaluation: dict[str, Any] | None,
                          count: int, tol: float) -> str:
     lower = result.get("lower_bound")
@@ -463,6 +551,7 @@ def _frontier_scientific(task_type: str, result: dict[str, Any], evaluation: dic
         log = result.get("iteration_log") if isinstance(result.get("iteration_log"), list) else []
         final = log[-1] if log else {}
         certified = (result.get("status") == "optimal" and bounds_valid and
+                     _hybrid_append_only_invariants(result) and
                      (result.get("metadata") or {}).get("robust_feasibility_certified") is True and
                      final.get("final_exact_separation_performed") is True and
                      final.get("robust_feasibility_certified") is True and
@@ -478,10 +567,44 @@ def _frontier_scientific(task_type: str, result: dict[str, Any], evaluation: dic
     return "certified_robust_optimal" if _valid_post(evaluation, count) else "invalid_post_evaluation"
 
 
+def _baseline_method_config(config: dict[str, Any], seed: int) -> tuple[str, dict[str, Any]]:
+    from .experiment_suite import _apply_selected_parameters, _apply_variant_config, _base_config
+
+    gamma = int(config["gamma_value"])
+    value = load_yaml(_root() / config["instance"]["generator_template"])
+    value["instance_overrides"] = {"num_warehouses": 4, "num_products": 4, "num_regions": 5}
+    value.update({"gamma_target": gamma, "gamma_schedule": [gamma],
+                  "gamma_continuation_enabled": False, "exact_scenarios": True,
+                  "max_scenarios": scenario_count(gamma), "time_limit": 1800,
+                  "baseline_time_limit": 1800})
+    selected = _apply_selected_parameters(value)
+    # Frozen selected/candidate files contain the development Gamma=2.  Apply
+    # the formal cell Gamma after every imported setting.
+    selected.update({"gamma": gamma, "gamma_target": gamma,
+                     "gamma_schedule": [gamma], "gamma_continuation_enabled": False,
+                     "max_scenarios": scenario_count(gamma)})
+    base = _base_config(selected, "small", seed)
+    variant = dict(selected.get("variant_settings", {}).get("joint_v1_core_point_strengthened", {}))
+    method, _flags, method_config = _apply_variant_config(
+        base, "proposed_adaptive_benders", variant)
+    method_config["gamma"] = gamma
+    method_config["gamma_continuation_enabled"] = False
+    method_config["robust"].update({"gamma_target": gamma,
+                                    "gamma_schedule": [gamma],
+                                    "max_scenarios": scenario_count(gamma)})
+    _check(method_config["gamma"] == gamma and
+           method_config["gamma_continuation_enabled"] is False and
+           method_config["robust"].get("gamma_target") == gamma and
+           method_config["robust"].get("gamma_schedule") == [gamma] and
+           method_config["robust"].get("max_scenarios") == scenario_count(gamma),
+           "final baseline method Gamma propagation failed")
+    return method, method_config
+
+
 def production_dependencies() -> Dependencies:
     # Deliberately lazy. Every formal authorization gate runs before this function.
     from .benders import solve_benders
-    from .experiment_suite import _apply_selected_parameters, _apply_variant_config, _base_config
+    from .experiment_suite import _base_config
     from .fairness_high_gamma_external_solver_benchmark import solve_gurobi_direct_extensive_form
     from .fairness_hybrid_ccg_benders import initial_upper_bound_expected_identity, solve_certified_hybrid_scenario_benders_fairness
     from .fairness_hybrid_ccg_benders_runner import _hybrid_certified_anchor
@@ -503,13 +626,20 @@ def production_dependencies() -> Dependencies:
 
     def baseline(config: dict[str, Any], instance: Any, seed: int, solver: dict[str, Any]) -> dict[str, Any]:
         _configure_solver_parameters(solver)
-        selected = _apply_selected_parameters(template(config, int(config["gamma_value"])))
-        base = _base_config(selected, "small", seed)
-        variant = dict(selected.get("variant_settings", {}).get("joint_v1_core_point_strengthened", {}))
-        method, _flags, method_config = _apply_variant_config(base, "proposed_adaptive_benders", variant)
+        gamma = int(config["gamma_value"])
+        method, method_config = _baseline_method_config(config, seed)
         result = solve_benders(method_config, instance, method)
         payload = result.summary_dict(); payload["iteration_log"] = result.iteration_log
-        payload["gamma"] = int(config["gamma_value"])
+        schedule = _normalized_gamma_schedule(payload.get("gamma_schedule"))
+        _check(payload.get("gamma_target") == gamma and payload.get("active_gamma") == gamma and
+               schedule == [gamma] and payload.get("max_scenarios") == scenario_count(gamma),
+               "baseline solver returned mismatched Gamma identity")
+        payload.update({"gamma": gamma, "requested_gamma": gamma,
+                        "gamma_target": gamma, "active_gamma": gamma,
+                        "active_gamma_policy": "fixed_requested_gamma",
+                        "gamma_schedule": [gamma], "scenario_count": scenario_count(gamma),
+                        "max_scenarios": scenario_count(gamma),
+                        "instance_canonical_sha256": sha256_value(instance.to_dict())})
         return payload
 
     def anchor(record: dict[str, Any], common: dict[str, Any], tolerance: float) -> dict[str, Any]:
@@ -546,7 +676,7 @@ def production_dependencies() -> Dependencies:
             baseline_cost=float(anchor_value["value"]), rho=RHO, gamma=int(row["gamma"]),
             max_scenarios=scenario_count(int(row["gamma"])), per_scenario_time_limit=30,
             tolerance=1e-7, chunk_size=25, resume_count=0, output_flag=False,
-            run_execution_attempt=ATTEMPT, post_evaluation_pipeline_generation=1)
+            run_execution_attempt=ATTEMPT, post_evaluation_pipeline_generation=2)
         return evaluation.to_dict(), {"post_evaluation_solver_runtime": timing.solver_runtime,
                                       "post_evaluation_wall_runtime": timing.wall_runtime,
                                       "aggregation_runtime": timing.aggregation_runtime,
@@ -565,11 +695,13 @@ def _manifest(config_path: Path, commit: str, rows: list[dict[str, Any]]) -> dic
             "gamma": GAMMAS, "rho": RHO, "solver_parameters": SOLVER_PARAMETERS,
             "previous_attempt_results_reused": False}, "run_key_to_directory_id": forward,
             "directory_id_to_run_key": {value: key for key, value in forward.items()},
-            "instance_identities": {}, "baseline_anchors": {}, "run_identities": {}}
+            "instance_identities": {}, "baseline_identities": {}, "baseline_t1_lifting": {},
+            "baseline_anchors": {}, "run_identities": {}}
 
 
-def _write_record(output: Path, row: dict[str, Any], identity: dict[str, Any], result: dict[str, Any],
-                  scientific: str, anchor: dict[str, Any] | None = None) -> dict[str, Any]:
+def _record_payload(row: dict[str, Any], identity: dict[str, Any], result: dict[str, Any],
+                    scientific: str, anchor: dict[str, Any] | None = None) -> dict[str, Any]:
+    result = deepcopy(result)
     runtime = float(result.get("algorithm_runtime", result.get("runtime", 0.0)))
     result.update({"algorithm_runtime": runtime,
                    "penalized_runtime_par2": _par2(scientific, runtime),
@@ -583,10 +715,51 @@ def _write_record(output: Path, row: dict[str, Any], identity: dict[str, Any], r
         record.update({"baseline_run_key": anchor["baseline_run_key"], "anchor_sha256": anchor["anchor_sha256"],
                        "anchor_value_hex": anchor["value_hex"], "baseline_robust_cost": anchor["value"],
                        "cost_budget": (1.0 + RHO) * float(anchor["value"])})
+    return record
+
+
+def _write_record(output: Path, row: dict[str, Any], identity: dict[str, Any], result: dict[str, Any],
+                  scientific: str, anchor: dict[str, Any] | None = None) -> dict[str, Any]:
+    record = _record_payload(row, identity, result, scientific, anchor)
     run_root = output / "runs" / row["run_directory_id"]
     atomic_write_json(run_root / "run.json", record)
     _status(run_root / "status.json", identity, "complete", scientific)
     return record
+
+
+def _validate_baseline_gamma_identity(record: dict[str, Any], anchor: dict[str, Any],
+                                      manifest_identity: dict[str, Any], gamma: int,
+                                      canonical_sha: str) -> None:
+    expected = {"requested_gamma": gamma, "gamma_target": gamma,
+                "active_gamma_policy": "fixed_requested_gamma",
+                "gamma_schedule": [gamma], "scenario_count": scenario_count(gamma),
+                "instance_canonical_sha256": canonical_sha}
+    result = record.get("result")
+    _check(isinstance(result, dict), "baseline result missing before frontier")
+    for key, value in expected.items():
+        _check(record.get(key) == value, f"baseline run Gamma identity mismatch: {key}")
+        _check(result.get(key) == value, f"baseline result Gamma identity mismatch: {key}")
+        _check(anchor.get(key) == value, f"baseline anchor Gamma identity mismatch: {key}")
+        _check(manifest_identity.get(key) == value, f"manifest baseline Gamma identity mismatch: {key}")
+    _check(result.get("active_gamma") == gamma,
+           "baseline result active_gamma mismatch before frontier")
+    _check(result.get("max_scenarios") == scenario_count(gamma),
+           "baseline result max_scenarios mismatch before frontier")
+
+
+def _validate_baseline_lifting(evaluation: dict[str, Any] | None, *, gamma: int,
+                               anchor_value: float, canonical_sha: str) -> None:
+    _check(isinstance(evaluation, dict), "baseline T=1 lifting evidence missing")
+    _check(evaluation.get("valid") is True and evaluation.get("errors") in (None, []) and
+           evaluation.get("objective_t_consistent") is True,
+           "baseline T=1 lifting is infeasible")
+    _check(evaluation.get("scenario_count") == scenario_count(gamma),
+           "baseline T=1 lifting scenario count mismatch")
+    actual_cost = _finite_number(evaluation.get("actual_robust_cost"), "baseline lifting actual robust cost")
+    _check(actual_cost <= (1.0 + RHO) * anchor_value + 1e-7,
+           "baseline T=1 lifting violates the cost budget")
+    _check(evaluation.get("instance_canonical_sha256", canonical_sha) == canonical_sha,
+           "baseline T=1 lifting instance identity mismatch")
 
 
 def _result_row(record: dict[str, Any]) -> dict[str, Any]:
@@ -777,6 +950,9 @@ def execute(config_path: Path, config: dict[str, Any], rows: list[dict[str, Any]
         _check(existing is not None, "existing output lacks valid manifest")
         for key in ("schema", "identity", "run_key_to_directory_id", "directory_id_to_run_key"):
             _check(existing.get(key) == expected_manifest[key], f"strict resume manifest mismatch: {key}")
+        for key in ("instance_identities", "baseline_identities", "baseline_t1_lifting",
+                    "baseline_anchors", "run_identities"):
+            _check(isinstance(existing.get(key), dict), f"strict resume manifest missing mapping: {key}")
         _check(load_yaml(output / "resolved_config.yaml") == config, "resolved config mismatch")
         _check(read_json(output / "run_manifest.json") == existing, "run manifest mismatch")
         manifest = existing
@@ -811,6 +987,17 @@ def execute(config_path: Path, config: dict[str, Any], rows: list[dict[str, Any]
                                  "instance_canonical_sha256": canonical_sha,
                                  "instance_identity_sha256": instance_identity_sha,
                                  "instance_archive_file_sha256": file_sha}
+            common = {"instance_sha256": canonical_sha, "instance_canonical_sha256": canonical_sha,
+                      "instance_identity_sha256": instance_identity_sha, "instance_archive_file_sha256": file_sha,
+                      "seed": seed, "gamma": gamma, "requested_gamma": gamma,
+                      "gamma_target": gamma, "active_gamma": gamma,
+                      "active_gamma_policy": "fixed_requested_gamma", "gamma_schedule": [gamma],
+                      "scenario_count": scenario_count(gamma), "scale": "small", "stage": STAGE,
+                      "execution_attempt": ATTEMPT, "git_commit": commit,
+                      "config_file_sha256": file_sha256(config_path).upper(),
+                      "resolved_config_file_sha256": file_sha256(config_path).upper(),
+                      "protocol_sha256": EXPECTED_PROTOCOL_SHA256,
+                      "candidate_sha256": HYBRID_SHA256, "baseline_run_key": baseline_row["run_key"]}
             base_root = output / "runs" / baseline_row["run_directory_id"]
             base_record = read_json(base_root / "run.json")
             _validate_status(base_root / "status.json", baseline_identity, base_record)
@@ -823,28 +1010,60 @@ def execute(config_path: Path, config: dict[str, Any], rows: list[dict[str, Any]
                         base_root / "algorithm_checkpoint.json", baseline_identity, "baseline", "baseline", gamma)
                 solved = checkpoint.get("status") == "optimal" and checkpoint.get("valid_UB") is True and type(checkpoint.get("gap")) in {int, float} and float(checkpoint["gap"]) <= 1e-4
                 _check(solved, f"baseline failed for seed {seed} Gamma {gamma}; formal run stops fail closed")
-                base_record = _write_record(output, baseline_row, baseline_identity, checkpoint,
-                                            "certified_robust_optimal")
+                base_record = _record_payload(baseline_row, baseline_identity, checkpoint,
+                                              "certified_robust_optimal")
             else:
                 _check(base_record.get("scientific_status") == "certified_robust_optimal", "stored baseline is not certified")
                 _validate_completed_checkpoint(
                     base_record,
                     _load_checkpoint(base_root / "algorithm_checkpoint.json", baseline_identity, "baseline"),
                 )
-            common = {"instance_sha256": canonical_sha, "instance_canonical_sha256": canonical_sha,
-                      "instance_identity_sha256": instance_identity_sha, "instance_archive_file_sha256": file_sha,
-                      "seed": seed, "gamma": gamma, "scale": "small", "stage": STAGE,
-                      "execution_attempt": ATTEMPT, "git_commit": commit,
-                      "config_file_sha256": file_sha256(config_path).upper(),
-                      "resolved_config_file_sha256": file_sha256(config_path).upper(),
-                      "protocol_sha256": EXPECTED_PROTOCOL_SHA256,
-                      "candidate_sha256": HYBRID_SHA256, "baseline_run_key": baseline_row["run_key"]}
             anchor = deps.make_anchor(base_record, common, 1e-4)
             cell_key = f"s{seed}_g{gamma}"
             manifest["instance_identities"].setdefault(cell_key, payload["identity"])
             _check(manifest["instance_identities"][cell_key] == payload["identity"], "manifest instance drift")
+            manifest["baseline_identities"].setdefault(cell_key, {
+                **baseline_identity, "active_gamma": gamma,
+                "instance_canonical_sha256": canonical_sha})
+            _check(manifest["baseline_identities"][cell_key] == {
+                **baseline_identity, "active_gamma": gamma,
+                "instance_canonical_sha256": canonical_sha}, "manifest baseline identity drift")
             manifest["baseline_anchors"].setdefault(cell_key, anchor)
             _check(manifest["baseline_anchors"][cell_key] == anchor, "manifest anchor drift")
+            _validate_baseline_gamma_identity(
+                base_record, anchor, manifest["baseline_identities"][cell_key], gamma, canonical_sha)
+            lifting = base_record.get("baseline_t1_lifting")
+            if lifting is None:
+                y_values, x_values = _solution_values(base_record["result"], "baseline")
+                lifting_result = {"y_values": y_values, "x_values": x_values, "objective_t": 1.0}
+                lifting, lifting_timing = deps.post_evaluate(
+                    cell_config, instance, lifting_result, anchor, baseline_identity,
+                    base_root / "baseline_t1_lifting", baseline_row)
+                lifting = {**lifting, **lifting_timing,
+                           "requested_gamma": gamma, "gamma_target": gamma,
+                           "active_gamma": gamma, "gamma_schedule": [gamma],
+                           "scenario_count": scenario_count(gamma),
+                           "instance_canonical_sha256": canonical_sha,
+                           "cost_budget": (1.0 + RHO) * float(anchor["value"]),
+                           "artifact_tree_sha256": _artifact_tree_sha256(
+                               base_root / "baseline_t1_lifting")}
+                _validate_baseline_lifting(lifting, gamma=gamma,
+                                           anchor_value=float(anchor["value"]),
+                                           canonical_sha=canonical_sha)
+                base_record["baseline_t1_lifting"] = lifting
+                atomic_write_json(base_root / "run.json", base_record)
+                _status(base_root / "status.json", baseline_identity, "complete",
+                        "certified_robust_optimal")
+            else:
+                _validate_baseline_lifting(lifting, gamma=gamma,
+                                           anchor_value=float(anchor["value"]),
+                                           canonical_sha=canonical_sha)
+                _check(lifting.get("artifact_tree_sha256") == _artifact_tree_sha256(
+                    base_root / "baseline_t1_lifting"),
+                    "baseline T=1 lifting checkpoint tree drift")
+            manifest["baseline_t1_lifting"].setdefault(cell_key, lifting)
+            _check(manifest["baseline_t1_lifting"][cell_key] == lifting,
+                   "manifest baseline T=1 lifting drift")
             for row in [item for item in cell_rows if item["task_type"] != "baseline"]:
                 identity = {**_identity(row, config_path, commit), **common,
                             "candidate_sha256": HYBRID_SHA256 if row["task_type"] == "hybrid_frontier" else EXPECTED_DIRECT_SHA256,
@@ -865,6 +1084,11 @@ def execute(config_path: Path, config: dict[str, Any], rows: list[dict[str, Any]
                         record,
                         _load_checkpoint(run_root / "algorithm_checkpoint.json", identity, method),
                     )
+                    stored_post = record.get("result", {}).get("post_evaluation")
+                    if stored_post is not None:
+                        _check(record["result"].get("post_evaluation_artifact_tree_sha256") ==
+                               _artifact_tree_sha256(run_root / "post_evaluation"),
+                               "frontier post-evaluation checkpoint tree drift")
                     continue
                 _status(run_root / "status.json", identity, "running", "pending")
                 method = "hybrid" if row["task_type"] == "hybrid_frontier" else "direct_extensive_form"
@@ -893,6 +1117,9 @@ def execute(config_path: Path, config: dict[str, Any], rows: list[dict[str, Any]
                 scientific = _frontier_scientific(row["task_type"], result, evaluation,
                                                   scenario_count(gamma), 1e-4)
                 result.update(timing); result["post_evaluation"] = evaluation
+                if evaluation is not None:
+                    result["post_evaluation_artifact_tree_sha256"] = _artifact_tree_sha256(
+                        run_root / "post_evaluation")
                 record = _write_record(output, row, identity, result, scientific, anchor)
                 aggregate(output, rows)
                 if scientific == "invalid_post_evaluation":

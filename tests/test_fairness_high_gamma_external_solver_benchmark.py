@@ -11,11 +11,17 @@ import pytest
 import src.fairness_high_gamma_external_solver_benchmark_runner as runner_module
 
 from src.fairness_high_gamma_external_solver_benchmark import DirectExtensiveFormResult
+from src.fairness_high_gamma_external_solver_benchmark_hg1_incident import (
+    HG1_SHA256,
+    audit_hg1,
+    write_freeze,
+)
 from src.fairness_high_gamma_external_solver_benchmark_runner import (
     Dependencies,
     GAMMAS,
     HighGammaGateError,
     SEEDS,
+    _baseline_method_config,
     _frontier_scientific,
     _git_gate,
     _par2,
@@ -29,7 +35,8 @@ from src.fairness_high_gamma_external_solver_benchmark_runner import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = ROOT / "experiments/configs/fairness_high_gamma_external_solver_benchmark.yaml"
+CONFIG = ROOT / "experiments/configs/fairness_high_gamma_external_solver_benchmark_attempt2.yaml"
+HG1_ZIP = Path(r"E:\论文代码\fairness_high_gamma_external_solver_benchmark_hg1_results.zip")
 
 
 def _instance(seed: int) -> dict:
@@ -45,15 +52,21 @@ def fake_dependencies(calls: Counter[str]) -> Dependencies:
 
     def baseline(config: dict, instance: dict, seed: int, solver: dict) -> dict:
         calls["baseline"] += 1
+        gamma = config["gamma_value"]
         return {"status": "optimal", "valid_UB": True, "gap": 0.0,
-                "lower_bound": 100.0 + config["gamma_value"],
-                "upper_bound": 100.0 + config["gamma_value"], "runtime": 1.0,
-                "best_x_values": [[1.0] * 4 for _ in range(4)], "best_y_values": [1.0] * 4}
+                "lower_bound": 100.0 + gamma,
+                "upper_bound": 100.0 + gamma, "runtime": 1.0,
+                "best_x_values": [[1.0] * 4 for _ in range(4)], "best_y_values": [1.0] * 4,
+                "gamma": gamma, "requested_gamma": gamma, "gamma_target": gamma,
+                "active_gamma": gamma, "active_gamma_policy": "fixed_requested_gamma",
+                "gamma_schedule": [gamma], "scenario_count": scenario_count(gamma),
+                "max_scenarios": scenario_count(gamma),
+                "instance_canonical_sha256": runner_module.sha256_value(instance)}
 
     def anchor(record: dict, common: dict, tolerance: float) -> dict:
         value = float(record["result"]["upper_bound"])
         payload = {"baseline_run_key": common["baseline_run_key"], "value": value,
-                   "value_hex": value.hex(), "valid_UB": True}
+                   "value_hex": value.hex(), "valid_UB": True, **common}
         return {**payload, "anchor_sha256": __import__("hashlib").sha256(
             json.dumps(payload, sort_keys=True).encode()).hexdigest().upper()}
 
@@ -65,14 +78,20 @@ def fake_dependencies(calls: Counter[str]) -> Dependencies:
                 "gap": 0.0, "objective_t": t, "robust_minimum_fill_rate": 1 - t,
                 "x_values": [[2.0] * 4 for _ in range(4)], "y_values": [1.0] * 4,
                 "iterations": 2, "cuts": 1,
-                "metadata": {"robust_feasibility_certified": True, "committed_scenario_count": 7},
+                "metadata": {"robust_feasibility_certified": True, "committed_scenario_count": 2,
+                             "committed_scenario_sha256_values": ["s0", "s1"],
+                             "committed_farkas_cut_sha256_values": ["c1"]},
                 "iteration_log": [{"lower_bound": 0.0, "pool_candidate_count": 2,
-                                   "cuts_per_iteration": 1, "duplicate_pattern_count": 0},
+                                   "cuts_per_iteration": 1, "duplicate_pattern_count": 0,
+                                   "scenario_count": 1},
                                   {"lower_bound": t, "pool_candidate_count": 0,
                                    "cuts_per_iteration": 0, "duplicate_pattern_count": 0,
+                                   "scenario_count": 2,
+                                   "committed_scenario_sha256": "s1",
+                                   "committed_farkas_cut_sha256": "c1",
                                    "final_exact_separation_performed": True,
                                    "robust_feasibility_certified": True,
-                                   "separation_objective_bound": -0.0}]}
+                                   "separation_objective_bound": -0.0}], "cuts": 1}
 
     def direct(config: dict, instance: dict, baseline_record: dict,
                anchor_value: dict, row: dict) -> dict:
@@ -96,7 +115,8 @@ def fake_dependencies(calls: Counter[str]) -> Dependencies:
         calls["post"] += 1
         return ({"valid": True, "errors": [], "objective_t_consistent": True,
                  "scenario_count": scenario_count(row["gamma"]),
-                 "actual_robust_cost": anchor_value["value"] * 1.02},
+                 "actual_robust_cost": anchor_value["value"] * 1.02,
+                 "instance_canonical_sha256": identity["instance_canonical_sha256"]},
                 {"post_evaluation_solver_runtime": 0.1, "post_evaluation_wall_runtime": 0.2,
                  "aggregation_runtime": 0.01, "checkpoint_io_runtime": 0.01})
 
@@ -116,6 +136,18 @@ def test_matrix_and_scenario_counts() -> None:
         scenario_count(1)
     with pytest.raises(HighGammaGateError):
         scenario_count(5)
+
+
+@pytest.mark.parametrize("gamma", GAMMAS)
+def test_production_baseline_method_config_uses_requested_gamma(gamma: int) -> None:
+    config = runner_module.load_yaml(CONFIG)
+    method, resolved = _baseline_method_config({**config, "gamma_value": gamma}, 185)
+    assert method == "adaptive_gap_gamma_benders"
+    assert resolved["gamma"] == gamma
+    assert resolved["gamma_continuation_enabled"] is False
+    assert resolved["robust"]["gamma_target"] == gamma
+    assert resolved["robust"]["gamma_schedule"] == [gamma]
+    assert resolved["robust"]["max_scenarios"] == scenario_count(gamma)
 
 
 def test_dry_run_has_no_side_effect_or_solver_import(tmp_path: Path) -> None:
@@ -147,12 +179,12 @@ def test_synthetic_45_task_disk_pipeline_and_zero_repeat_resume(tmp_path: Path) 
     result = formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
                         test_authorization=True, test_root=tmp_path)
     assert result["completed_run_count"] == 45
-    output = tmp_path / "experiments/results_fh_ext/hg1"
+    output = tmp_path / "experiments/results_fh_ext/hg2"
     assert len(list(output.glob("runs/*/run.json"))) == 45
     assert len(list(output.glob("runs/*/status.json"))) == 45
     assert len(list(output.glob("runs/*/algorithm_checkpoint.json"))) == 45
     assert calls["instance"] == calls["baseline"] == calls["hybrid"] == calls["direct"] == 15
-    assert calls["post"] == 30
+    assert calls["post"] == 45
     first_results = (output / "results.csv").read_bytes()
     first_summary = (output / "summary.csv").read_bytes()
     calls.clear()
@@ -161,11 +193,106 @@ def test_synthetic_45_task_disk_pipeline_and_zero_repeat_resume(tmp_path: Path) 
     assert calls == Counter({"configure": 1})
     assert (output / "results.csv").read_bytes() == first_results
     assert (output / "summary.csv").read_bytes() == first_summary
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    for seed in SEEDS:
+        for gamma in GAMMAS:
+            cell = f"s{seed}_g{gamma}"
+            expected = {"requested_gamma": gamma, "gamma_target": gamma,
+                        "active_gamma": gamma, "gamma_schedule": [gamma],
+                        "scenario_count": scenario_count(gamma)}
+            for field, value in expected.items():
+                assert manifest["baseline_identities"][cell][field] == value
+                assert manifest["baseline_anchors"][cell][field] == value
+                assert manifest["baseline_t1_lifting"][cell][field] == value
+            paired = []
+            for row in expand_plan():
+                if row["seed"] == seed and row["gamma"] == gamma and row["task_type"] != "baseline":
+                    paired.append(json.loads((output / "runs" / row["run_directory_id"] / "run.json").read_text(encoding="utf-8")))
+            assert len(paired) == 2
+            for field in ("instance_canonical_sha256", "baseline_run_key", "anchor_sha256",
+                          "anchor_value_hex", "cost_budget"):
+                assert paired[0][field] == paired[1][field]
+
+
+def test_baseline_gamma_mismatch_blocks_frontiers(tmp_path: Path) -> None:
+    calls: Counter[str] = Counter()
+    original = fake_dependencies(calls)
+
+    def mismatched(config, instance, seed, solver):
+        result = original.solve_baseline(config, instance, seed, solver)
+        result["active_gamma"] = 2 if config["gamma_value"] != 2 else 3
+        return result
+
+    deps = Dependencies(original.generate_instance, original.serialize_instance,
+                        original.deserialize_instance, mismatched, original.make_anchor,
+                        original.solve_hybrid, original.solve_direct, original.post_evaluate,
+                        original.configure_solver)
+    with pytest.raises(HighGammaGateError, match="Gamma identity mismatch"):
+        formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
+                   test_authorization=True, test_root=tmp_path)
+    assert calls["hybrid"] == calls["direct"] == 0
+
+
+def test_infeasible_t1_lifting_blocks_both_frontiers(tmp_path: Path) -> None:
+    calls: Counter[str] = Counter()
+    original = fake_dependencies(calls)
+
+    def invalid_post(config, instance, result, anchor, identity, root, row):
+        evaluation, timing = original.post_evaluate(
+            config, instance, result, anchor, identity, root, row)
+        if row["task_type"] == "baseline":
+            evaluation["actual_robust_cost"] = anchor["value"] * 2.0
+        return evaluation, timing
+
+    deps = Dependencies(original.generate_instance, original.serialize_instance,
+                        original.deserialize_instance, original.solve_baseline,
+                        original.make_anchor, original.solve_hybrid, original.solve_direct,
+                        invalid_post, original.configure_solver)
+    with pytest.raises(HighGammaGateError, match="cost budget"):
+        formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
+                   test_authorization=True, test_root=tmp_path)
+    assert calls["hybrid"] == calls["direct"] == 0
+
+
+def test_hybrid_append_only_and_final_exact_are_required() -> None:
+    calls: Counter[str] = Counter()
+    deps = fake_dependencies(calls)
+    row = next(item for item in expand_plan() if item["task_type"] == "hybrid_frontier")
+    result = deps.solve_hybrid({}, _instance(185), {}, {}, {}, Path("checkpoint"), {}, row)
+    post = {"valid": True, "errors": [], "objective_t_consistent": True,
+            "scenario_count": scenario_count(row["gamma"])}
+    assert _frontier_scientific("hybrid_frontier", result, post,
+                                scenario_count(row["gamma"]), 1e-4) == "certified_robust_optimal"
+    broken = json.loads(json.dumps(result))
+    broken["iteration_log"][-1]["scenario_count"] = 0
+    assert _frontier_scientific("hybrid_frontier", broken, post,
+                                scenario_count(row["gamma"]), 1e-4) == "robust_uncertified"
+    broken = json.loads(json.dumps(result))
+    broken["iteration_log"][-1]["final_exact_separation_performed"] = False
+    assert _frontier_scientific("hybrid_frontier", broken, post,
+                                scenario_count(row["gamma"]), 1e-4) == "robust_uncertified"
 
 
 def test_direct_result_schema_is_solver_free() -> None:
     assert "gurobipy" not in DirectExtensiveFormResult.__module__
     assert len(SEEDS) == 5
+
+
+@pytest.mark.skipif(not HG1_ZIP.exists(), reason="external immutable HG1 archive unavailable")
+def test_hg1_incident_freeze_is_read_only_and_deterministic(tmp_path: Path) -> None:
+    before = __import__("hashlib").sha256(HG1_ZIP.read_bytes()).hexdigest().upper()
+    audit, rows = audit_hg1(HG1_ZIP)
+    assert before == HG1_SHA256 == audit["source_archive_sha256_after"]
+    assert audit["baseline_internal_gamma_mismatch_count"] == 10
+    assert audit["scientifically_usable_gamma2_subset"] is True
+    assert audit["scientifically_usable_gamma3_4"] is False
+    assert len(rows) == 15
+    first, second = tmp_path / "first", tmp_path / "second"
+    write_freeze(HG1_ZIP, first)
+    write_freeze(HG1_ZIP, second)
+    assert {path.name: path.read_bytes() for path in first.iterdir()} == {
+        path.name: path.read_bytes() for path in second.iterdir()}
+    assert __import__("hashlib").sha256(HG1_ZIP.read_bytes()).hexdigest().upper() == before
 
 
 @pytest.mark.parametrize("mutation", [
@@ -189,7 +316,7 @@ def test_manifest_and_checkpoint_damage_fail_closed(tmp_path: Path) -> None:
     deps = fake_dependencies(Counter())
     formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
                test_authorization=True, test_root=tmp_path)
-    output = tmp_path / "experiments/results_fh_ext/hg1"
+    output = tmp_path / "experiments/results_fh_ext/hg2"
     manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
     manifest["identity"]["rho"] = 0.1
     (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -202,12 +329,26 @@ def test_completed_algorithm_checkpoint_damage_fails_closed(tmp_path: Path) -> N
     deps = fake_dependencies(Counter())
     formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
                test_authorization=True, test_root=tmp_path)
-    checkpoint_path = next((tmp_path / "experiments/results_fh_ext/hg1").glob(
+    checkpoint_path = next((tmp_path / "experiments/results_fh_ext/hg2").glob(
         "runs/*/algorithm_checkpoint.json"))
     checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
     checkpoint["checkpoint_sha256"] = "0" * 64
     checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
     with pytest.raises(HighGammaGateError, match="checkpoint corrupt"):
+        formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
+                   test_authorization=True, test_root=tmp_path)
+
+
+def test_completed_baseline_lifting_tree_drift_fails_closed(tmp_path: Path) -> None:
+    deps = fake_dependencies(Counter())
+    formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
+               test_authorization=True, test_root=tmp_path)
+    output = tmp_path / "experiments/results_fh_ext/hg2"
+    row = next(item for item in expand_plan() if item["task_type"] == "baseline")
+    lifting_root = output / "runs" / row["run_directory_id"] / "baseline_t1_lifting"
+    lifting_root.mkdir(parents=True, exist_ok=True)
+    (lifting_root / "unexpected.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(HighGammaGateError, match="lifting checkpoint tree drift"):
         formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
                    test_authorization=True, test_root=tmp_path)
 
@@ -234,7 +375,7 @@ def test_interrupted_hybrid_uses_separate_internal_checkpoint_and_resumes(tmp_pa
     with pytest.raises(KeyboardInterrupt):
         formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
                    test_authorization=True, test_root=tmp_path)
-    output = tmp_path / "experiments/results_fh_ext/hg1"
+    output = tmp_path / "experiments/results_fh_ext/hg2"
     internal = next(output.glob("runs/*/hybrid_internal_checkpoint.json"))
     assert internal.exists() and not (internal.parent / "algorithm_checkpoint.json").exists()
     formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
@@ -244,7 +385,7 @@ def test_interrupted_hybrid_uses_separate_internal_checkpoint_and_resumes(tmp_pa
 
 
 def test_formal_windows_path_has_margin() -> None:
-    report = dry_run(CONFIG, root_override=Path(r"E:\rfext1"))
+    report = dry_run(CONFIG, root_override=Path(r"E:\rfext2"))
     assert report["longest_windows_path_length"] < 220
 
 
@@ -292,7 +433,7 @@ def test_aggregation_interruption_resumes_without_resolve(tmp_path: Path, monkey
     formal_run(CONFIG, resume=True, authorization_file=None, dependencies=deps,
                test_authorization=True, test_root=tmp_path)
     assert calls["baseline"] == calls["hybrid"] == calls["direct"] == 15
-    assert len(list((tmp_path / "experiments/results_fh_ext/hg1").glob("runs/*/run.json"))) == 45
+    assert len(list((tmp_path / "experiments/results_fh_ext/hg2").glob("runs/*/run.json"))) == 45
 
 
 def test_real_git_gate_ignores_only_frozen_output_root(tmp_path: Path) -> None:
@@ -303,7 +444,7 @@ def test_real_git_gate_ignores_only_frozen_output_root(tmp_path: Path) -> None:
     (tmp_path / "tracked.txt").write_text("clean\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, check=True, capture_output=True)
-    output = tmp_path / "experiments/results_fh_ext/hg1"
+    output = tmp_path / "experiments/results_fh_ext/hg2"
     output.mkdir(parents=True)
     (output / "checkpoint.json").write_text("{}", encoding="utf-8")
     assert len(_git_gate(tmp_path, {"formal_worktree_root": str(tmp_path)})) == 40

@@ -1,0 +1,10 @@
+{
+  "schema": "fairness_high_gamma_attempt2_seed_access_audit_v1",
+  "candidate_seeds": [185, 186, 187, 188, 189],
+  "attempt1_formal_access_exists": true,
+  "attempt1_archive_sha256": "17ABAC73952D7A6C62EFAC313EC5A3771D904750BEE917BC51FBA3F1C76FDD47",
+  "attempt1_incident_classification": "baseline_gamma_identity_defect",
+  "attempt1_results_used_for_parameter_selection": false,
+  "attempt2_previous_results_reused": false,
+  "decision": "attempt1_access_frozen_attempt2_full_restart_required"
+}

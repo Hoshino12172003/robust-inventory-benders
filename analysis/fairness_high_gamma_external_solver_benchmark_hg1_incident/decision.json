@@ -1,0 +1,7 @@
+{
+  "decision": "freeze_hg1_and_require_full_attempt2",
+  "incident": "baseline_gamma_identity_defect",
+  "previous_attempt_results_reused": false,
+  "scientifically_usable_gamma2_subset": true,
+  "scientifically_usable_gamma3_4": false
+}
