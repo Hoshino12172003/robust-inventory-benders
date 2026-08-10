@@ -20,7 +20,7 @@ def static_audit(config_path: str | Path, *, root_override: Path | None = None) 
     config = load_yaml(path)
     validate_config(path, config)
     before = "gurobipy" in sys.modules
-    report = dry_run(path, root_override=Path(r"E:\rfext1"))
+    report = dry_run(path, root_override=Path(r"E:\rfext2"))
     rows = expand_plan()
     if len(rows) != 45 or [scenario_count(value) for value in GAMMAS] != [211, 1351, 6196]:
         raise HighGammaGateError("matrix or scenario count audit failed")
@@ -37,7 +37,8 @@ def static_audit(config_path: str | Path, *, root_override: Path | None = None) 
         "decision": "approve_pre_run_static_audit",
         "formal_run_started": False,
         "seeds": SEEDS,
-        "seed_access_evidence_count": seed["formal_instance_or_solve_access_evidence_count"],
+        "attempt1_formal_access_frozen": seed["attempt1_formal_access_exists"],
+        "attempt2_previous_results_reused": seed["attempt2_previous_results_reused"],
         "tasks": 45,
         "baselines": 15,
         "hybrid_frontiers": 15,

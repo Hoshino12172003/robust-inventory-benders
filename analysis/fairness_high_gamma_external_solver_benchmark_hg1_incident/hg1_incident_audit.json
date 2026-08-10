@@ -1,0 +1,37 @@
+{
+  "baseline_internal_gamma_mismatch_count": 10,
+  "incident": "baseline_gamma_identity_defect",
+  "optimization_rerun_scope": "full_attempt2_15_baseline_15_hybrid_15_direct",
+  "previous_attempt_results_reused": false,
+  "root_cause": "frozen_candidate_gamma_overrode_requested_gamma_before_base_config; outer result gamma label hid solver gamma_target/active_gamma/schedule",
+  "run_count": 45,
+  "same_seed_cross_gamma_identical_baseline_count": 5,
+  "schema": "fairness_high_gamma_hg1_incident_audit_v1",
+  "scientific_status_by_gamma": {
+    "2": {
+      "direct_extensive_frontier": 5,
+      "hybrid_frontier": 5
+    },
+    "3": {
+      "direct_extensive_frontier": 0,
+      "hybrid_frontier": 0
+    },
+    "4": {
+      "direct_extensive_frontier": 0,
+      "hybrid_frontier": 0
+    }
+  },
+  "scientifically_usable_gamma2_subset": true,
+  "scientifically_usable_gamma3_4": false,
+  "source_archive_sha256_after": "17ABAC73952D7A6C62EFAC313EC5A3771D904750BEE917BC51FBA3F1C76FDD47",
+  "source_archive_sha256_before": "17ABAC73952D7A6C62EFAC313EC5A3771D904750BEE917BC51FBA3F1C76FDD47",
+  "status_count": 45,
+  "uncompressed_bytes_read": 34590407,
+  "unique_run_directory_count": 45,
+  "unique_run_key_count": 45,
+  "zip_crc_errors": 0,
+  "zip_directory_count": 68,
+  "zip_duplicate_member_count": 0,
+  "zip_entry_count": 350,
+  "zip_file_count": 282
+}
