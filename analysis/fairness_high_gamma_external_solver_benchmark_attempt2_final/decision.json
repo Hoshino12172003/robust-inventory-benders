@@ -1,0 +1,12 @@
+{
+  "config_sha256": "A377D5B040FED160B323B58D42D9FFD1DE57E52F6C64D2050D6667E47DCA9334",
+  "decision": "approve_high_gamma_external_benchmark_attempt2",
+  "external_direct_solver_benchmark_valid": true,
+  "generation_schema": "fairness_high_gamma_attempt2_final_reporting_v1",
+  "hybrid_high_gamma_stability_supported_on_small_scale": true,
+  "optimization_rerun_required": false,
+  "protocol_sha256": "4C76B5C7A02E245174BE02B6FCEBBCD744EB6B684A1F0CA71D05964EB1F1A32F",
+  "run_git_commit": "797caafd12c006e85bc3394b01905bbfb137b0a9",
+  "scientific_solution_valid": true,
+  "source_zip_sha256": "4F8CEC3F9EAF69B053AE3DBAE6C29D5AAEF7DAAD87C49A798039DBCF9FADD783"
+}

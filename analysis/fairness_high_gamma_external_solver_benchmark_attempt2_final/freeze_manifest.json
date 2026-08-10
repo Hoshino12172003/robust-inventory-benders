@@ -1,0 +1,46 @@
+{
+  "archive_read_only": true,
+  "authorization_sha256": "262272FEAC62579BCF1FBD60A83381A1B4727162E6A33AC84EA1120967433F3A",
+  "config_sha256": "A377D5B040FED160B323B58D42D9FFD1DE57E52F6C64D2050D6667E47DCA9334",
+  "decision": "approve_high_gamma_external_benchmark_attempt2",
+  "direct_candidate_sha256": "4A0CA29C6367858A96D62F9B30DC45BBA969CBF0679E758EBB7229AFD999DFAF",
+  "execution_attempt": 2,
+  "frozen_matrix": {
+    "baseline_tasks": 15,
+    "direct_frontier_tasks": 15,
+    "gamma": [
+      2,
+      3,
+      4
+    ],
+    "hybrid_frontier_tasks": 15,
+    "rho": 0.025,
+    "scale": [
+      "small"
+    ],
+    "seeds": [
+      185,
+      186,
+      187,
+      188,
+      189
+    ],
+    "total_tasks": 45
+  },
+  "generation_schema": "fairness_high_gamma_attempt2_final_reporting_v1",
+  "hybrid_candidate_sha256": "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0",
+  "previous_attempt_results_reused": false,
+  "protocol_sha256": "4C76B5C7A02E245174BE02B6FCEBBCD744EB6B684A1F0CA71D05964EB1F1A32F",
+  "run_git_commit": "797caafd12c006e85bc3394b01905bbfb137b0a9",
+  "scope": {
+    "attempt2_role": [
+      "high-Gamma small-scale stress test",
+      "external general-purpose solver benchmark",
+      "rolling-pool mechanism evidence"
+    ],
+    "final_holdout_remains_primary": true,
+    "gamma_attempt3_remains_cross_scale_sensitivity": true,
+    "mixed_into_final_holdout_statistics": false
+  },
+  "source_zip_sha256": "4F8CEC3F9EAF69B053AE3DBAE6C29D5AAEF7DAAD87C49A798039DBCF9FADD783"
+}
