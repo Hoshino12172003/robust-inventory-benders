@@ -48,6 +48,7 @@ def test_solver_free_static_and_ledger_audits_pass() -> None:
     assert audit_ledger(payload)["passed"]
     result = audit_sources(root)
     assert result["passed"], result
+    assert result["enabled_checkpoint_identity_binds_schema"]
 
 
 def test_every_phase_is_present_even_when_zero() -> None:

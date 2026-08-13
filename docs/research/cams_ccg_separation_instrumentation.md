@@ -34,6 +34,9 @@ On resume, a pending attempt is retained only as discarded evidence and is not
 included in cumulative totals. Committed identities cannot be accepted twice.
 The ledger is encoded as sorted, finite JSON so rebuilding a checkpoint from the
 same state is byte stable.
+When instrumentation is enabled, its schema is part of the checkpoint run
+identity. An uninstrumented checkpoint or a checkpoint from another schema
+therefore cannot be resumed as if it contained a complete compatible ledger.
 
 ## Interpretation limits
 

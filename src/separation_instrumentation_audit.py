@@ -125,6 +125,10 @@ def audit_sources(root: Path) -> dict[str, Any]:
         "production_instrumentation_default_false": (
             "separation_instrumentation_enabled: bool = False" in hybrid_source
         ),
+        "enabled_checkpoint_identity_binds_schema": (
+            'identity["separation_instrumentation_schema"] = SCHEMA_VERSION'
+            in hybrid_source
+        ),
     }
     return {**checks, "unexpected_conditions": unexpected_conditions,
             "behavioral_call_counts_for_review": behavioral_counts,

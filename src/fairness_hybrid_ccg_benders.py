@@ -35,7 +35,7 @@ from .robust_regional_fairness import (
     gurobi_status_name,
 )
 from .scenarios import DemandScenario, _scenario_from_units
-from .separation_instrumentation import SeparationInstrumentation
+from .separation_instrumentation import SCHEMA_VERSION, SeparationInstrumentation
 
 
 CANDIDATE = "certified_hybrid_scenario_benders_fairness"
@@ -300,6 +300,8 @@ def solve_certified_hybrid_scenario_benders_fairness(
         "solver_parameters": deepcopy(solver_parameters),
         **deepcopy(checkpoint_identity or {}),
     }
+    if separation_instrumentation_enabled:
+        identity["separation_instrumentation_schema"] = SCHEMA_VERSION
     initial_set = initial_scenarios(instance, gamma)
     scenario_payloads = {scenario_sha256(instance, scenario): canonical_scenario_payload(instance, scenario) for scenario in initial_set}
     scenario_order = list(scenario_payloads)
