@@ -1,0 +1,19 @@
+schema_version: 1
+experiment_name: gurobi_direct_cross_scale_paired
+stage: GUROBI_DIRECT_CROSS_SCALE_PAIRED
+source_zip: 'E:\论文代码\fairness_hybrid_gamma_sensitivity_attempt3_results.zip'
+source_zip_sha256: EE45A00AA341EE5EB2894DE43EE2F47022C27F1D29146FCFEC803236EF59DB6F
+source_catalog: analysis/fairness_gamma_minimal_paired_benchmark_protocol/source_pairing_catalog.json
+output_dir: 'E:\论文代码\gurobi_direct_cross_scale_paired_results'
+scales: [medium_large, large]
+seeds: [180, 181, 182, 183, 184]
+gamma: 2
+rho: 0.025
+solver_identity: {Threads: 1, Seed: 0, FeasibilityTol: 1.0e-7, BendersStrategy: 0}
+algorithm_time_limit_seconds: 1800
+post_evaluation_time_limit_per_scenario_seconds: 30
+checkpoint_chunk_size: 25
+par2_seconds: 3600
+resume_required: true
+hybrid_rerun: false
+baseline_rerun: false
