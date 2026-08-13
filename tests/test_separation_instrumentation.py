@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 
 import pytest
@@ -194,6 +195,29 @@ def test_checkpoint_rejects_schema_corruption_and_duplicate_identity() -> None:
         observer.begin_call(run_key="mock_run", iteration=1,
                             separation_call_index=0,
                             final_exact_certification=False)
+
+
+@pytest.mark.parametrize(("mutation", "message"), [
+    (lambda p: p["committed_records"][0].update(state="pending"), "record state"),
+    (lambda p: p["committed_records"][0].update(call_id="0" * 64), "identity"),
+    (lambda p: p["committed_records"][0].update(separation_total_ns=-1), "numeric drift"),
+    (lambda p: p["cumulative_committed_counters"].update(fixed_primal_calls=99), "cumulative"),
+    (lambda p: p.update(last_committed_iteration=99), "last committed"),
+])
+def test_checkpoint_semantic_drift_fails_even_with_recomputed_outer_sha(
+    mutation, message: str,
+) -> None:
+    clock = FakeClock()
+    observer = SeparationInstrumentation(enabled=True, clock_ns=clock)
+    complete_call(observer, clock)
+    observer.commit_iteration(1)
+    payload = observer.checkpoint_payload()
+    mutation(payload)
+    unsigned = deepcopy(payload)
+    unsigned.pop("identity_sha256")
+    payload["identity_sha256"] = hashlib.sha256(canonical_json_bytes(unsigned)).hexdigest().upper()
+    with pytest.raises(InstrumentationError, match=message):
+        SeparationInstrumentation.from_checkpoint(payload, clock_ns=clock)
 
 
 def test_nonfinite_solver_diagnostic_is_nullable_not_json_nan() -> None:

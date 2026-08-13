@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 import math
 import time
@@ -136,27 +137,34 @@ class CertifiedScenarioCache:
                     instrumentation_call_id=instrumentation_call_id,
                 )
             certificate = certifier(instance, **certifier_kwargs)
-            if certificate.infeasibility_certified and certificate.ray is not None:
-                cut = fairness_cut_from_ray(
-                    instance,
-                    cost_budget_value=float(cost_budget_value),
-                    demand_values=demand_values,
-                    ray=certificate.ray,
-                    active_deviations=active,
+            processing_context = (
+                instrumentation.phase(
+                    instrumentation_call_id, "cache_candidate_processing_ns"
                 )
-                violation = -cut.value(y_values, x_values, float(t_value))
-                if violation > float(feasibility_tolerance):
-                    hits += 1
-                    cuts.append(cut)
-                    if instrumentation is not None:
-                        instrumentation.increment(instrumentation_call_id, "cache_hits")
-                else:
+                if instrumentation is not None else nullcontext()
+            )
+            with processing_context:
+                if certificate.infeasibility_certified and certificate.ray is not None:
+                    cut = fairness_cut_from_ray(
+                        instance,
+                        cost_budget_value=float(cost_budget_value),
+                        demand_values=demand_values,
+                        ray=certificate.ray,
+                        active_deviations=active,
+                    )
+                    violation = -cut.value(y_values, x_values, float(t_value))
+                    if violation > float(feasibility_tolerance):
+                        hits += 1
+                        cuts.append(cut)
+                        if instrumentation is not None:
+                            instrumentation.increment(instrumentation_call_id, "cache_hits")
+                    else:
+                        uncertified += 1
+                elif not certificate.primal_feasible:
+                    # A cache is only a heuristic. An unavailable current-point
+                    # certificate cannot create a cut or certify feasibility; the
+                    # complete separation MILP must still run.
                     uncertified += 1
-            elif not certificate.primal_feasible:
-                # A cache is only a heuristic. An unavailable current-point
-                # certificate cannot create a cut or certify feasibility; the
-                # complete separation MILP must still run.
-                uncertified += 1
         if instrumentation is not None:
             instrumentation.increment(
                 instrumentation_call_id, "cache_misses", max(0, candidates - hits)

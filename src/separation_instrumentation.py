@@ -259,6 +259,37 @@ class SeparationInstrumentation:
         ids = [r["call_id"] for r in obj.committed]
         if len(ids) != len(set(ids)) or ids != list(payload.get("committed_call_ids", [])):
             raise InstrumentationError("committed call identity drift")
+        for record in obj.committed:
+            if record.get("instrumentation_schema_version") != SCHEMA_VERSION:
+                raise InstrumentationError("committed record schema drift")
+            if record.get("state") != "committed":
+                raise InstrumentationError("committed record state drift")
+            expected_call_id = identity_sha256(
+                str(record.get("run_key")), int(record.get("iteration")),
+                int(record.get("separation_call_index")),
+                bool(record.get("final_exact_certification")),
+            )
+            if record.get("call_id") != expected_call_id:
+                raise InstrumentationError("committed call identity payload drift")
+            values = [record.get(name) for name in PHASES + (
+                "separation_unclassified_ns", "separation_total_ns",
+            ) + COUNTERS]
+            if any(type(value) is not int or value < 0 for value in values):
+                raise InstrumentationError("committed record numeric drift")
+            if record["separation_total_ns"] != (
+                sum(record[name] for name in PHASES)
+                + record["separation_unclassified_ns"]
+            ):
+                raise InstrumentationError("committed record timing conservation drift")
+        expected_cumulative = {
+            name: sum(int(record[name]) for record in obj.committed)
+            for name in PHASES + ("separation_unclassified_ns",) + COUNTERS
+        }
+        if payload.get("cumulative_committed_counters") != expected_cumulative:
+            raise InstrumentationError("cumulative committed counters drift")
         obj.last_committed_iteration = int(payload.get("last_committed_iteration", 0))
+        expected_last = max((int(record["iteration"]) for record in obj.committed), default=0)
+        if obj.last_committed_iteration != expected_last:
+            raise InstrumentationError("last committed iteration drift")
         # Pending attempts are intentionally discarded on resume; never counted twice.
         return obj
