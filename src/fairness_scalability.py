@@ -101,6 +101,8 @@ class CertifiedScenarioCache:
         certifier: Callable[..., FixedScenarioCertificate] = (
             certify_fixed_scenario_fairness_feasibility
         ),
+        instrumentation: Any | None = None,
+        instrumentation_call_id: str | None = None,
     ) -> CertifiedCacheBatch:
         start = time.perf_counter()
         cuts: list[FairnessFeasibilityCut] = []
@@ -111,20 +113,29 @@ class CertifiedScenarioCache:
             remaining = float(time_limit) - (time.perf_counter() - start)
             if remaining <= 0.0 or len(cuts) >= int(max_cuts):
                 break
-            candidates += 1
-            active = pattern_payload(key)
-            demand_values = scenario_demand(instance, key)
-            certificate = certifier(
-                instance,
-                y_values=y_values,
-                x_values=x_values,
-                t_value=float(t_value),
-                cost_budget_value=float(cost_budget_value),
-                demand_values=demand_values,
-                time_limit=remaining,
-                feasibility_tolerance=float(feasibility_tolerance),
-                output_flag=output_flag,
-            )
+            if instrumentation is None:
+                candidates += 1
+                active = pattern_payload(key)
+                demand_values = scenario_demand(instance, key)
+            else:
+                with instrumentation.phase(instrumentation_call_id, "cache_candidate_processing_ns"):
+                    candidates += 1
+                    active = pattern_payload(key)
+                    demand_values = scenario_demand(instance, key)
+                instrumentation.increment(instrumentation_call_id, "cache_patterns_considered")
+            certifier_kwargs = {
+                "y_values": y_values, "x_values": x_values,
+                "t_value": float(t_value), "cost_budget_value": float(cost_budget_value),
+                "demand_values": demand_values, "time_limit": remaining,
+                "feasibility_tolerance": float(feasibility_tolerance),
+                "output_flag": output_flag,
+            }
+            if instrumentation is not None:
+                certifier_kwargs.update(
+                    instrumentation=instrumentation,
+                    instrumentation_call_id=instrumentation_call_id,
+                )
+            certificate = certifier(instance, **certifier_kwargs)
             if certificate.infeasibility_certified and certificate.ray is not None:
                 cut = fairness_cut_from_ray(
                     instance,
@@ -137,6 +148,8 @@ class CertifiedScenarioCache:
                 if violation > float(feasibility_tolerance):
                     hits += 1
                     cuts.append(cut)
+                    if instrumentation is not None:
+                        instrumentation.increment(instrumentation_call_id, "cache_hits")
                 else:
                     uncertified += 1
             elif not certificate.primal_feasible:
@@ -144,6 +157,10 @@ class CertifiedScenarioCache:
                 # certificate cannot create a cut or certify feasibility; the
                 # complete separation MILP must still run.
                 uncertified += 1
+        if instrumentation is not None:
+            instrumentation.increment(
+                instrumentation_call_id, "cache_misses", max(0, candidates - hits)
+            )
         return CertifiedCacheBatch(
             cuts=cuts,
             candidate_count=candidates,
@@ -171,7 +188,12 @@ class PersistentFairnessSeparation:
         gamma: int,
         feasibility_tolerance: float = FAIRNESS_FEASIBILITY_TOLERANCE,
         output_flag: bool = False,
+        instrumentation: Any | None = None,
+        instrumentation_run_key: str | None = None,
     ) -> None:
+        instrumentation_start_ns = (
+            time.perf_counter_ns() if instrumentation is not None else None
+        )
         start = time.perf_counter()
         self.instance = instance
         self.gamma = int(gamma)
@@ -211,6 +233,12 @@ class PersistentFairnessSeparation:
         }
         self.model.update()
         self.model_build_runtime = time.perf_counter() - start
+        if instrumentation_start_ns is not None and instrumentation_run_key is not None:
+            instrumentation.record_persistent_model_setup(
+                run_key=instrumentation_run_key,
+                start_ns=instrumentation_start_ns,
+                end_ns=time.perf_counter_ns(),
+            )
         self.total_optimize_runtime = 0.0
         self._build_runtime_reported = False
         self._disposed = False
@@ -302,29 +330,42 @@ class PersistentFairnessSeparation:
         certifier: Callable[..., FixedScenarioCertificate] = (
             certify_fixed_scenario_fairness_feasibility
         ),
+        instrumentation: Any | None = None,
+        instrumentation_call_id: str | None = None,
+        final_exact_certification: bool = False,
     ) -> FairnessSeparationResult:
         if self._disposed:
             raise RuntimeError("Persistent separation model has been disposed.")
         if int(max_cuts) < 1 or int(max_cuts) > 5:
             raise ValueError("Persistent fairness separation supports 1 to 5 cuts.")
         start = time.perf_counter()
-        build_runtime = 0.0 if self._build_runtime_reported else self.model_build_runtime
-        self._build_runtime_reported = True
+        first_build_report = not self._build_runtime_reported
+        build_runtime = self.model_build_runtime if first_build_report else 0.0
         optimize_runtime = 0.0
         pool_candidates = 0
         duplicates = 0
         false_positive_evidence: list[dict[str, Any]] = []
         temporary_exclusions: list[Any] = []
         cuts: list[FairnessFeasibilityCut] = []
-        self._set_current_objective(
-            y_values=y_values,
-            x_values=x_values,
-            t_value=t_value,
-            cost_budget_value=cost_budget_value,
-        )
-        self.model.Params.MIPGap = max(0.0, float(mip_gap))
-        self.model.Params.PoolSearchMode = 2 if use_solution_pool else 0
-        self.model.Params.PoolSolutions = max(1, int(max_cuts))
+        prepare_phase = "final_exact_prepare_ns" if final_exact_certification else "separation_model_prepare_ns"
+        self._build_runtime_reported = True
+        if instrumentation is None:
+            self._set_current_objective(
+                y_values=y_values, x_values=x_values, t_value=t_value,
+                cost_budget_value=cost_budget_value,
+            )
+            self.model.Params.MIPGap = max(0.0, float(mip_gap))
+            self.model.Params.PoolSearchMode = 2 if use_solution_pool else 0
+            self.model.Params.PoolSolutions = max(1, int(max_cuts))
+        else:
+            with instrumentation.phase(instrumentation_call_id, prepare_phase):
+                self._set_current_objective(
+                    y_values=y_values, x_values=x_values, t_value=t_value,
+                    cost_budget_value=cost_budget_value,
+                )
+                self.model.Params.MIPGap = max(0.0, float(mip_gap))
+                self.model.Params.PoolSearchMode = 2 if use_solution_pool else 0
+                self.model.Params.PoolSolutions = max(1, int(max_cuts))
         last_status = "unknown"
         last_status_code = -1
         last_objective: float | None = None
@@ -359,7 +400,13 @@ class PersistentFairnessSeparation:
                     )
                 self.model.Params.TimeLimit = max(1.0e-3, remaining)
                 optimize_start = time.perf_counter()
-                self.model.optimize()
+                optimize_phase = "final_exact_optimize_ns" if final_exact_certification else "separation_milp_optimize_ns"
+                if instrumentation is None:
+                    self.model.optimize()
+                else:
+                    instrumentation.increment(instrumentation_call_id, "final_exact_calls" if final_exact_certification else "separation_milp_optimize_calls")
+                    with instrumentation.phase(instrumentation_call_id, optimize_phase):
+                        self.model.optimize()
                 elapsed = time.perf_counter() - optimize_start
                 optimize_runtime += elapsed
                 self.total_optimize_runtime += elapsed
@@ -384,10 +431,37 @@ class PersistentFairnessSeparation:
                     self.feasibility_tolerance,
                     false_positive_evidence,
                 )
-                patterns, duplicate_count = self._pool_patterns(
-                    max_candidates=(int(max_cuts) if use_solution_pool else 1),
-                    threshold=self.feasibility_tolerance,
-                ) if has_incumbent else ([], 0)
+                if instrumentation is not None:
+                    prefix = "final_exact" if final_exact_certification else "separation_milp"
+                    def attr(name: str) -> Any:
+                        try:
+                            return getattr(self.model, name)
+                        except (AttributeError, gp.GurobiError):
+                            return None
+                    instrumentation.add_numeric_diagnostic(
+                        instrumentation_call_id, f"{prefix}_node_count", attr("NodeCount")
+                    )
+                    instrumentation.diagnostic(instrumentation_call_id, f"{prefix}_status", last_status)
+                    instrumentation.diagnostic(instrumentation_call_id, f"{prefix}_objective_bound", last_bound)
+                    if not final_exact_certification:
+                        instrumentation.diagnostic(instrumentation_call_id, "separation_milp_solution_count", attr("SolCount"))
+                        instrumentation.diagnostic(instrumentation_call_id, "separation_milp_incumbent", last_objective)
+                        instrumentation.diagnostic(instrumentation_call_id, "separation_milp_gap", last_gap)
+                if has_incumbent:
+                    if instrumentation is None:
+                        patterns, duplicate_count = self._pool_patterns(
+                            max_candidates=(int(max_cuts) if use_solution_pool else 1),
+                            threshold=self.feasibility_tolerance,
+                        )
+                    else:
+                        with instrumentation.phase(instrumentation_call_id, "solution_pool_extract_ns"):
+                            patterns, duplicate_count = self._pool_patterns(
+                                max_candidates=(int(max_cuts) if use_solution_pool else 1),
+                                threshold=self.feasibility_tolerance,
+                            )
+                        instrumentation.increment(instrumentation_call_id, "pool_patterns_extracted", len(patterns))
+                else:
+                    patterns, duplicate_count = [], 0
                 pool_candidates += len(patterns)
                 duplicates += duplicate_count
                 if not patterns:
@@ -420,17 +494,19 @@ class PersistentFairnessSeparation:
                     active = pattern_payload(key)
                     last_active = active
                     demand_values = scenario_demand(self.instance, key)
-                    fixed = certifier(
-                        self.instance,
-                        y_values=y_values,
-                        x_values=x_values,
-                        t_value=float(t_value),
-                        cost_budget_value=float(cost_budget_value),
-                        demand_values=demand_values,
-                        time_limit=remaining,
-                        feasibility_tolerance=self.feasibility_tolerance,
-                        output_flag=output_flag,
-                    )
+                    certifier_kwargs = {
+                        "y_values": y_values, "x_values": x_values,
+                        "t_value": float(t_value), "cost_budget_value": float(cost_budget_value),
+                        "demand_values": demand_values, "time_limit": remaining,
+                        "feasibility_tolerance": self.feasibility_tolerance,
+                        "output_flag": output_flag,
+                    }
+                    if instrumentation is not None:
+                        certifier_kwargs.update(
+                            instrumentation=instrumentation,
+                            instrumentation_call_id=instrumentation_call_id,
+                        )
+                    fixed = certifier(self.instance, **certifier_kwargs)
                     last_fixed = fixed
                     if fixed.infeasibility_certified and fixed.ray is not None:
                         cut = fairness_cut_from_ray(

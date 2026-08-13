@@ -35,6 +35,7 @@ from .robust_regional_fairness import (
     gurobi_status_name,
 )
 from .scenarios import DemandScenario, _scenario_from_units
+from .separation_instrumentation import SeparationInstrumentation
 
 
 CANDIDATE = "certified_hybrid_scenario_benders_fairness"
@@ -262,6 +263,8 @@ def solve_certified_hybrid_scenario_benders_fairness(
     checkpoint_identity: dict[str, Any] | None = None,
     execution_protocol_sha256: str = PROTOCOL_SHA256,
     failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
+    separation_instrumentation_enabled: bool = False,
+    separation_instrumentation: SeparationInstrumentation | None = None,
 ) -> FairnessBendersResult:
     execution_protocol = str(execution_protocol_sha256).upper()
     if len(execution_protocol) != 64 or any(
@@ -310,6 +313,11 @@ def solve_certified_hybrid_scenario_benders_fairness(
     log: list[dict[str, Any]] = []
     evicted_proposal_sha256_values: set[str] = set()
     checkpoint = None if checkpoint_path is None else _load_checkpoint(Path(checkpoint_path), identity)
+    observer = separation_instrumentation
+    if separation_instrumentation_enabled and observer is None:
+        observer = SeparationInstrumentation(enabled=True)
+    if not separation_instrumentation_enabled:
+        observer = None
     if checkpoint is not None:
         scenario_order = list(checkpoint["committed_scenario_sha256_values"])
         scenario_payloads = deepcopy(checkpoint["scenario_payloads_by_sha256"])
@@ -328,6 +336,10 @@ def solve_certified_hybrid_scenario_benders_fairness(
         log = list(checkpoint["iteration_log"])
         evicted_proposal_sha256_values = set(checkpoint.get("reporting_evicted_proposal_sha256_values", []))
         iteration_start = int(checkpoint["iteration"]) + 1
+        if observer is not None and checkpoint.get("separation_instrumentation"):
+            observer = SeparationInstrumentation.from_checkpoint(
+                checkpoint["separation_instrumentation"]
+            )
     for digest in scenario_order:
         scenario = scenario_from_payload(scenario_payloads[digest])
         if scenario_sha256(instance, scenario) != digest:
@@ -340,13 +352,20 @@ def solve_certified_hybrid_scenario_benders_fairness(
         for j in instance.J:
             x[i, j].Start = initial.x_values[i][j]
     t.Start = 1.0
-    separator = CertifiedAdaptiveSeparator(instance, gamma=gamma, feasibility_tolerance=feasibility_tolerance, output_flag=output_flag)
+    separator = CertifiedAdaptiveSeparator(
+        instance, gamma=gamma, feasibility_tolerance=feasibility_tolerance,
+        output_flag=output_flag, instrumentation=observer,
+        instrumentation_run_key=str(
+            identity.get("run_key", expected_identity.get("run_key", "unknown_run"))
+        ),
+    )
     status = "iteration_limit"
     master_runtime = 0.0
     separation_runtime = 0.0
     final_certified = False
     try:
         for iteration in range(iteration_start, int(max_iterations) + 1):
+            separation_call_index = 0
             remaining = float(time_limit) - (time.perf_counter() - start)
             if remaining <= 0.0:
                 status = "time_limit"
@@ -368,10 +387,16 @@ def solve_certified_hybrid_scenario_benders_fairness(
             candidate_x = [[float(x[i, j].X) for j in instance.J] for i in instance.I]
             remaining = float(time_limit) - (time.perf_counter() - start)
             tick = time.perf_counter()
+            call_id = None if observer is None else observer.begin_call(
+                run_key=str(identity.get("run_key", expected_identity.get("run_key", "unknown_run"))),
+                iteration=iteration, separation_call_index=separation_call_index,
+                final_exact_certification=False,
+            )
             separated = separator.separate(
                 y_values=candidate_y, x_values=candidate_x, t_value=candidate_t,
                 cost_budget_value=budget.budget, mip_gap=0.05, time_limit=max(1.0e-3, remaining),
                 final_certification=False,
+                instrumentation=observer, instrumentation_call_id=call_id,
             )
             separation_runtime += time.perf_counter() - tick
             full = separated.full_separation
@@ -384,7 +409,13 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 proposal_sha256_values.append(
                     scenario_sha256(instance, _scenario_from_units(instance, proposal_active))
                 )
-            chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+            if observer is None:
+                chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+            else:
+                with observer.phase(call_id, "deterministic_candidate_selection_ns"):
+                    chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                observer.increment(call_id, "selected_scenarios", int(chosen is not None))
+                observer.finish_call(call_id)
             final_separation_performed = False
             if chosen is None:
                 remaining = float(time_limit) - (time.perf_counter() - start)
@@ -392,10 +423,17 @@ def solve_certified_hybrid_scenario_benders_fairness(
                     status = "time_limit"
                     break
                 tick = time.perf_counter()
+                separation_call_index += 1
+                final_call_id = None if observer is None else observer.begin_call(
+                    run_key=str(identity.get("run_key", expected_identity.get("run_key", "unknown_run"))),
+                    iteration=iteration, separation_call_index=separation_call_index,
+                    final_exact_certification=True,
+                )
                 separated = separator.separate(
                     y_values=candidate_y, x_values=candidate_x, t_value=candidate_t,
                     cost_budget_value=budget.budget, mip_gap=0.0, time_limit=remaining,
                     final_certification=True,
+                    instrumentation=observer, instrumentation_call_id=final_call_id,
                 )
                 separation_runtime += time.perf_counter() - tick
                 full = separated.full_separation
@@ -408,7 +446,13 @@ def solve_certified_hybrid_scenario_benders_fairness(
                     proposal_sha256_values.append(
                         scenario_sha256(instance, _scenario_from_units(instance, proposal_active))
                     )
-                chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                if observer is None:
+                    chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                else:
+                    with observer.phase(final_call_id, "deterministic_candidate_selection_ns"):
+                        chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                    observer.increment(final_call_id, "selected_scenarios", int(chosen is not None))
+                    observer.finish_call(final_call_id)
                 final_separation_performed = True
             unique_proposals = set(proposal_sha256_values)
             rediscovered_evicted_count = len(unique_proposals & evicted_proposal_sha256_values)
@@ -475,6 +519,9 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 "iteration_log": log,
                 "reporting_evicted_proposal_sha256_values": sorted(evicted_proposal_sha256_values),
             }
+            if observer is not None:
+                observer.commit_iteration(iteration)
+                state["separation_instrumentation"] = observer.checkpoint_payload()
             if checkpoint_path is not None:
                 _write_checkpoint(Path(checkpoint_path), identity, state)
             if failure_injector:
@@ -488,6 +535,8 @@ def solve_certified_hybrid_scenario_benders_fairness(
         else:
             status = "iteration_limit"
     finally:
+        if observer is not None:
+            observer.discard_pending("solver_exit_before_iteration_commit")
         separator.dispose()
         model.dispose()
     runtime = time.perf_counter() - start
@@ -526,5 +575,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
             "full_separation_objective_bound_required": True,
             "robust_feasibility_certified": final_certified,
             "runtime_driven_scientific_branching": False,
+            **({"separation_instrumentation": observer.checkpoint_payload()}
+               if observer is not None else {}),
         },
     )

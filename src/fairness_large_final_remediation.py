@@ -10,6 +10,7 @@ identity implementation.
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
 import hashlib
@@ -520,6 +521,8 @@ class CertifiedAdaptiveSeparator:
         gamma: int,
         feasibility_tolerance: float = FAIRNESS_FEASIBILITY_TOLERANCE,
         output_flag: bool = False,
+        instrumentation: Any | None = None,
+        instrumentation_run_key: str | None = None,
     ) -> None:
         self.instance = instance
         self.feasibility_tolerance = float(feasibility_tolerance)
@@ -530,6 +533,8 @@ class CertifiedAdaptiveSeparator:
             gamma=int(gamma),
             feasibility_tolerance=feasibility_tolerance,
             output_flag=output_flag,
+            instrumentation=instrumentation,
+            instrumentation_run_key=instrumentation_run_key,
         )
 
     def separate(
@@ -542,6 +547,8 @@ class CertifiedAdaptiveSeparator:
         mip_gap: float,
         time_limit: float,
         final_certification: bool,
+        instrumentation: Any | None = None,
+        instrumentation_call_id: str | None = None,
     ) -> AdaptiveSeparation:
         start = time.perf_counter()
         cache_batch = None
@@ -556,6 +563,8 @@ class CertifiedAdaptiveSeparator:
                 feasibility_tolerance=self.feasibility_tolerance,
                 max_cuts=max(1, self.cache.size),
                 output_flag=self.output_flag,
+                instrumentation=instrumentation,
+                instrumentation_call_id=instrumentation_call_id,
             )
         remaining = float(time_limit) - (time.perf_counter() - start)
         if remaining <= 0.0:
@@ -570,6 +579,9 @@ class CertifiedAdaptiveSeparator:
             max_cuts=1 if final_certification else 5,
             use_solution_pool=not final_certification,
             output_flag=self.output_flag,
+            instrumentation=instrumentation,
+            instrumentation_call_id=instrumentation_call_id,
+            final_exact_certification=final_certification,
         )
         source_cuts: list[tuple[str, FairnessFeasibilityCut]] = []
         if cache_batch is not None:
@@ -582,41 +594,53 @@ class CertifiedAdaptiveSeparator:
             ))
             self.cache.add(cut.active_deviations)
 
-        certified_candidates: list[CertifiedAdaptiveCut] = []
-        relative_inputs: list[dict[str, Any]] = []
-        for source, cut in source_cuts:
-            candidate = canonicalize_certified_cut(
-                self.instance,
-                cut,
-                source=source,
-                y_values=y_values,
-                x_values=x_values,
-                t_value=t_value,
+        identity_context = (
+            instrumentation.phase(instrumentation_call_id, "candidate_identity_dedup_ns")
+            if instrumentation is not None else nullcontext()
+        )
+        with identity_context:
+            certified_candidates: list[CertifiedAdaptiveCut] = []
+            relative_inputs: list[dict[str, Any]] = []
+            for source, cut in source_cuts:
+                candidate = canonicalize_certified_cut(
+                    self.instance, cut, source=source, y_values=y_values,
+                    x_values=x_values, t_value=t_value,
+                )
+                if candidate is None:
+                    continue
+                certified_candidates.append(candidate)
+            unique, sources_by_hash = deduplicate_certified_candidates(certified_candidates)
+        if instrumentation is not None:
+            instrumentation.increment(instrumentation_call_id, "candidate_patterns_before_dedup", len(source_cuts))
+            instrumentation.increment(instrumentation_call_id, "candidate_patterns_after_dedup", len(unique))
+            instrumentation.increment(instrumentation_call_id, "certified_candidates", len(unique))
+        selection_context = (
+            instrumentation.phase(
+                instrumentation_call_id, "deterministic_candidate_selection_ns"
             )
-            if candidate is None:
-                continue
-            certified_candidates.append(candidate)
-        unique, sources_by_hash = deduplicate_certified_candidates(certified_candidates)
-        for digest in sorted(unique):
-            candidate = unique[digest]
-            for source in sorted(sources_by_hash[digest]):
-                relative_inputs.append({
-                    "source": source,
-                    "certified_current_point": True,
-                    "strictly_violating": True,
-                    "canonical_cut_identity_valid": True,
-                    "cut_sha256": digest,
-                    "pattern_sha256": candidate.pattern_sha256,
-                    "normalized_violation_bucket": candidate.normalized_violation_bucket,
-                })
-        relative = relative_normalized_violation_evidence(relative_inputs)
-        eligible_hashes = {
-            item["cut_sha256"]
-            for item in relative["relative_violation_candidate_evidence"]
-            if item["relative_violation_eligible"]
-        }
-        eligible = [unique[digest] for digest in sorted(eligible_hashes)]
-        ordered, rejection = _deterministic_diverse_order(eligible)
+            if instrumentation is not None else nullcontext()
+        )
+        with selection_context:
+            for digest in sorted(unique):
+                candidate = unique[digest]
+                for source in sorted(sources_by_hash[digest]):
+                    relative_inputs.append({
+                        "source": source,
+                        "certified_current_point": True,
+                        "strictly_violating": True,
+                        "canonical_cut_identity_valid": True,
+                        "cut_sha256": digest,
+                        "pattern_sha256": candidate.pattern_sha256,
+                        "normalized_violation_bucket": candidate.normalized_violation_bucket,
+                    })
+            relative = relative_normalized_violation_evidence(relative_inputs)
+            eligible_hashes = {
+                item["cut_sha256"]
+                for item in relative["relative_violation_candidate_evidence"]
+                if item["relative_violation_eligible"]
+            }
+            eligible = [unique[digest] for digest in sorted(eligible_hashes)]
+            ordered, rejection = _deterministic_diverse_order(eligible)
         if full.robust_feasibility_certified and ordered:
             raise RemediationIdentityError("full separation certificate contradicts certified violating cuts")
         return AdaptiveSeparation(
