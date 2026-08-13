@@ -745,6 +745,8 @@ def certify_fixed_scenario_fairness_feasibility(
     time_limit: float,
     feasibility_tolerance: float = FAIRNESS_FEASIBILITY_TOLERANCE,
     output_flag: bool = False,
+    instrumentation: Any | None = None,
+    instrumentation_call_id: str | None = None,
 ) -> FixedScenarioCertificate:
     """Independently certify a candidate scenario using continuous LPs only.
 
@@ -815,8 +817,21 @@ def certify_fixed_scenario_fairness_feasibility(
                 name=f"regional_fairness[{r}]",
             )
     primal.setObjective(0.0, GRB.MINIMIZE)
-    primal.optimize()
+    if instrumentation is None:
+        primal.optimize()
+    else:
+        instrumentation.increment(instrumentation_call_id, "fixed_primal_calls")
+        with instrumentation.phase(instrumentation_call_id, "fixed_primal_certification_ns"):
+            primal.optimize()
     primal_status_code = int(primal.Status)
+    if instrumentation is not None:
+        instrumentation.increment(
+            instrumentation_call_id,
+            "fixed_primal_optimal" if primal_status_code == GRB.OPTIMAL else (
+                "fixed_primal_infeasible" if primal_status_code == GRB.INFEASIBLE
+                else "fixed_primal_other"
+            ),
+        )
     primal_status = gurobi_status_name(primal_status_code)
     primal_runtime = time.perf_counter() - start
     if primal_status_code == GRB.OPTIMAL:
@@ -929,7 +944,12 @@ def certify_fixed_scenario_fairness_feasibility(
         regional_demands[r] * ell[r] for r in instance.R
     )
     ray_model.setObjective(violation, GRB.MAXIMIZE)
-    ray_model.optimize()
+    if instrumentation is None:
+        ray_model.optimize()
+    else:
+        instrumentation.increment(instrumentation_call_id, "farkas_calls")
+        with instrumentation.phase(instrumentation_call_id, "farkas_certification_ns"):
+            ray_model.optimize()
     ray_status_code = int(ray_model.Status)
     ray_status = gurobi_status_name(ray_status_code)
     ray_runtime = time.perf_counter() - ray_start
@@ -954,6 +974,11 @@ def certify_fixed_scenario_fairness_feasibility(
         and validation is not None
         and validation.valid
     )
+    if instrumentation is not None:
+        instrumentation.increment(
+            instrumentation_call_id,
+            "farkas_certified" if certified else "farkas_failed",
+        )
     ray_model.dispose()
     return FixedScenarioCertificate(
         primal_status=primal_status,
