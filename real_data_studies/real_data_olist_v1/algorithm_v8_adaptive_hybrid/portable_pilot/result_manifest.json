@@ -1,0 +1,27 @@
+{
+  "status": "pilot_outputs_hashed_after_preregistered_run",
+  "preregistered_commit": "6ffa4a53318b0f7ba78b1f537c35942a2db8cd80",
+  "file_count": 5,
+  "files": [
+    {
+      "path": "results/seed_0.json",
+      "sha256": "a110a37eade6b89affc0034eab5b9eaf0dc8cfd923849c31fb220e033220499f"
+    },
+    {
+      "path": "results/seed_1.json",
+      "sha256": "20d20530aad0d85c2dabcbd9f3caf469547c22b8e5cbf783d6f1b39949068d7a"
+    },
+    {
+      "path": "results/seed_2.json",
+      "sha256": "8ea2d7a8ae5657516660ec41e432b132f625144d59f6111ecf4120ea0cf83149"
+    },
+    {
+      "path": "summary.json",
+      "sha256": "ef07842049fdd3dbde7ef61df9c721b49ba1c1371ee5f41a2890b3d30a8cc649"
+    },
+    {
+      "path": "summary.csv",
+      "sha256": "34686fba29d25e51b56ff017d08b8c89ba03a51f3281a5bd8170052571c5d1d0"
+    }
+  ]
+}

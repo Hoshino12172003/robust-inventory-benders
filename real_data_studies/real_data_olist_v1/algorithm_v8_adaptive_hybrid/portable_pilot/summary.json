@@ -1,0 +1,16 @@
+{
+  "status": "portable_pilot_complete",
+  "cases": 3,
+  "certification": {
+    "hybrid_v8": 3,
+    "pure_ccg": 3,
+    "batch4_ccg": 3
+  },
+  "v8_wins_vs_pure": 3,
+  "v8_wins_vs_batch4": 1,
+  "v8_geometric_speedup_vs_pure": 1.2945809244769404,
+  "v8_geometric_speedup_vs_batch4": 0.9815147909482518,
+  "v8_max_direct_abs_error": 4.440892098500626e-15,
+  "v8_total_farkas_cuts": 0,
+  "claim_limit": "development portability pilot; not an independent paper holdout"
+}
