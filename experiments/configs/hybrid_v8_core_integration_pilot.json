@@ -1,0 +1,29 @@
+{
+  "experiment_name": "hybrid_v8_core_integration_pilot",
+  "stage": "development_core_integration_pilot",
+  "authorization": "run_only_after_input_freeze_commit",
+  "seeds": [10, 11, 12],
+  "instance": {
+    "num_warehouses": 3,
+    "num_products": 3,
+    "num_regions": 4,
+    "budget_factor": 0.58,
+    "demand_scale": 1.0,
+    "capacity_factor": 1.18,
+    "cost_scale": 1.0
+  },
+  "gamma": 2,
+  "expected_scenario_count": 79,
+  "rho": 0.0001,
+  "methods": ["core_hybrid_v8", "core_hybrid_legacy", "direct"],
+  "max_iterations": 500,
+  "time_limit_seconds_per_method": 120.0,
+  "solver": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-7,
+    "MIPGap": 0.0
+  },
+  "objective_abs_tolerance": 1e-6,
+  "output_dir": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/core_integration_pilot"
+}
