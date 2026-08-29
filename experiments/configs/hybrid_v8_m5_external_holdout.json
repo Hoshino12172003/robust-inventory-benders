@@ -1,6 +1,6 @@
 {
   "schema": "hybrid_v8_m5_external_holdout_protocol_v1",
-  "status": "protocol_only_no_data_processing_or_optimization",
+  "status": "input_processor_frozen_no_holdout_processing_before_merge",
   "source": {
     "provider": "Kaggle",
     "competition": "m5-forecasting-accuracy",
@@ -40,6 +40,30 @@
     "service_violation_penalty_multiplier": 20.0,
     "service_target": 0.95,
     "rho": 0.0001
+  },
+  "processing_formulas": {
+    "daily_cell_order": "store_id_lexical_then_dept_id_lexical",
+    "training_scale": "mean_daily_units_per_store_department_over_d1_d1717_with_floor_1e-9",
+    "training_residual": "max(daily_units_over_training_scale_minus_one,0)",
+    "svd": "numpy_linalg_svd_full_matrices_false_first_six_right_singular_vectors",
+    "factor_membership": "argmax_absolute_loading_then_lowest_factor_index",
+    "empty_factor_policy": "fail_closed",
+    "calibration_week_partition": "twenty_consecutive_seven_day_blocks_starting_d1718",
+    "factor_week_score": "maximum_positive_normalized_residual_among_member_cells",
+    "factor_deviation_fraction": "numpy_linear_90th_percentile_of_twenty_factor_week_scores",
+    "holdout_nominal_demand": "observed_seven_day_sum_by_store_department",
+    "cell_deviation": "holdout_nominal_demand_times_assigned_factor_deviation_fraction",
+    "volume": 1.0,
+    "fixed_cost_by_lexical_location_index": "100_plus_10_times_zero_based_index",
+    "inventory_cost": 1.0,
+    "total_capacity": "1.18_times_peak_training_week_total_units",
+    "capacity_allocation": "equal_across_ten_candidate_locations",
+    "inventory_upper_bound": "1.35_times_peak_training_week_department_units_divided_by_ten",
+    "capital_budget": "0.58_times_sum_of_all_fixed_costs_plus_0.45_times_sum_inventory_cost_times_inventory_upper_bound",
+    "transport_cost": "1_if_candidate_and_region_share_state_else_2",
+    "shortage_penalty": 10.0,
+    "service_violation_penalty": 20.0,
+    "service_target": 0.95
   },
   "methods": [
     "hybrid_v8",
