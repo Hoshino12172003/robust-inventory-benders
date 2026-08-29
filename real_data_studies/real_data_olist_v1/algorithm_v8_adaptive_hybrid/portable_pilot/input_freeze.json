@@ -1,0 +1,38 @@
+{
+  "status": "inputs_frozen_before_optimization",
+  "config_sha256": "5461937bb2be3546e138eef16ddef439f991e43b21058033312798f7f084b2bc",
+  "candidate_source_sha256": "ac98624cc509b6938ddb920fbce901e1ef4f27dc1a76aa03e714547b81a45e13",
+  "file_count": 6,
+  "files": [
+    {
+      "path": "cases/seed_0/instance.json",
+      "sha256": "9f44b52a7190fb2f5acf831c4d4edeac9ffd35f155a0503b127b96ed5fbe6d3c",
+      "bytes": 2180
+    },
+    {
+      "path": "cases/seed_0/scenarios.json",
+      "sha256": "6c09c74b7a8151bdcae501f17f1f283dead727897d1ea8c245c5435bad7f0ba9",
+      "bytes": 33536
+    },
+    {
+      "path": "cases/seed_1/instance.json",
+      "sha256": "f6fdda9cbf2926746a268beb85b3a1b234571e785d7dd7a55e0104868ea6dfb8",
+      "bytes": 2182
+    },
+    {
+      "path": "cases/seed_1/scenarios.json",
+      "sha256": "c0abeb4a49a549ed6b61a988007e29f1a7d859b6dc9e417a6a3a9de65dd187bc",
+      "bytes": 33440
+    },
+    {
+      "path": "cases/seed_2/instance.json",
+      "sha256": "b1e8e076c91f684f2dad2fe538c24ad62a93ebaf08e56606675de0b5d051d06b",
+      "bytes": 2179
+    },
+    {
+      "path": "cases/seed_2/scenarios.json",
+      "sha256": "e17e6c34ef4d7aeb4e0fa33f60ef7a81b42011ad1fef0122ac900f64bbc28c88",
+      "bytes": 33692
+    }
+  ]
+}
