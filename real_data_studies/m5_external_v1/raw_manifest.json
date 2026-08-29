@@ -1,0 +1,26 @@
+{
+  "schema": "m5_official_raw_manifest_v1",
+  "status": "official_download_structurally_verified_no_holdout_processing",
+  "source": "https://www.kaggle.com/competitions/m5-forecasting-accuracy/data",
+  "competition": "m5-forecasting-accuracy",
+  "downloaded_at_local_date": "2026-08-29",
+  "raw_files_committed": false,
+  "files": [
+    {
+      "file": "sales_train_evaluation.csv",
+      "sha256": "4b4a47c44c38380d2a9168216fea8c9ff2f31b1ddb772f8a0995952a038b8aa0",
+      "bytes": 121736518,
+      "rows": 30490,
+      "columns": 1947,
+      "header_sha256": "29a8ce6d75aeef807f35b49ec207342ad7c043d66430948f9e125f2387316800"
+    },
+    {
+      "file": "calendar.csv",
+      "sha256": "d12b5914ef03e66649adf5dd9e996e6602251c22b7a6af8f1f7e3aa12f8860f5",
+      "bytes": 103469,
+      "rows": 1969,
+      "columns": 14,
+      "header_sha256": "c77ad88374b8de00546b1424bb5e17135cd0fb60231e938e5b11e904d5885224"
+    }
+  ]
+}
