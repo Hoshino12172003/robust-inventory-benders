@@ -42,6 +42,18 @@ SCENARIO_SCHEMA = "fairness_hybrid_scenario_v1"
 CHECKPOINT_SCHEMA = "fairness_hybrid_ccg_benders_checkpoint_v1"
 PROTOCOL_SHA256 = "C1F608E6ABD1D0EE27A106BD28EE098A26FF262F987033C1BD9DDFB53E3EF750"
 CANDIDATE_SHA256 = "8AF2687A4340D03BE44C5A73FFD3BE1F1E015F5447D2B56FD9A8919049D46BA0"
+HYBRID_V8_POLICY = {
+    "schema": "fairness_hybrid_v8_policy_v1",
+    "max_complete_scenario_blocks_per_iteration": 4,
+    "normalized_farkas_cuts_per_iteration": 1,
+    "cut_scaling": "maximum_absolute_coefficient_including_constant",
+    "minimum_normalized_cut_efficacy": float(0.10).hex(),
+    "final_certification": "zero_gap_complete_separation",
+}
+HYBRID_V8_CANDIDATE = "certified_hybrid_v8_adaptive_scenario_benders_fairness"
+HYBRID_V8_CANDIDATE_SHA256 = hashlib.sha256(
+    canonical_json_bytes(HYBRID_V8_POLICY)
+).hexdigest().upper()
 INITIAL_UPPER_BOUND_EXPECTED_IDENTITY_FIELDS = (
     "instance_sha256",
     "seed",
@@ -210,6 +222,84 @@ def select_one_new_scenario(
     return eligible[0]
 
 
+def select_new_scenarios(
+    instance: InventoryInstance,
+    candidates: list[CertifiedAdaptiveCut],
+    committed_scenario_sha256: set[str],
+    *,
+    limit: int,
+) -> list[tuple[CertifiedAdaptiveCut, DemandScenario, str]]:
+    """Select distinct, uncommitted scenario blocks using the frozen v8 order."""
+    if isinstance(limit, bool) or int(limit) < 0:
+        raise ValueError("scenario block limit must be a nonnegative integer")
+    eligible: dict[str, tuple[CertifiedAdaptiveCut, DemandScenario, str]] = {}
+    for candidate in candidates:
+        active = tuple(sorted(
+            (int(item["region"]), int(item["product"]))
+            for item in candidate.cut.active_deviations
+        ))
+        scenario = _scenario_from_units(instance, active)
+        digest = scenario_sha256(instance, scenario)
+        if digest in committed_scenario_sha256:
+            continue
+        item = (candidate, scenario, digest)
+        previous = eligible.get(digest)
+        if previous is None or (
+            -float(candidate.raw_violation), digest, candidate.cut_sha256
+        ) < (
+            -float(previous[0].raw_violation), previous[2], previous[0].cut_sha256
+        ):
+            eligible[digest] = item
+    ordered = sorted(
+        eligible.values(),
+        key=lambda item: (-float(item[0].raw_violation), item[2], item[0].cut_sha256),
+    )
+    return ordered[: int(limit)]
+
+
+def max_coefficient_normalized_cut(
+    candidate: CertifiedAdaptiveCut,
+) -> tuple[dict[str, Any], str, float]:
+    """Return the v8 max-coefficient-normalized payload, identity, and efficacy."""
+    payload = deepcopy(candidate.canonical_cut_payload)
+    terms = payload.get("terms")
+    if payload.get("schema") != CUT_SCHEMA or not isinstance(terms, list):
+        raise RemediationIdentityError("unsupported canonical cut payload")
+    constant = float.fromhex(payload["constant"])
+    coefficients = [float.fromhex(item[1]) for item in terms]
+    scale = 1.0 / max([abs(constant), *(abs(value) for value in coefficients), 1.0e-12])
+    payload["constant"] = (constant * scale).hex()
+    payload["terms"] = [[item[0], (value * scale).hex()] for item, value in zip(terms, coefficients)]
+    digest = hashlib.sha256(canonical_json_bytes(payload)).hexdigest().upper()
+    efficacy = float(candidate.raw_violation) * scale
+    if not math.isfinite(efficacy) or efficacy < 0.0:
+        raise RemediationIdentityError("invalid normalized cut efficacy")
+    return payload, digest, efficacy
+
+
+def select_v8_sentinel_cut(
+    candidates: list[CertifiedAdaptiveCut],
+    promoted_pattern_sha256: set[str],
+    committed_cut_sha256: set[str],
+    *,
+    minimum_efficacy: float = 0.10,
+) -> tuple[CertifiedAdaptiveCut, dict[str, Any], str, float] | None:
+    """Choose at most one nonpromoted, nonduplicate normalized Farkas cut."""
+    eligible: list[tuple[float, str, CertifiedAdaptiveCut, dict[str, Any]]] = []
+    for candidate in candidates:
+        if candidate.pattern_sha256 in promoted_pattern_sha256:
+            continue
+        payload, digest, efficacy = max_coefficient_normalized_cut(candidate)
+        if digest not in committed_cut_sha256 and efficacy >= float(minimum_efficacy):
+            eligible.append((efficacy, digest, candidate, payload))
+    if not eligible:
+        return None
+    efficacy, digest, candidate, payload = min(
+        eligible, key=lambda item: (-item[0], item[1], item[2].cut_sha256)
+    )
+    return candidate, payload, digest, efficacy
+
+
 def _checkpoint_hash(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(dict(payload))).hexdigest().upper()
 
@@ -261,8 +351,13 @@ def solve_certified_hybrid_scenario_benders_fairness(
     checkpoint_path: str | Path | None = None,
     checkpoint_identity: dict[str, Any] | None = None,
     execution_protocol_sha256: str = PROTOCOL_SHA256,
+    algorithm_policy: str = "legacy",
     failure_injector: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> FairnessBendersResult:
+    if algorithm_policy not in {"legacy", "v8"}:
+        raise RemediationIdentityError("unsupported hybrid algorithm policy")
+    candidate_name = CANDIDATE if algorithm_policy == "legacy" else HYBRID_V8_CANDIDATE
+    candidate_sha256 = CANDIDATE_SHA256 if algorithm_policy == "legacy" else HYBRID_V8_CANDIDATE_SHA256
     execution_protocol = str(execution_protocol_sha256).upper()
     if len(execution_protocol) != 64 or any(
         character not in "0123456789ABCDEF" for character in execution_protocol
@@ -272,7 +367,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
     initial = construct_initial_t1_upper_bound(
         instance, baseline_record=baseline_record, anchor=anchor, rho=rho,
         tolerance=tol, expected_identity=expected_identity,
-        expected_candidate_sha256=CANDIDATE_SHA256,
+        expected_candidate_sha256=candidate_sha256,
     )
     if solver_parameters != {"Threads": 1, "Seed": 0, "FeasibilityTol": 1.0e-7}:
         raise RemediationIdentityError("frozen solver identity mismatch")
@@ -287,8 +382,8 @@ def solve_certified_hybrid_scenario_benders_fairness(
     variables = _master_variables(instance, y, x, t)
     first_stage = _first_stage_expression(instance, y, x)
     identity = {
-        "candidate": CANDIDATE,
-        "candidate_sha256": CANDIDATE_SHA256,
+        "candidate": candidate_name,
+        "candidate_sha256": candidate_sha256,
         "protocol_sha256": execution_protocol,
         "scenario_schema": SCENARIO_SCHEMA,
         "rho_hex": float(rho).hex(),
@@ -297,6 +392,9 @@ def solve_certified_hybrid_scenario_benders_fairness(
         "solver_parameters": deepcopy(solver_parameters),
         **deepcopy(checkpoint_identity or {}),
     }
+    if algorithm_policy == "v8":
+        identity["algorithm_policy"] = algorithm_policy
+        identity["hybrid_v8_policy"] = deepcopy(HYBRID_V8_POLICY)
     initial_set = initial_scenarios(instance, gamma)
     scenario_payloads = {scenario_sha256(instance, scenario): canonical_scenario_payload(instance, scenario) for scenario in initial_set}
     scenario_order = list(scenario_payloads)
@@ -384,9 +482,19 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 proposal_sha256_values.append(
                     scenario_sha256(instance, _scenario_from_units(instance, proposal_active))
                 )
-            chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+            if algorithm_policy == "legacy":
+                chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                if chosen is None:
+                    chosen_blocks = []
+                else:
+                    chosen_blocks = [chosen]
+            else:
+                chosen_blocks = select_new_scenarios(
+                    instance, separated.candidates, set(scenario_order),
+                    limit=HYBRID_V8_POLICY["max_complete_scenario_blocks_per_iteration"],
+                )
             final_separation_performed = False
-            if chosen is None:
+            if not chosen_blocks:
                 remaining = float(time_limit) - (time.perf_counter() - start)
                 if remaining <= 0.0:
                     status = "time_limit"
@@ -408,33 +516,55 @@ def solve_certified_hybrid_scenario_benders_fairness(
                     proposal_sha256_values.append(
                         scenario_sha256(instance, _scenario_from_units(instance, proposal_active))
                     )
-                chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                if algorithm_policy == "legacy":
+                    chosen = select_one_new_scenario(instance, separated.candidates, set(scenario_order))
+                    chosen_blocks = [] if chosen is None else [chosen]
+                else:
+                    chosen_blocks = select_new_scenarios(
+                        instance, separated.candidates, set(scenario_order),
+                        limit=HYBRID_V8_POLICY["max_complete_scenario_blocks_per_iteration"],
+                    )
                 final_separation_performed = True
             unique_proposals = set(proposal_sha256_values)
             rediscovered_evicted_count = len(unique_proposals & evicted_proposal_sha256_values)
             duplicate_proposal_count = len(proposal_sha256_values) - len(unique_proposals)
-            chosen_sha = None if chosen is None else chosen[2]
-            newly_evicted = unique_proposals - ({chosen_sha} if chosen_sha is not None else set())
+            chosen_scenario_sha256_values = {item[2] for item in chosen_blocks}
+            newly_evicted = unique_proposals - chosen_scenario_sha256_values
             evicted_proposal_sha256_values.update(newly_evicted)
             if final_separation_performed and full.robust_feasibility_certified:
                 upper_bound = min(upper_bound, candidate_t)
                 best_y, best_x = candidate_y, candidate_x
                 final_certified = True
-            committed_scenario = None
-            committed_cut = None
-            if chosen is not None:
-                candidate, scenario, digest = chosen
+            committed_scenarios: list[str] = []
+            committed_cuts: list[str] = []
+            promoted_pattern_sha256: set[str] = set()
+            for candidate, scenario, digest in chosen_blocks:
                 if failure_injector:
                     failure_injector("before_scenario_commit", {"scenario_sha256": digest})
                 add_complete_scenario_block(model, instance, scenario, x, t, first_stage=first_stage, cost_budget=budget.budget, scenario_sha=digest)
                 scenario_payloads[digest] = canonical_scenario_payload(instance, scenario)
                 scenario_order.append(digest)
-                committed_scenario = digest
-                if candidate.cut_sha256 not in cut_payloads:
+                committed_scenarios.append(digest)
+                promoted_pattern_sha256.add(candidate.pattern_sha256)
+                if algorithm_policy == "legacy" and candidate.cut_sha256 not in cut_payloads:
                     add_canonical_cut_payload(model, variables, candidate.canonical_cut_payload, index=len(cut_order))
                     cut_payloads[candidate.cut_sha256] = deepcopy(candidate.canonical_cut_payload)
                     cut_order.append(candidate.cut_sha256)
-                    committed_cut = candidate.cut_sha256
+                    committed_cuts.append(candidate.cut_sha256)
+            if algorithm_policy == "v8":
+                sentinel = select_v8_sentinel_cut(
+                    separated.candidates,
+                    promoted_pattern_sha256,
+                    set(cut_order),
+                    minimum_efficacy=float.fromhex(HYBRID_V8_POLICY["minimum_normalized_cut_efficacy"]),
+                )
+                if sentinel is not None:
+                    _candidate, payload, digest, _efficacy = sentinel
+                    add_canonical_cut_payload(model, variables, payload, index=len(cut_order))
+                    cut_payloads[digest] = deepcopy(payload)
+                    cut_order.append(digest)
+                    committed_cuts.append(digest)
+            if committed_scenarios or committed_cuts:
                 final_certified = False
             gap = relative_gap(upper_bound, lower_bound)
             entry = {
@@ -449,14 +579,17 @@ def solve_certified_hybrid_scenario_benders_fairness(
                 "separation_objective_bound": full.objective_bound,
                 "final_exact_separation_performed": final_separation_performed,
                 "robust_feasibility_certified": full.robust_feasibility_certified,
-                "committed_scenario_sha256": committed_scenario,
-                "committed_farkas_cut_sha256": committed_cut,
+                "committed_scenario_sha256": committed_scenarios[0] if len(committed_scenarios) == 1 else None,
+                "committed_farkas_cut_sha256": committed_cuts[0] if len(committed_cuts) == 1 else None,
                 "scenario_count": len(scenario_order),
                 "pool_candidate_count": len(unique_proposals),
                 "evicted_proposal_count": len(newly_evicted),
                 "rediscovered_evicted_scenario_count": rediscovered_evicted_count,
                 "duplicate_proposal_count": duplicate_proposal_count,
             }
+            if algorithm_policy == "v8":
+                entry["committed_scenario_sha256_values"] = committed_scenarios
+                entry["committed_farkas_cut_sha256_values"] = committed_cuts
             log.append(entry)
             state = {
                 "iteration": iteration,
@@ -482,7 +615,7 @@ def solve_certified_hybrid_scenario_benders_fairness(
             if final_certified and gap is not None and gap <= float(tol) and model.Status == GRB.OPTIMAL:
                 status = "optimal"
                 break
-            if chosen is None and not final_certified:
+            if not committed_scenarios and not committed_cuts and not final_certified:
                 status = full.status if full.status not in {"optimal", "unknown"} else "separation_stalled_duplicate"
                 break
         else:
@@ -514,9 +647,9 @@ def solve_certified_hybrid_scenario_benders_fairness(
         separation_patterns_seen=[],
         iteration_log=log,
         metadata={
-            "candidate": CANDIDATE,
+            "candidate": candidate_name,
             "protocol_sha256": execution_protocol,
-            "candidate_sha256": CANDIDATE_SHA256,
+            "candidate_sha256": candidate_sha256,
             "initial_robust_upper_bound": initial.evidence,
             "initial_scenario_count": len(initial_set),
             "committed_scenario_count": len(scenario_order),
@@ -526,5 +659,9 @@ def solve_certified_hybrid_scenario_benders_fairness(
             "full_separation_objective_bound_required": True,
             "robust_feasibility_certified": final_certified,
             "runtime_driven_scientific_branching": False,
+            **({
+                "algorithm_policy": algorithm_policy,
+                "hybrid_v8_policy": deepcopy(HYBRID_V8_POLICY),
+            } if algorithm_policy == "v8" else {}),
         },
     )
