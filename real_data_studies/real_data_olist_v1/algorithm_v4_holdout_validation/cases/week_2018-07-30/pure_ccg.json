@@ -1,0 +1,67 @@
+{
+  "method": "pure_ccg",
+  "status": "optimal",
+  "runtime": 75.63725760008674,
+  "objective_t": 0.776099630282272,
+  "robust_minimum_fill_rate": 0.22390036971772798,
+  "iterations": 5,
+  "master_runtime": 74.07425589987542,
+  "separation_runtime": 1.4795042999321595,
+  "blocked_scenarios": 11,
+  "cuts": 0,
+  "robust_feasibility_certified": true,
+  "cost_budget": 82993.9230230494,
+  "promotion_hits": 2,
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.14941572068552753,
+      "violations": 21,
+      "maximum_violation": 0.6528779568261625,
+      "actions": [
+        "block:24"
+      ],
+      "blocked_scenarios": 8,
+      "cuts": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.21966700314479587,
+      "violations": 7,
+      "maximum_violation": 0.3985258971811047,
+      "actions": [
+        "block:30"
+      ],
+      "blocked_scenarios": 9,
+      "cuts": 0
+    },
+    {
+      "iteration": 3,
+      "t": 0.24078424720791336,
+      "violations": 2,
+      "maximum_violation": 0.11527300765063649,
+      "actions": [
+        "block:25"
+      ],
+      "blocked_scenarios": 10,
+      "cuts": 0
+    },
+    {
+      "iteration": 4,
+      "t": 0.3175229600118879,
+      "violations": 1,
+      "maximum_violation": 0.03444315337249217,
+      "actions": [
+        "block:31"
+      ],
+      "blocked_scenarios": 11,
+      "cuts": 0
+    },
+    {
+      "iteration": 5,
+      "t": 0.776099630282272,
+      "violations": 0,
+      "actions": []
+    }
+  ]
+}

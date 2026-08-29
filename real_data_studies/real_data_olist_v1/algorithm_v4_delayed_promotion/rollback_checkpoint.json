@@ -1,0 +1,8 @@
+{
+  "checkpoint": "before_hybrid_v4_delayed_promotion",
+  "change_policy": "new files only under algorithm_v4_delayed_promotion; no overwrite of frozen inputs, baselines, or prior candidates",
+  "rollback_action": "ignore or remove algorithm_v4_delayed_promotion",
+  "authoritative_checkpoint": "../algorithm_v3_primary_block/rollback_checkpoint.json",
+  "test_split_used": false,
+  "paper_results_modified": false
+}

@@ -1,0 +1,10 @@
+{
+  "status": "frozen before ablation runs",
+  "question": "Does one sentinel Farkas cut add value beyond batch-4 scenario CCG?",
+  "batch4_ccg": "promote up to four most violated scenarios after every separation; add no Farkas cuts",
+  "hybrid_v7": "same batch-4 promotion plus one Farkas cut for the most violated non-promoted scenario",
+  "all_other_inputs_and_solver_settings_equal": true,
+  "paired_order": "alternating by case",
+  "data_status": "observed development instances, not independent validation",
+  "paper_results_modified": false
+}

@@ -1,0 +1,57 @@
+[
+  {
+    "case_id": "week_2018-04-30",
+    "week_start": "2018-04-30",
+    "test_week_index": 0,
+    "run_order": [
+      "v8",
+      "pure_ccg",
+      "batch4"
+    ],
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-05-28",
+    "week_start": "2018-05-28",
+    "test_week_index": 4,
+    "run_order": [
+      "pure_ccg",
+      "batch4",
+      "v8"
+    ],
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-06-25",
+    "week_start": "2018-06-25",
+    "test_week_index": 8,
+    "run_order": [
+      "batch4",
+      "v8",
+      "pure_ccg"
+    ],
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-07-23",
+    "week_start": "2018-07-23",
+    "test_week_index": 12,
+    "run_order": [
+      "v8",
+      "pure_ccg",
+      "batch4"
+    ],
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-08-20",
+    "week_start": "2018-08-20",
+    "test_week_index": 16,
+    "run_order": [
+      "pure_ccg",
+      "batch4",
+      "v8"
+    ],
+    "scenario_count": 42
+  }
+]

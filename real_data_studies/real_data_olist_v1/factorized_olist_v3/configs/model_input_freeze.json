@@ -1,0 +1,10 @@
+{
+  "metadata_sha256": "e281a336da1b6d3bf0c2b5a34c5e8b83439153aa93344b380bb51d5fd6a9f710",
+  "membership_sha256": "5d8c3363c4a6ef89565d89f8686ee53c71b06c047c4301e5c785857257d3aaf5",
+  "selected_hubs_sha256": "98d8b42545a61722716eda450fa57c5c79a9d06d07bba34d9e543c8e3aef68c4",
+  "test_split_used": false,
+  "instance_sha256": "02e5bcb7b9d04161f2bedea8a5f38d612d85724cc6ddb797ab6f6ee11e42f48c",
+  "scenario_file_sha256": "823e3b1bdd6ccdf199d41b4f190ac542743cfe749e4fc591ca6c6857568c3328",
+  "scenario_count": 42,
+  "complete_block_shipment_variables": 800
+}

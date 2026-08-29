@@ -1,0 +1,7 @@
+{
+  "checkpoint": "before_hybrid_v6_ephemeral_probes",
+  "parent": "algorithm_v5_cut_cleanup",
+  "rollback_action": "ignore or remove algorithm_v6_ephemeral_probes",
+  "single_change": "when any scenarios are promoted, remove all active probe cuts and add no new cuts in that iteration",
+  "paper_results_modified": false
+}

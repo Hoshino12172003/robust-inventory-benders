@@ -1,0 +1,8 @@
+{
+  "rho": 0.0001,
+  "selection_rule": "smallest pre-algorithm direct-model scan value that was feasible and had a strictly positive fairness objective",
+  "direct_reference_status": "optimal",
+  "direct_reference_T": 0.011970369158550967,
+  "algorithm_runtime_used_for_selection": false,
+  "test_split_used": false
+}

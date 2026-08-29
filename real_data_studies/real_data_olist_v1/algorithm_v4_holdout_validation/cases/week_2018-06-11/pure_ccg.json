@@ -1,0 +1,56 @@
+{
+  "method": "pure_ccg",
+  "status": "optimal",
+  "runtime": 53.86570269998629,
+  "objective_t": 0.9368039957022943,
+  "robust_minimum_fill_rate": 0.06319600429770567,
+  "iterations": 4,
+  "master_runtime": 52.58854120003525,
+  "separation_runtime": 1.181204600026831,
+  "blocked_scenarios": 10,
+  "cuts": 0,
+  "robust_feasibility_certified": true,
+  "cost_budget": 44767.71385543065,
+  "promotion_hits": 2,
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.03458857994211078,
+      "violations": 28,
+      "maximum_violation": 0.7890652199505828,
+      "actions": [
+        "block:25"
+      ],
+      "blocked_scenarios": 8,
+      "cuts": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.14750957703038498,
+      "violations": 2,
+      "maximum_violation": 0.10352158628750391,
+      "actions": [
+        "block:30"
+      ],
+      "blocked_scenarios": 9,
+      "cuts": 0
+    },
+    {
+      "iteration": 3,
+      "t": 0.15412179389674874,
+      "violations": 1,
+      "maximum_violation": 0.02987277728586335,
+      "actions": [
+        "block:31"
+      ],
+      "blocked_scenarios": 10,
+      "cuts": 0
+    },
+    {
+      "iteration": 4,
+      "t": 0.9368039957022943,
+      "violations": 0,
+      "actions": []
+    }
+  ]
+}

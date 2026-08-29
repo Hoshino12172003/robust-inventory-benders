@@ -1,0 +1,293 @@
+{
+  "case_id": "week_2018-07-02",
+  "run_order": [
+    "batch4_ccg",
+    "pure_ccg"
+  ],
+  "results": {
+    "batch4_ccg": {
+      "candidate": "batch4_ccg_no_farkas_cuts",
+      "status": "optimal",
+      "runtime": 4.995212300098501,
+      "objective_t": 0.5545264217870799,
+      "robust_minimum_fill_rate": 0.4454735782129201,
+      "iterations": 2,
+      "master_runtime": 4.224472800036892,
+      "separation_runtime": 0.7065226000268012,
+      "blocked_scenarios": 11,
+      "active_probe_cuts": 0,
+      "cuts_added_total": 0,
+      "cuts_removed_total": 0,
+      "probe_resets": 1,
+      "robust_feasibility_certified": true,
+      "cost_budget": 25659.862283552808,
+      "rho": 0.0001,
+      "policy": {
+        "initial_blocks": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "max_scenario_blocks_per_iteration": 4,
+        "promotion_hits": 1,
+        "farkas_cuts_per_iteration": 0
+      },
+      "solver_parameters": {
+        "Threads": 1,
+        "Seed": 0,
+        "FeasibilityTol": 1e-07,
+        "MIPGap": 0.0
+      },
+      "y_values": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        -0.0,
+        1.0,
+        -0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        -0.0,
+        1.0,
+        -0.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          0.0,
+          0.0,
+          43.653943686,
+          106.326923,
+          58.757692
+        ],
+        [
+          86.37475387185252,
+          18.249393272323235,
+          15.228198936943329,
+          0.0,
+          0.0
+        ],
+        [
+          0.8303180824242418,
+          56.050595688080804,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          6.40037986909091,
+          16.0,
+          41.803846,
+          6.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          9.807182456363636,
+          9.126923,
+          12.942308,
+          4.0,
+          6.496153000000001
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          8.923437537541414,
+          0.0,
+          10.598724063056665,
+          0.0,
+          0.0
+        ],
+        [
+          4.683760678484849,
+          8.0,
+          1.0,
+          10.615385,
+          10.923077
+        ],
+        [
+          6.320060197147759,
+          9.20346613090909,
+          4.519229677206198,
+          0.0,
+          0.7730770000000007
+        ],
+        [
+          0.0,
+          0.0,
+          5.728198936943336,
+          28.404859063036128,
+          18.953846
+        ],
+        [
+          3.5878478100000026,
+          9.0,
+          10.0,
+          7.519231,
+          7.5192309999999996
+        ],
+        [
+          15.189941212121214,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          18.747835151515154,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          7.0,
+          0.3425299276767689,
+          5.873077,
+          6.153846,
+          4.315385
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          15.843965454545454,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          23.85709631191919,
+          10.346056314000002,
+          0.0,
+          0.0
+        ]
+      ],
+      "iteration_log": [
+        {
+          "iteration": 1,
+          "t": 0.0,
+          "violations": 26,
+          "maximum_violation": 0.8955128333333335,
+          "actions": [
+            "block:31",
+            "block:25",
+            "block:30",
+            "block:24",
+            "reset_probe_cuts:0"
+          ],
+          "blocked_scenarios": 11,
+          "active_probe_cuts": 0,
+          "cuts_removed_total": 0
+        },
+        {
+          "iteration": 2,
+          "t": 0.5545264217870799,
+          "violations": 0,
+          "actions": [],
+          "blocked_scenarios": 11,
+          "active_probe_cuts": 0
+        }
+      ]
+    },
+    "pure_ccg": {
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 17.246219499967992,
+      "objective_t": 0.5545264217871703,
+      "robust_minimum_fill_rate": 0.44547357821282974,
+      "iterations": 4,
+      "master_runtime": 15.793978299945593,
+      "separation_runtime": 1.3612261000089347,
+      "blocked_scenarios": 10,
+      "cuts": 0,
+      "robust_feasibility_certified": true,
+      "cost_budget": 25659.862283552808,
+      "promotion_hits": 2,
+      "iteration_log": [
+        {
+          "iteration": 1,
+          "t": 0.0,
+          "violations": 26,
+          "maximum_violation": 0.8955128333333335,
+          "actions": [
+            "block:31"
+          ],
+          "blocked_scenarios": 8,
+          "cuts": 0
+        },
+        {
+          "iteration": 2,
+          "t": 0.029551039775548037,
+          "violations": 13,
+          "maximum_violation": 0.3835454193726291,
+          "actions": [
+            "block:30"
+          ],
+          "blocked_scenarios": 9,
+          "cuts": 0
+        },
+        {
+          "iteration": 3,
+          "t": 0.03605770338067887,
+          "violations": 8,
+          "maximum_violation": 0.4952622988850028,
+          "actions": [
+            "block:24"
+          ],
+          "blocked_scenarios": 10,
+          "cuts": 0
+        },
+        {
+          "iteration": 4,
+          "t": 0.5545264217871703,
+          "violations": 0,
+          "actions": []
+        }
+      ]
+    }
+  }
+}

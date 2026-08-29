@@ -1,0 +1,33 @@
+{
+  "status": "data_design_frozen_before_algorithm_implementation",
+  "factor_count": 6,
+  "hub_count": 20,
+  "products": [
+    "cama_mesa_banho",
+    "moveis_decoracao",
+    "esporte_lazer",
+    "beleza_saude",
+    "informatica_acessorios"
+  ],
+  "regions": [
+    "SP",
+    "RJ",
+    "MG",
+    "RS",
+    "PR",
+    "SC",
+    "BA",
+    "GO"
+  ],
+  "cell_count": 40,
+  "factor_method": "absolute loadings of SVD on positive normalized training residuals; each cell assigned to one factor",
+  "training_only_factor_estimation": true,
+  "activation_threshold": "factor-specific 90th percentile of training scores",
+  "gamma_calibration": "minimum of the calibration 90th-percentile count and half the factor count, preventing the one-sided set from degenerating to the all-factors scenario",
+  "raw_calibration_gamma": 6,
+  "gamma": 3,
+  "factor_scenario_count": 42,
+  "explained_energy_share_first_six": 0.8049916690658204,
+  "test_split_used": false,
+  "intended_extension": "high-dimensional recourse with low-dimensional correlated upward-demand factors"
+}

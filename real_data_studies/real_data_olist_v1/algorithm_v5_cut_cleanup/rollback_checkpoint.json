@@ -1,0 +1,8 @@
+{
+  "checkpoint": "before_hybrid_v5_cut_cleanup",
+  "change_policy": "new files only under algorithm_v5_cut_cleanup",
+  "rollback_action": "ignore or remove algorithm_v5_cut_cleanup",
+  "parent_algorithm": "algorithm_v4_delayed_promotion",
+  "single_change": "remove a scenario's tracked Farkas cuts when that scenario is promoted to a complete block",
+  "paper_results_modified": false
+}

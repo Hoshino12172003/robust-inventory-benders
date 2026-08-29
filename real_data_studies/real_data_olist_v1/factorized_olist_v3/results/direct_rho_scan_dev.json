@@ -1,0 +1,47 @@
+{
+  "0.0001": {
+    "method": "direct_finite_scenarios",
+    "status": "optimal",
+    "runtime": 25.00867789995391,
+    "objective_t": 0.011970369158550967,
+    "objective_bound": 0.011970369158550967,
+    "gap": 0.0,
+    "scenario_count": 42
+  },
+  "0.0005": {
+    "method": "direct_finite_scenarios",
+    "status": "optimal",
+    "runtime": 35.70645769999828,
+    "objective_t": 0.0034563718163006297,
+    "objective_bound": 0.0034563718163006297,
+    "gap": 0.0,
+    "scenario_count": 42
+  },
+  "0.001": {
+    "method": "direct_finite_scenarios",
+    "status": "optimal",
+    "runtime": 20.60798889992293,
+    "objective_t": 0.0033931084546850905,
+    "objective_bound": 0.0033931084546850905,
+    "gap": 0.0,
+    "scenario_count": 42
+  },
+  "0.002": {
+    "method": "direct_finite_scenarios",
+    "status": "optimal",
+    "runtime": 23.8416700999951,
+    "objective_t": 0.002517252148334068,
+    "objective_bound": 0.002517252148334068,
+    "gap": 0.0,
+    "scenario_count": 42
+  },
+  "0.005": {
+    "method": "direct_finite_scenarios",
+    "status": "optimal",
+    "runtime": 22.205148000037298,
+    "objective_t": 0.00035931549373363267,
+    "objective_bound": 0.00035931549373363267,
+    "gap": 0.0,
+    "scenario_count": 42
+  }
+}

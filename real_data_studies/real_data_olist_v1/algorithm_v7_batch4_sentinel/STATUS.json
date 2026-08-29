@@ -1,0 +1,16 @@
+{
+  "status": "development_success_requires_new_external_or_sealed_validation",
+  "algorithm": "hybrid_v7_batch4_plus_one_sentinel_cut",
+  "same_batch_paired_cases": 12,
+  "v7_certified": 12,
+  "pure_ccg_certified": 11,
+  "jointly_certified_cases": 11,
+  "v7_wins": 11,
+  "v7_mean_runtime": 32.23698008183221,
+  "pure_ccg_mean_runtime": 47.55125022731425,
+  "runtime_reduction_percent": 32.205820188267666,
+  "geometric_mean_speedup": 1.5916291106424065,
+  "max_objective_error_against_direct": 1.0977885267493548e-12,
+  "claim_limit": "all Olist weeks are now observed development data; do not describe this as independent final validation",
+  "paper_results_modified": false
+}

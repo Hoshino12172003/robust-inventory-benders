@@ -1,0 +1,305 @@
+{
+  "case_id": "week_2018-07-09",
+  "run_order": [
+    "pure_ccg",
+    "v8"
+  ],
+  "results": {
+    "pure_ccg": {
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 3.8083637000527233,
+      "objective_t": 0.00428126788256776,
+      "robust_minimum_fill_rate": 0.9957187321174322,
+      "iterations": 5,
+      "master_runtime": 2.2219484000233933,
+      "separation_runtime": 1.5290197000140324,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "robust_feasibility_certified": true,
+      "cost_budget": 17530.093584105092,
+      "promotion_hits": 2,
+      "iteration_log": [
+        {
+          "iteration": 1,
+          "t": 0.0,
+          "violations": 28,
+          "maximum_violation": 1.6755259951624941,
+          "actions": [
+            "block:31"
+          ],
+          "blocked_scenarios": 8,
+          "cuts": 0
+        },
+        {
+          "iteration": 2,
+          "t": 0.0,
+          "violations": 20,
+          "maximum_violation": 0.7485989435871274,
+          "actions": [
+            "block:24"
+          ],
+          "blocked_scenarios": 9,
+          "cuts": 0
+        },
+        {
+          "iteration": 3,
+          "t": 0.0,
+          "violations": 7,
+          "maximum_violation": 0.3813034166666669,
+          "actions": [
+            "block:30"
+          ],
+          "blocked_scenarios": 10,
+          "cuts": 0
+        },
+        {
+          "iteration": 4,
+          "t": 0.001531822334125361,
+          "violations": 2,
+          "maximum_violation": 0.20535318199615737,
+          "actions": [
+            "block:25"
+          ],
+          "blocked_scenarios": 11,
+          "cuts": 0
+        },
+        {
+          "iteration": 5,
+          "t": 0.00428126788256776,
+          "violations": 0,
+          "actions": []
+        }
+      ]
+    },
+    "v8": {
+      "candidate": "hybrid_v8_batch4_normalized_max_cut",
+      "status": "optimal",
+      "runtime": 1.8538843999849632,
+      "objective_t": 0.004281267882568217,
+      "robust_minimum_fill_rate": 0.9957187321174318,
+      "iterations": 2,
+      "master_runtime": 1.1229480998590589,
+      "separation_runtime": 0.6736288000829518,
+      "blocked_scenarios": 11,
+      "active_cuts": 1,
+      "cuts_added_total": 1,
+      "cuts_removed_total": 0,
+      "robust_feasibility_certified": true,
+      "cost_budget": 17530.093584105092,
+      "rho": 0.0001,
+      "policy": {
+        "initial_blocks": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "max_blocks_per_iteration": 4,
+        "cut_selection": "maximum_max_normalized_efficacy",
+        "normalized_farkas_cuts_per_iteration": 1,
+        "minimum_normalized_cut_efficacy": 0.1,
+        "remove_promoted_scenario_cuts": true
+      },
+      "solver_parameters": {
+        "Threads": 1,
+        "Seed": 0,
+        "FeasibilityTol": 1e-07,
+        "MIPGap": 0.0
+      },
+      "y_values": [
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        -0.0,
+        1.0,
+        1.0,
+        -0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        -0.0,
+        -0.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          0.0,
+          31.648439342222215,
+          27.0,
+          81.326923,
+          44.757692
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          42.86826484848485,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          6.086904979718941,
+          15.603846,
+          1.0,
+          23.803846,
+          12.587071519972284
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          23.310086695773684,
+          3.26633574358365,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          8.878875602121209,
+          8.126923,
+          9.942308,
+          9.673077,
+          10.8
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          15.346906666666667,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.9723620193939406,
+          8.923077,
+          2.0,
+          11.615385,
+          13.923077
+        ],
+        [
+          8.251557020281059,
+          0.8420245414141371,
+          9.996154,
+          0.32692300000000074,
+          3.3244664800277164
+        ],
+        [
+          0.0,
+          1.7436057522345472,
+          17.21884316410975,
+          13.961538,
+          9.769230999999998
+        ],
+        [
+          9.696332658484849,
+          8.0,
+          0.0,
+          8.519231000000001,
+          8.519231
+        ],
+        [
+          14.518377675218032,
+          0.0,
+          1.1080798358902513,
+          0.0,
+          0.0
+        ],
+        [
+          0.9287395229331563,
+          0.0,
+          29.4015077871603,
+          0.0,
+          0.0
+        ],
+        [
+          0.9516405490243932,
+          17.833317247765454,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          3.696087182233189,
+          2.5647167150022128,
+          6.873077,
+          10.153846,
+          3.315385
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          14.218719900606063,
+          13.259252657777779,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "iteration_log": [
+        {
+          "iteration": 1,
+          "t": 0.0,
+          "violations": 28,
+          "maximum_violation": 1.6755259951624941,
+          "actions": [
+            "block:31;remove_cuts:0",
+            "block:25;remove_cuts:0",
+            "block:30;remove_cuts:0",
+            "block:24;remove_cuts:0",
+            "normalized_max_cut:27;efficacy:1.1244317764980634"
+          ],
+          "blocked_scenarios": 11,
+          "active_cuts": 1,
+          "cuts_removed_total": 0
+        },
+        {
+          "iteration": 2,
+          "t": 0.004281267882568217,
+          "violations": 0,
+          "actions": [],
+          "blocked_scenarios": 11,
+          "active_cuts": 1
+        }
+      ]
+    }
+  }
+}

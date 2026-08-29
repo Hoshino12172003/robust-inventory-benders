@@ -1,0 +1,18 @@
+{
+  "status": "development_comparison_complete_external_confirmation_required",
+  "cases": 12,
+  "v8_certified": 12,
+  "pure_ccg_certified": 11,
+  "jointly_certified": 11,
+  "v8_wins": 11,
+  "v8_losses": 0,
+  "v8_mean_runtime": 31.960071290885523,
+  "pure_ccg_mean_runtime": 48.81783043637618,
+  "runtime_reduction_percent": 34.5319711974116,
+  "geometric_mean_speedup": 1.6821771157944336,
+  "two_sided_exact_sign_test_p": 0.0009765625,
+  "v8_max_direct_objective_abs_error": 6.17284001691587e-13,
+  "v8_cases_with_farkas_cuts": 1,
+  "v8_total_farkas_cuts": 1,
+  "claim_limit": "The twelve weekly cases were observed during algorithm development and are not an independent holdout."
+}

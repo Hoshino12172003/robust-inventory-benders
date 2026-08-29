@@ -1,0 +1,109 @@
+{
+  "purpose": "runtime stability audit on the 20-city development instance",
+  "policy": "frozen v4 p4 versus unchanged pure CCG implementation",
+  "test_split_used": false,
+  "trials": [
+    {
+      "repeat": 1,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "v4",
+      "status": "optimal",
+      "runtime": 4.3422833000076935,
+      "objective_t": 0.011970369158565475,
+      "iterations": 3,
+      "master_runtime": 2.9337565997848287,
+      "separation_runtime": 1.3230475002201274,
+      "blocked_scenarios": 11,
+      "cuts": 20,
+      "certified": true
+    },
+    {
+      "repeat": 1,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 8.620301500079222,
+      "objective_t": 0.01197036915859693,
+      "iterations": 5,
+      "master_runtime": 6.315843600197695,
+      "separation_runtime": 2.2302684999303892,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "certified": true
+    },
+    {
+      "repeat": 2,
+      "order": [
+        "pure_ccg",
+        "v4"
+      ],
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 8.75154119997751,
+      "objective_t": 0.01197036915859693,
+      "iterations": 5,
+      "master_runtime": 6.721361400210299,
+      "separation_runtime": 1.944508400047198,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "certified": true
+    },
+    {
+      "repeat": 2,
+      "order": [
+        "pure_ccg",
+        "v4"
+      ],
+      "method": "v4",
+      "status": "optimal",
+      "runtime": 4.386694199987687,
+      "objective_t": 0.011970369158565475,
+      "iterations": 3,
+      "master_runtime": 2.883445799932815,
+      "separation_runtime": 1.4250005000503734,
+      "blocked_scenarios": 11,
+      "cuts": 20,
+      "certified": true
+    },
+    {
+      "repeat": 3,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "v4",
+      "status": "optimal",
+      "runtime": 5.292758599971421,
+      "objective_t": 0.011970369158565475,
+      "iterations": 3,
+      "master_runtime": 3.2059750999324024,
+      "separation_runtime": 1.9913254999555647,
+      "blocked_scenarios": 11,
+      "cuts": 20,
+      "certified": true
+    },
+    {
+      "repeat": 3,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 9.209595500025898,
+      "objective_t": 0.01197036915859693,
+      "iterations": 5,
+      "master_runtime": 6.735991499968804,
+      "separation_runtime": 2.3761009000008926,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "certified": true
+    }
+  ]
+}

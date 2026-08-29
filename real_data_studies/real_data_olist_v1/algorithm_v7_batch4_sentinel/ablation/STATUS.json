@@ -1,0 +1,26 @@
+{
+  "status": "ablation_complete_batching_explains_speedup_sentinel_cut_not_supported",
+  "batch4_vs_single_block_pure_ccg": {
+    "cases": 12,
+    "jointly_certified": 11,
+    "batch4_wins": 11,
+    "batch4_mean_runtime": 36.583881745443,
+    "pure_ccg_mean_runtime": 55.930899054531686,
+    "runtime_reduction_percent": 34.59092851381785,
+    "geometric_mean_speedup": 1.694673323572188,
+    "batch4_certified": 12,
+    "pure_ccg_certified": 11
+  },
+  "hybrid_v7_vs_batch4_ccg": {
+    "cases": 12,
+    "v7_wins": 5,
+    "batch4_wins": 7,
+    "v7_mean_runtime": 55.47558564998326,
+    "batch4_mean_runtime": 54.9377871916804,
+    "v7_runtime_change_percent": 0.9789226792598305,
+    "both_certified": 12
+  },
+  "conclusion": "The speedup over single-block CCG is attributable to violation-ranked batch-4 scenario submission, not to the one sentinel Farkas cut.",
+  "claim_limit": "observed development instances; independent confirmation still required",
+  "paper_results_modified": false
+}

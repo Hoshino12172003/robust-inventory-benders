@@ -1,0 +1,277 @@
+{
+  "case_id": "week_2018-05-21",
+  "run_order": [
+    "v8",
+    "pure_ccg"
+  ],
+  "results": {
+    "v8": {
+      "candidate": "hybrid_v8_batch4_normalized_max_cut",
+      "status": "optimal",
+      "runtime": 1.4933313999790698,
+      "objective_t": 0.0032189167221488286,
+      "robust_minimum_fill_rate": 0.9967810832778512,
+      "iterations": 2,
+      "master_runtime": 0.828008700045757,
+      "separation_runtime": 0.6030843999469653,
+      "blocked_scenarios": 11,
+      "active_cuts": 0,
+      "cuts_added_total": 0,
+      "cuts_removed_total": 0,
+      "robust_feasibility_certified": true,
+      "cost_budget": 20157.892887432725,
+      "rho": 0.0001,
+      "policy": {
+        "initial_blocks": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "max_blocks_per_iteration": 4,
+        "cut_selection": "maximum_max_normalized_efficacy",
+        "normalized_farkas_cuts_per_iteration": 1,
+        "minimum_normalized_cut_efficacy": 0.1,
+        "remove_promoted_scenario_cuts": true
+      },
+      "solver_parameters": {
+        "Threads": 1,
+        "Seed": 0,
+        "FeasibilityTol": 1e-07,
+        "MIPGap": 0.0
+      },
+      "y_values": [
+        1.0,
+        -0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          0.0,
+          19.092883786666675,
+          35.0,
+          87.326923,
+          51.757692
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          25.170318082424252,
+          23.597262354747464,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          4.3497537127272725,
+          16.603846,
+          7.0,
+          14.803846,
+          13.911538
+        ],
+        [
+          31.789581792428073,
+          0.0,
+          0.4092570424936883,
+          0.0,
+          0.0
+        ],
+        [
+          13.317419900602225,
+          0.0,
+          20.61490516400633,
+          0.0,
+          0.0
+        ],
+        [
+          9.276923,
+          6.126923,
+          12.9335297935,
+          9.673077,
+          8.8
+        ],
+        [
+          27.48209280375661,
+          0.0,
+          6.315275666452836,
+          0.0,
+          0.0
+        ],
+        [
+          15.346906060606061,
+          0.0,
+          1.0000000010279564e-06,
+          0.0,
+          0.0
+        ],
+        [
+          7.0808468678787895,
+          7.923077,
+          0.0,
+          5.615385,
+          10.923077
+        ],
+        [
+          16.23638,
+          0.0,
+          1.0000000010279564e-06,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          5.987516269124604,
+          10.326922,
+          12.045164194857165,
+          14.434614999999999
+        ],
+        [
+          4.728850234242425,
+          8.0,
+          8.753846,
+          6.519231,
+          9.519231
+        ],
+        [
+          15.189941212121214,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          18.747835151515154,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          2.634573436691936,
+          15.589406730875396,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          4.760927237247454,
+          4.673077,
+          3.873077,
+          6.397142805142834,
+          4.650001
+        ],
+        [
+          11.998300606060607,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          32.21754585858586,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "iteration_log": [
+        {
+          "iteration": 1,
+          "t": 0.0,
+          "violations": 26,
+          "maximum_violation": 0.8255341944444443,
+          "actions": [
+            "block:31;remove_cuts:0",
+            "block:30;remove_cuts:0",
+            "block:25;remove_cuts:0",
+            "block:24;remove_cuts:0",
+            "skip_low_efficacy_cut:37;efficacy:0.06212925757146429"
+          ],
+          "blocked_scenarios": 11,
+          "active_cuts": 0,
+          "cuts_removed_total": 0
+        },
+        {
+          "iteration": 2,
+          "t": 0.0032189167221488286,
+          "violations": 0,
+          "actions": [],
+          "blocked_scenarios": 11,
+          "active_cuts": 0
+        }
+      ]
+    },
+    "pure_ccg": {
+      "method": "pure_ccg",
+      "status": "uncertified_infeasible",
+      "runtime": 1.4068451001076028,
+      "objective_t": 1.0,
+      "robust_minimum_fill_rate": 0.0,
+      "iterations": 2,
+      "master_runtime": 0.529733799980022,
+      "separation_runtime": 0.8372485999716446,
+      "blocked_scenarios": 9,
+      "cuts": 0,
+      "robust_feasibility_certified": false,
+      "cost_budget": 20157.892887432725,
+      "promotion_hits": 2,
+      "iteration_log": [
+        {
+          "iteration": 1,
+          "t": 0.0,
+          "violations": 26,
+          "maximum_violation": 0.8255341944444443,
+          "actions": [
+            "block:31"
+          ],
+          "blocked_scenarios": 8,
+          "cuts": 0
+        },
+        {
+          "iteration": 2,
+          "t": 0.0,
+          "violations": 19,
+          "maximum_violation": 0.6751263823529414,
+          "actions": [
+            "block:24"
+          ],
+          "blocked_scenarios": 9,
+          "cuts": 0
+        }
+      ]
+    }
+  }
+}

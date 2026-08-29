@@ -1,0 +1,18 @@
+[
+  {
+    "cities": 20,
+    "pairs": 6,
+    "v8_median_runtime": 2.603947550000157,
+    "batch4_median_runtime": 2.7842082499992102,
+    "v8_wins": 6,
+    "max_objective_difference": 2.749536154311727e-10
+  },
+  {
+    "cities": 30,
+    "pairs": 6,
+    "v8_median_runtime": 5.403031450056005,
+    "batch4_median_runtime": 6.9715970999677666,
+    "v8_wins": 6,
+    "max_objective_difference": 1.9612436674698586e-13
+  }
+]

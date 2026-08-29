@@ -1,0 +1,18 @@
+{
+  "status": "development_success_on_observed_instances_requires_new_independent_validation",
+  "cases": 12,
+  "v7_certified": 12,
+  "pure_ccg_certified": 11,
+  "jointly_certified_cases": 11,
+  "v7_runtime_wins": 11,
+  "v7_mean_runtime_joint": 32.23698008183221,
+  "pure_mean_runtime_joint": 47.55125022731425,
+  "runtime_reduction_percent": 32.205820188267666,
+  "geometric_mean_speedup_pure_over_v7": 1.5916291106424065,
+  "exact_two_sided_sign_test_p": 0.0009765625,
+  "max_v7_objective_error_against_direct": 1.0977885267493548e-12,
+  "v7_par2_mean": 29.675622958340682,
+  "pure_ccg_par2_mean": 193.58864604170472,
+  "test_data_status": "observed during v4-v7 development; not an independent final holdout",
+  "paper_results_modified": false
+}

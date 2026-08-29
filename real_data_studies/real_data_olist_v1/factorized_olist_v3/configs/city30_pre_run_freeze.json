@@ -1,0 +1,9 @@
+{
+  "development_scale": "30 city hubs",
+  "instance_sha256": "a6e0eff632683a97f89f5941d2c91ec088a50723eb20979f5ceb33a9d3f30b5b",
+  "scenario_file_sha256": "823e3b1bdd6ccdf199d41b4f190ac542743cfe749e4fc591ca6c6857568c3328",
+  "rho": 0.0001,
+  "complete_block_shipment_variables": 1200,
+  "factor_design_changed": false,
+  "test_split_used": false
+}
