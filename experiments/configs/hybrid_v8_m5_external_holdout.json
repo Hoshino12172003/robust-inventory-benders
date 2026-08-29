@@ -1,0 +1,71 @@
+{
+  "schema": "hybrid_v8_m5_external_holdout_protocol_v1",
+  "status": "protocol_only_no_data_processing_or_optimization",
+  "source": {
+    "provider": "Kaggle",
+    "competition": "m5-forecasting-accuracy",
+    "required_files": [
+      "sales_train_evaluation.csv",
+      "calendar.csv"
+    ],
+    "unofficial_mirrors_allowed": false
+  },
+  "temporal_split": {
+    "factor_estimation": [1, 1717],
+    "deviation_calibration": [1718, 1857],
+    "formal_holdout": [1858, 1941],
+    "holdout_case_length_days": 7,
+    "expected_holdout_cases": 12
+  },
+  "mapping": {
+    "demand_region": "all_store_id_values",
+    "product": "all_dept_id_values",
+    "candidate_staging_location": "all_store_id_values",
+    "expected_regions": 10,
+    "expected_products": 7,
+    "expected_candidate_locations": 10,
+    "factor_count": 6,
+    "factor_assignment": "largest_absolute_svd_loading_lexical_tie_break",
+    "positive_residual_only": true,
+    "deviation_quantile": 0.9,
+    "gamma": 2,
+    "expected_scenario_count": 22
+  },
+  "calibrated_parameters": {
+    "capacity_multiplier_of_training_peak_week": 1.18,
+    "capital_budget_multiplier": 0.58,
+    "same_state_transfer_cost": 1.0,
+    "cross_state_transfer_cost": 2.0,
+    "shortage_penalty_multiplier": 10.0,
+    "service_violation_penalty_multiplier": 20.0,
+    "service_target": 0.95,
+    "rho": 0.0001
+  },
+  "methods": [
+    "hybrid_v8",
+    "pure_single_scenario_ccg",
+    "batch4_ccg",
+    "direct"
+  ],
+  "candidate": {
+    "source": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/run_hybrid_v8.py",
+    "source_sha256": "AC98624CC509B6938DDB920FBCE901E1EF4F27DC1A76AA03E714547B81A45E13",
+    "max_blocks_per_iteration": 4,
+    "maximum_farkas_cuts_per_iteration": 1,
+    "cut_scaling": "maximum_absolute_coefficient",
+    "minimum_normalized_cut_efficacy": 0.1
+  },
+  "solver": {
+    "backend": "Gurobi",
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-7,
+    "final_MIPGap": 0.0,
+    "time_limit_seconds": 1800.0,
+    "PAR2_penalty_seconds": 3600.0
+  },
+  "primary_comparison": "hybrid_v8_vs_pure_single_scenario_ccg",
+  "strong_ablation": "hybrid_v8_vs_batch4_ccg",
+  "objective_abs_tolerance": 1e-6,
+  "output_dir": "real_data_studies/m5_external_v1/hybrid_v8_formal_holdout"
+}
