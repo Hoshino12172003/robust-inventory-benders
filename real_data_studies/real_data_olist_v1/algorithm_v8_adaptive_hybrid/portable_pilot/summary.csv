@@ -1,0 +1,4 @@
+﻿seed,run_order,v8_runtime,pure_runtime,batch4_runtime,v8_certified,pure_certified,batch4_certified,v8_direct_abs_error,pure_direct_abs_error,batch4_direct_abs_error,v8_iterations,pure_iterations,batch4_iterations,v8_blocks,pure_blocks,batch4_blocks,v8_cuts
+0,hybrid_v8->pure_ccg->batch4_ccg,0.35481439996510744,0.4066199000226334,0.3578250000718981,True,True,True,4.440892098500626e-15,4.440892098500626e-15,4.440892098500626e-15,3,4,3,12,10,12,0
+1,pure_ccg->batch4_ccg->hybrid_v8,0.3696825000224635,0.48660730000119656,0.36296329996548593,True,True,True,0.0,1.1657341758564144e-15,0.0,3,4,3,12,10,12,0
+2,batch4_ccg->hybrid_v8->pure_ccg,0.309199099894613,0.44472210004460067,0.2952742000343278,True,True,True,2.220446049250313e-16,6.8833827526759706e-15,2.220446049250313e-16,3,5,3,15,11,15,0

@@ -1,0 +1,244 @@
+{
+  "candidate": "hybrid_v7_batch4_plus_one_sentinel_cut",
+  "status": "optimal",
+  "runtime": 40.27789050003048,
+  "objective_t": 0.8199820799063303,
+  "robust_minimum_fill_rate": 0.18001792009366968,
+  "iterations": 3,
+  "master_runtime": 39.33693510002922,
+  "separation_runtime": 0.8742472999729216,
+  "blocked_scenarios": 14,
+  "active_cuts": 0,
+  "cuts_added_total": 1,
+  "cuts_removed_total": 1,
+  "robust_feasibility_certified": true,
+  "cost_budget": 35642.63831528251,
+  "rho": 0.0001,
+  "policy": {
+    "initial_blocks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "max_cuts_per_iteration": 1,
+    "promotion_hits": 1,
+    "max_promotions_per_iteration": 4,
+    "remove_promoted_scenario_cuts": true,
+    "direct_first_round_promotion": true,
+    "sentinel_cut_definition": "most violated non-promoted scenario"
+  },
+  "solver_parameters": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-07,
+    "MIPGap": 0.0
+  },
+  "y_values": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    0.0,
+    1.0,
+    -0.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "x_values": [
+    [
+      0.0,
+      4.305409039191923,
+      29.0,
+      110.326923,
+      70.75769199999999
+    ],
+    [
+      109.1928168104223,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      25.45770663016664,
+      18.384737102222218,
+      5.9763088962250475,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      5.699679233131315,
+      15.0,
+      30.803846,
+      19.911538
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      8.141761509333335,
+      16.126922999999998,
+      3.0,
+      9.673077,
+      7.830769400000003
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      8.454865454545452,
+      0.0,
+      11.371868000000006,
+      0.0,
+      0.0
+    ],
+    [
+      6.530427345151516,
+      6.0,
+      1.0,
+      9.615385,
+      10.923077
+    ],
+    [
+      6.558255530909091,
+      12.904166766868686,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      9.951208999999995,
+      22.0,
+      18.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      15.189941212121214,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      15.146436363636365,
+      0.0,
+      5.942308000000001,
+      0.0,
+      0.0
+    ],
+    [
+      5.024606430437935,
+      12.4026960725474,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      7.7970701526700905,
+      2.0,
+      4.873077,
+      4.067683471318802,
+      2.315385
+    ],
+    [
+      11.998300606060607,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      15.843965454545454,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      32.21754585858586,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.013628966626533066,
+      "violations": 28,
+      "maximum_violation": 0.7576497481038914,
+      "actions": [
+        "block:24;remove_cuts:0",
+        "block:31;remove_cuts:0",
+        "block:35;remove_cuts:0",
+        "block:37;remove_cuts:0",
+        "cut:30"
+      ],
+      "blocked_scenarios": 11,
+      "active_cuts": 1,
+      "cuts_removed_total": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.10881572921125693,
+      "violations": 3,
+      "maximum_violation": 0.11691705528522656,
+      "actions": [
+        "block:30;remove_cuts:1",
+        "block:25;remove_cuts:0",
+        "block:23;remove_cuts:0"
+      ],
+      "blocked_scenarios": 14,
+      "active_cuts": 0,
+      "cuts_removed_total": 1
+    },
+    {
+      "iteration": 3,
+      "t": 0.8199820799063303,
+      "violations": 0,
+      "actions": [],
+      "blocked_scenarios": 14,
+      "active_cuts": 0
+    }
+  ]
+}

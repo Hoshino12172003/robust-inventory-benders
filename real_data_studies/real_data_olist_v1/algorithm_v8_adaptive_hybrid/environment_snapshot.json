@@ -1,0 +1,15 @@
+{
+  "captured_for": "Hybrid v8 reported development and sealed-confirmation runs",
+  "operating_system": "Windows 11 10.0.26200",
+  "processor": "Intel Core Ultra 5 225H",
+  "physical_cores": 14,
+  "logical_processors": 14,
+  "physical_memory_bytes": 33820106752,
+  "python": "3.12.7",
+  "gurobi": "13.0.1",
+  "pandas": "3.0.2",
+  "gurobi_license_type": "academic non-commercial",
+  "solver_threads_used": 1,
+  "solver_seed": 0,
+  "timing_note": "Wall-clock runtimes vary by machine; paired comparisons must be rerun in one batch under the frozen rotating order."
+}

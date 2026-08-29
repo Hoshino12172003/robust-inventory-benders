@@ -1,0 +1,56 @@
+{
+  "status": "inputs_frozen_before_optimization",
+  "file_count": 10,
+  "files": [
+    {
+      "path": "sealed_confirmation/cases/week_2018-04-30/instance.json",
+      "sha256": "b179a40ba901efe23a95a416dd7b24b2eaadf3f588582d4a8cb3e5ec0665b800",
+      "bytes": 24602
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-04-30/scenarios.json",
+      "sha256": "b281d0d7290e799c9e6ab5e1b668ff6027cf84c4056f9f58f129bb5fdd2ce882",
+      "bytes": 64466
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-05-28/instance.json",
+      "sha256": "258faa78e33c98e4ebc31020edfbf03a03be3f42b53c46fec196ce0aa4c3ba48",
+      "bytes": 24593
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-05-28/scenarios.json",
+      "sha256": "407602d06eb59bd82a894ef6b9d618ba0c78c529b511b32fcde7d4e061c1d40e",
+      "bytes": 64088
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-06-25/instance.json",
+      "sha256": "1e563d5e59a47d6442c7561ff4b1f5acba81f309b46266d07424dec8efe1fb45",
+      "bytes": 24602
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-06-25/scenarios.json",
+      "sha256": "ca2fe76f6b07ed9531cfa3aa4d879057c24e4f2a9c79b97f0f1ee64cceae7314",
+      "bytes": 64898
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-07-23/instance.json",
+      "sha256": "4046c9cea512f5ecd4cb6f026ac3769fcc846390f8fe5111ece5fc25a8681366",
+      "bytes": 24601
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-07-23/scenarios.json",
+      "sha256": "67921a5e91cfbf6300a6c5164e70f82d33422cf7e169dcf075ff7d391198788c",
+      "bytes": 64664
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-08-20/instance.json",
+      "sha256": "012d39f6abc05b006d866daaf3df3724ef6a3f3413ed692a16bca45662f55de4",
+      "bytes": 24592
+    },
+    {
+      "path": "sealed_confirmation/cases/week_2018-08-20/scenarios.json",
+      "sha256": "fa3002213a70f5a6e80ae37578793f37b6a4a36ef1cd1a0057d4cdf91a8f5c5e",
+      "bytes": 64062
+    }
+  ]
+}

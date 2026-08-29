@@ -1,0 +1,34 @@
+{
+  "status": "frozen_before_reading_selected_test-week demand values or running validation models",
+  "purpose": "independent algorithm validation relative to Hybrid v4 development",
+  "scope_caveat": "the Olist test period was used by older non-v4 analyses; these weeks were not used in the prior holdout algorithm comparison or in v4 configuration",
+  "test_week_count": 17,
+  "excluded_prior_algorithm_holdout_indices": [0, 4, 8, 12, 16],
+  "included_indices": [1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15],
+  "include_all_remaining_weeks": true,
+  "city_hubs": 20,
+  "factor_count": 6,
+  "gamma": 3,
+  "scenario_count": 42,
+  "rho": 0.0001,
+  "hybrid_policy": {
+    "promotion_hits": 2,
+    "maximum_promotions_per_iteration": 4,
+    "maximum_farkas_cuts_per_iteration": 10
+  },
+  "comparison": ["hybrid_v4", "pure_ccg"],
+  "run_order": "alternating by case: Hybrid-first, CCG-first, Hybrid-first, ...",
+  "repetitions_per_case": 1,
+  "truth_check": "Gurobi Direct complete 42-scenario deterministic equivalent for every case",
+  "primary_outcomes": ["certification rate", "paired runtime", "objective agreement", "iterations"],
+  "selection_rule": "no test case or outcome may be removed after execution",
+  "test_split_used_before_protocol_freeze_by_v4": false,
+  "paper_results_modified": false,
+  "frozen_source_files": [
+    {"path": "processed/weekly_demand.csv", "sha256": "E67009C7C9C03406ABBECC123704F6BB19E8E1D3A669D3276F9A74A2205B4D41"},
+    {"path": "factorized_olist_v3/processed/factor_membership.csv", "sha256": "5D8C3363C4A6EF89565D89F8686EE53C71B06C047C4301E5C785857257D3AAF5"},
+    {"path": "factorized_olist_v3/instances/city_hubs_20.json", "sha256": "02E5BCB7B9D04161F2BEDEA8A5F38D612D85724CC6DDB797AB6F6EE11E42F48C"},
+    {"path": "algorithm_v4_delayed_promotion/run_hybrid_v4.py", "sha256": "02943C8C0E11CA533DC6699B1ADEA1339D0D247C717CA9876EFFB8B6B7DB7B0C"},
+    {"path": "algorithm_v4_delayed_promotion/policy_freeze.json", "sha256": "24141109758DCC9F17530F0DE4A790E5FB32FED27BD3D410243416C670212EFD"}
+  ]
+}

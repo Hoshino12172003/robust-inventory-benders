@@ -1,0 +1,12 @@
+{
+  "status": "development_success_requires_independent_confirmation",
+  "selected_policy": "promotion_hits_2_max_promotions_4",
+  "certified_on_city20": true,
+  "certified_on_city30": true,
+  "paired_repeats_per_method_and_scale": 3,
+  "city20_mean_runtime_reduction_percent": 47.249896734619824,
+  "city30_mean_runtime_reduction_percent": 12.555189666542965,
+  "test_split_used": false,
+  "paper_results_modified": false,
+  "claim_limit": "paired development evidence only; do not claim universal superiority or insert into the manuscript before independent frozen confirmation"
+}

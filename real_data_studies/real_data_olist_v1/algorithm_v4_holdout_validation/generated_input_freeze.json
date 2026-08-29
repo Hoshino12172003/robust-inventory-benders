@@ -1,0 +1,126 @@
+{
+  "status": "generated inputs frozen before any optimization run",
+  "file_count": 24,
+  "files": [
+    {
+      "path": "cases/week_2018-05-07/instance.json",
+      "sha256": "c0b2dc6ca346dd1b792e56666554a1e5e7d3b757cd4b9da6ef6c0efcca4fa907",
+      "bytes": 24608
+    },
+    {
+      "path": "cases/week_2018-05-07/scenarios.json",
+      "sha256": "2c9fe60e903e841fc60d210aa69e954e2ac61640cc95a86571741f4844c5dfa8",
+      "bytes": 64628
+    },
+    {
+      "path": "cases/week_2018-05-14/instance.json",
+      "sha256": "46c5ce4e3d5ee1881999b07abc22ca0f7e744a570796380027bc1be37c8b0bf1",
+      "bytes": 24607
+    },
+    {
+      "path": "cases/week_2018-05-14/scenarios.json",
+      "sha256": "3a42e8addfdc1aad38b4a498231a7961cf4786605a1fde0e8f1e4b09e0a7901f",
+      "bytes": 64650
+    },
+    {
+      "path": "cases/week_2018-05-21/instance.json",
+      "sha256": "641effbd77a1f10ec7fcc05e2b1434722aacfc3ab0a754aa24ca5d12feede9a2",
+      "bytes": 24592
+    },
+    {
+      "path": "cases/week_2018-05-21/scenarios.json",
+      "sha256": "29997e1d1824c5c2bff44c0c92ed8e85d00b05a1e8de0b26ce94cb3a5437f038",
+      "bytes": 63860
+    },
+    {
+      "path": "cases/week_2018-06-04/instance.json",
+      "sha256": "f3348ce74c2bd5bba471b7f01e961c336daa1fe0d7ec2c61763c47a9e6326129",
+      "bytes": 24599
+    },
+    {
+      "path": "cases/week_2018-06-04/scenarios.json",
+      "sha256": "edbe7979fa58d0ea2adf5f517e854fb171860143eba78ca76738c78ba3de49aa",
+      "bytes": 64570
+    },
+    {
+      "path": "cases/week_2018-06-11/instance.json",
+      "sha256": "1b2b7f5cda69700430c69ac850a56d87d82de013ef37b69c87e36aebf40d5680",
+      "bytes": 24600
+    },
+    {
+      "path": "cases/week_2018-06-11/scenarios.json",
+      "sha256": "9775b6e22c6478d2091df1c6e1dc8d679966fae959fc1b6cedc3f0a8c1813d15",
+      "bytes": 64596
+    },
+    {
+      "path": "cases/week_2018-06-18/instance.json",
+      "sha256": "b5483e4b828d641b906c17982a5bc02ef28a0944e046e282e55316536ec19b46",
+      "bytes": 24602
+    },
+    {
+      "path": "cases/week_2018-06-18/scenarios.json",
+      "sha256": "272853408539b9e8eb2093155d614255fee396c4991727d06e6ff5e75e6562d4",
+      "bytes": 64392
+    },
+    {
+      "path": "cases/week_2018-07-02/instance.json",
+      "sha256": "b58c2a74fc01bc6a535cd29f0db2a2381515a036d211b8002b5afad07925305d",
+      "bytes": 24597
+    },
+    {
+      "path": "cases/week_2018-07-02/scenarios.json",
+      "sha256": "92b69161661a063aa4052b977e17cdff71a5f47c98f262bdb4102cf521486aa6",
+      "bytes": 64374
+    },
+    {
+      "path": "cases/week_2018-07-09/instance.json",
+      "sha256": "071f48d0adfe9a0ff78f6b27a0830c758c5970d2427f8c650f64075310762477",
+      "bytes": 24592
+    },
+    {
+      "path": "cases/week_2018-07-09/scenarios.json",
+      "sha256": "9f2da3ced0b0b17d066e66fe3c1c237b8147e367c691d6ea399cdbc0880445b9",
+      "bytes": 64068
+    },
+    {
+      "path": "cases/week_2018-07-16/instance.json",
+      "sha256": "698a1ecf15bf9d30e5f6146f037f58a1fa970b9512a328c00b6db524a52d1f9e",
+      "bytes": 24604
+    },
+    {
+      "path": "cases/week_2018-07-16/scenarios.json",
+      "sha256": "c54f1e22e06ac334c75fdd71af6cf81ca1c6d9b39e05ddb0f79d7c02e9e40f6b",
+      "bytes": 64508
+    },
+    {
+      "path": "cases/week_2018-07-30/instance.json",
+      "sha256": "dd9cb2dc6b5911dc9f145f38df68eed14bbce15107dc17942b2fb9e1df7acfc3",
+      "bytes": 24602
+    },
+    {
+      "path": "cases/week_2018-07-30/scenarios.json",
+      "sha256": "c6c99c2cab29aeaec0c06e67218a393f058100c0d698b11892f2fadf7ffb8825",
+      "bytes": 64856
+    },
+    {
+      "path": "cases/week_2018-08-06/instance.json",
+      "sha256": "c723ed9b3d7849eadec539dca270df1bbd43fb09d5b304ccd04d54d2bfd41eb3",
+      "bytes": 24609
+    },
+    {
+      "path": "cases/week_2018-08-06/scenarios.json",
+      "sha256": "e5ab86481353a6b9e8ad99467d172e2ba684ec9d13b69454c3eadbb20f4aa9d0",
+      "bytes": 65246
+    },
+    {
+      "path": "cases/week_2018-08-13/instance.json",
+      "sha256": "9b1a1da953f63446a2323aa97c1f95e0890db75be223a221fa2a39b490941def",
+      "bytes": 24604
+    },
+    {
+      "path": "cases/week_2018-08-13/scenarios.json",
+      "sha256": "d8aa2355a50d7864e1aa6d6d8492c9c995fdd4f1cbe6e7b5c2a746acc286a3b2",
+      "bytes": 64668
+    }
+  ]
+}

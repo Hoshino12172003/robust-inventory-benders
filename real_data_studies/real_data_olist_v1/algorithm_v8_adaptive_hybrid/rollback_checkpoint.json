@@ -1,0 +1,7 @@
+{
+  "rollback_scope": "algorithm_v8_adaptive_hybrid",
+  "rollback_instruction": "Ignore or remove only this directory to return to the pre-v8 state; no pre-existing experiment file was modified.",
+  "pre_existing_freeze_file_count": 487,
+  "pre_existing_freeze_verification": "passed after v8 development and sealed confirmation",
+  "candidate_source_sha256": "AC98624CC509B6938DDB920FBCE901E1EF4F27DC1A76AA03E714547B81A45E13"
+}

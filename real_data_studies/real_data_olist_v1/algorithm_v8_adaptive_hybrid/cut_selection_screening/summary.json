@@ -1,0 +1,80 @@
+[
+  {
+    "cities": 20,
+    "selection_mode": "l2",
+    "status": "optimal",
+    "runtime": 2.936196899972856,
+    "objective_t": 0.011970369158561775,
+    "iterations": 2,
+    "master_runtime": 2.2301077999873087,
+    "separation_runtime": 0.6503455000929534,
+    "blocked_scenarios": 11,
+    "cuts_added_total": 1,
+    "certified": true
+  },
+  {
+    "cities": 20,
+    "selection_mode": "max",
+    "status": "optimal",
+    "runtime": 2.711931800004095,
+    "objective_t": 0.011970369433503067,
+    "iterations": 2,
+    "master_runtime": 1.9692242000019178,
+    "separation_runtime": 0.681672599981539,
+    "blocked_scenarios": 11,
+    "cuts_added_total": 1,
+    "certified": true
+  },
+  {
+    "cities": 20,
+    "selection_mode": "t",
+    "status": "optimal",
+    "runtime": 2.4484995000530034,
+    "objective_t": 0.011970369158585792,
+    "iterations": 2,
+    "master_runtime": 1.7570092999376357,
+    "separation_runtime": 0.640072200098075,
+    "blocked_scenarios": 11,
+    "cuts_added_total": 1,
+    "certified": true
+  },
+  {
+    "cities": 30,
+    "selection_mode": "l2",
+    "status": "optimal",
+    "runtime": 6.092588200001046,
+    "objective_t": 0.02720027582714805,
+    "iterations": 2,
+    "master_runtime": 5.043460699846037,
+    "separation_runtime": 0.9808994999621063,
+    "blocked_scenarios": 11,
+    "cuts_added_total": 1,
+    "certified": true
+  },
+  {
+    "cities": 30,
+    "selection_mode": "max",
+    "status": "optimal",
+    "runtime": 5.269339699996635,
+    "objective_t": 0.027200275827158255,
+    "iterations": 2,
+    "master_runtime": 4.210638499935158,
+    "separation_runtime": 0.9798456999706104,
+    "blocked_scenarios": 11,
+    "cuts_added_total": 1,
+    "certified": true
+  },
+  {
+    "cities": 30,
+    "selection_mode": "t",
+    "status": "optimal",
+    "runtime": 5.76447139994707,
+    "objective_t": 0.027200276078055904,
+    "iterations": 2,
+    "master_runtime": 4.736033299937844,
+    "separation_runtime": 0.9558591999812052,
+    "blocked_scenarios": 11,
+    "cuts_added_total": 1,
+    "certified": true
+  }
+]

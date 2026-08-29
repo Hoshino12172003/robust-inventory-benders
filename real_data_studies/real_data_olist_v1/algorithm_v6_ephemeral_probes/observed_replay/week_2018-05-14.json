@@ -1,0 +1,251 @@
+{
+  "candidate": "hybrid_v6_ephemeral_probe_cuts",
+  "status": "optimal",
+  "runtime": 80.38587110000663,
+  "objective_t": 0.8893556928776118,
+  "robust_minimum_fill_rate": 0.11064430712238815,
+  "iterations": 3,
+  "master_runtime": 79.37978939991444,
+  "separation_runtime": 0.9459319998277351,
+  "blocked_scenarios": 11,
+  "active_probe_cuts": 0,
+  "cuts_added_total": 10,
+  "cuts_removed_total": 10,
+  "probe_resets": 1,
+  "robust_feasibility_certified": true,
+  "cost_budget": 78377.37330400826,
+  "rho": 0.0001,
+  "policy": {
+    "initial_blocks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "probe_cuts_per_iteration": 10,
+    "promotion_hits": 2,
+    "max_promotions_per_iteration": 4,
+    "reset_all_probe_cuts_after_promotion": true,
+    "no_new_cuts_in_promotion_iteration": true
+  },
+  "solver_parameters": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-07,
+    "MIPGap": 0.0
+  },
+  "y_values": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    1.0
+  ],
+  "x_values": [
+    [
+      0.0,
+      0.0,
+      26.688943686,
+      109.326923,
+      84.75769199999998
+    ],
+    [
+      108.52856350872798,
+      0.0,
+      1.2507605739302186,
+      0.0,
+      0.0
+    ],
+    [
+      15.408141664465798,
+      36.61349757869206,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.14615582412252848,
+      0.0,
+      24.70731297819783,
+      31.803846,
+      14.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      25.811301818181818,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      5.034902612077597,
+      0.0,
+      17.014806690071964,
+      0.0,
+      0.0
+    ],
+    [
+      5.608003102727275,
+      0.0,
+      7.0,
+      8.615385,
+      16.923077
+    ],
+    [
+      16.23638,
+      0.0,
+      1.0000000010279564e-06,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      7.420551388899996,
+      27.0,
+      17.4384614
+    ],
+    [
+      10.0,
+      0.0,
+      14.645028868899992,
+      1.398461800000006,
+      6.5192309999999996
+    ],
+    [
+      15.189941212121214,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      18.747835151515154,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      14.326628,
+      0.0,
+      8.000000022434506e-07,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      11.998300606060607,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      2.067197322020205,
+      37.311056314,
+      0.0,
+      0.0
+    ]
+  ],
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.1391320341678666,
+      "violations": 20,
+      "maximum_violation": 0.6632055848728746,
+      "actions": [
+        "probe_cut:23",
+        "probe_cut:25",
+        "probe_cut:24",
+        "probe_cut:31",
+        "probe_cut:29",
+        "probe_cut:30",
+        "probe_cut:22",
+        "probe_cut:7",
+        "probe_cut:28",
+        "probe_cut:11"
+      ],
+      "blocked_scenarios": 7,
+      "active_probe_cuts": 10,
+      "cuts_removed_total": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.18477177885374815,
+      "violations": 15,
+      "maximum_violation": 0.49623095288085506,
+      "actions": [
+        "block:25",
+        "block:31",
+        "block:24",
+        "block:30",
+        "reset_probe_cuts:10"
+      ],
+      "blocked_scenarios": 11,
+      "active_probe_cuts": 0,
+      "cuts_removed_total": 10
+    },
+    {
+      "iteration": 3,
+      "t": 0.8893556928776118,
+      "violations": 0,
+      "actions": [],
+      "blocked_scenarios": 11,
+      "active_probe_cuts": 0
+    }
+  ]
+}

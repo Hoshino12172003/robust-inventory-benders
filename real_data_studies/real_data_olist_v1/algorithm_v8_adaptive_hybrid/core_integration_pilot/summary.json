@@ -1,0 +1,58 @@
+{
+  "status": "core_integration_pilot_complete",
+  "cases": 3,
+  "v8_certified": 3,
+  "legacy_certified": 3,
+  "v8_wins_vs_legacy": 2,
+  "v8_geometric_speedup_vs_legacy": 1.1287924305004047,
+  "v8_max_direct_abs_error": 2.4424906541753444e-15,
+  "legacy_max_direct_abs_error": 6.5503158452884236e-15,
+  "claim_limit": "development core-integration pilot; not a formal holdout",
+  "rows": [
+    {
+      "seed": 10,
+      "v8_runtime": 0.2154729999601841,
+      "legacy_runtime": 0.2070411000167951,
+      "v8_certified": true,
+      "legacy_certified": true,
+      "v8_direct_abs_error": 0.0,
+      "legacy_direct_abs_error": 0.0,
+      "v8_iterations": 2,
+      "legacy_iterations": 2,
+      "v8_scenario_blocks": 9,
+      "legacy_scenario_blocks": 6,
+      "v8_farkas_cuts": 0,
+      "legacy_farkas_cuts": 1
+    },
+    {
+      "seed": 11,
+      "v8_runtime": 0.2567299000220373,
+      "legacy_runtime": 0.36772610002662987,
+      "v8_certified": true,
+      "legacy_certified": true,
+      "v8_direct_abs_error": 2.4424906541753444e-15,
+      "legacy_direct_abs_error": 6.5503158452884236e-15,
+      "v8_iterations": 2,
+      "legacy_iterations": 3,
+      "v8_scenario_blocks": 9,
+      "legacy_scenario_blocks": 7,
+      "v8_farkas_cuts": 0,
+      "legacy_farkas_cuts": 2
+    },
+    {
+      "seed": 12,
+      "v8_runtime": 0.13238570000976324,
+      "legacy_runtime": 0.13834759988822043,
+      "v8_certified": true,
+      "legacy_certified": true,
+      "v8_direct_abs_error": 0.0,
+      "legacy_direct_abs_error": 1.7763568394002505e-15,
+      "v8_iterations": 2,
+      "legacy_iterations": 2,
+      "v8_scenario_blocks": 6,
+      "legacy_scenario_blocks": 6,
+      "v8_farkas_cuts": 0,
+      "legacy_farkas_cuts": 1
+    }
+  ]
+}

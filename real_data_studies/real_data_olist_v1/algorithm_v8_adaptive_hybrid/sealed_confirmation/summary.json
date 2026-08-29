@@ -1,0 +1,28 @@
+{
+  "status": "sealed_confirmation_complete",
+  "cases": 5,
+  "certification": {
+    "v8": 5,
+    "pure_ccg": 5,
+    "batch4": 5
+  },
+  "v8_vs_pure_ccg": {
+    "jointly_certified": 5,
+    "v8_wins": 5,
+    "v8_losses": 0,
+    "v8_mean_runtime": 16.119747679983266,
+    "other_mean_runtime": 27.917550800018944,
+    "geometric_mean_speedup": 2.006793067029054
+  },
+  "v8_vs_batch4": {
+    "jointly_certified": 5,
+    "v8_wins": 1,
+    "v8_losses": 4,
+    "v8_mean_runtime": 16.119747679983266,
+    "other_mean_runtime": 16.11213559997268,
+    "geometric_mean_speedup": 0.9979396484470523
+  },
+  "v8_cases_with_farkas_cuts": 1,
+  "v8_total_farkas_cuts": 1,
+  "v8_max_direct_objective_abs_error": 3.430345801884102e-07
+}

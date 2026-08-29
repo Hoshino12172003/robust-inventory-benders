@@ -1,0 +1,724 @@
+{
+  "method": "hybrid_factor",
+  "status": "uncertified_infeasible",
+  "runtime": 65.63734269991983,
+  "objective_t": 1.0,
+  "robust_minimum_fill_rate": 0.0,
+  "iterations": 48,
+  "master_runtime": 52.38371229998302,
+  "separation_runtime": 13.17037240008358,
+  "blocked_scenarios": 7,
+  "cuts": 227,
+  "robust_feasibility_certified": false,
+  "cost_budget": 18441.469818297785,
+  "promotion_hits": 999,
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.0,
+      "violations": 25,
+      "maximum_violation": 1.1228865448283833,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24",
+        "cut:28",
+        "cut:37",
+        "cut:11",
+        "cut:29",
+        "cut:23",
+        "cut:10"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 10
+    },
+    {
+      "iteration": 2,
+      "t": 0.0,
+      "violations": 25,
+      "maximum_violation": 2.275168572993435,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30",
+        "cut:29",
+        "cut:23",
+        "cut:28",
+        "cut:11",
+        "cut:27",
+        "cut:22"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 20
+    },
+    {
+      "iteration": 3,
+      "t": 0.0,
+      "violations": 24,
+      "maximum_violation": 0.7986645817985771,
+      "actions": [
+        "cut:24",
+        "cut:31",
+        "cut:35",
+        "cut:37",
+        "cut:33",
+        "cut:25",
+        "cut:30",
+        "cut:14",
+        "cut:28",
+        "cut:23"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 30
+    },
+    {
+      "iteration": 4,
+      "t": 0.0,
+      "violations": 10,
+      "maximum_violation": 0.5357328548177034,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:29",
+        "cut:30",
+        "cut:10",
+        "cut:27",
+        "cut:23",
+        "cut:11",
+        "cut:28"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 40
+    },
+    {
+      "iteration": 5,
+      "t": 0.0,
+      "violations": 6,
+      "maximum_violation": 0.680323683720931,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:24",
+        "cut:30",
+        "cut:23",
+        "cut:29"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 46
+    },
+    {
+      "iteration": 6,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.7952670373999116,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:24",
+        "cut:30",
+        "cut:23",
+        "cut:29",
+        "cut:28"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 53
+    },
+    {
+      "iteration": 7,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.7895467191882339,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30",
+        "cut:23",
+        "cut:29",
+        "cut:28"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 60
+    },
+    {
+      "iteration": 8,
+      "t": 0.0,
+      "violations": 8,
+      "maximum_violation": 0.9649604920092845,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24",
+        "cut:28",
+        "cut:29",
+        "cut:23",
+        "cut:11"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 68
+    },
+    {
+      "iteration": 9,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.7294642691834552,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30",
+        "cut:24",
+        "cut:23",
+        "cut:29",
+        "cut:28"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 75
+    },
+    {
+      "iteration": 10,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.6210872515327699,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 79
+    },
+    {
+      "iteration": 11,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.6034732034023618,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 83
+    },
+    {
+      "iteration": 12,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.8147215716373495,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30",
+        "cut:29",
+        "cut:23",
+        "cut:28"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 90
+    },
+    {
+      "iteration": 13,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.7078410332026497,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24",
+        "cut:29",
+        "cut:23",
+        "cut:28"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 97
+    },
+    {
+      "iteration": 14,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.7300115344322116,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30",
+        "cut:24",
+        "cut:28",
+        "cut:23",
+        "cut:29"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 104
+    },
+    {
+      "iteration": 15,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.3213271706933938,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 108
+    },
+    {
+      "iteration": 16,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.47216029929902437,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 112
+    },
+    {
+      "iteration": 17,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.4684792077229796,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 116
+    },
+    {
+      "iteration": 18,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.42655991456770526,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 120
+    },
+    {
+      "iteration": 19,
+      "t": 0.0,
+      "violations": 3,
+      "maximum_violation": 0.23925162959545698,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 123
+    },
+    {
+      "iteration": 20,
+      "t": 0.0,
+      "violations": 4,
+      "maximum_violation": 0.5645844336970356,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 127
+    },
+    {
+      "iteration": 21,
+      "t": 4.726515734551836e-05,
+      "violations": 3,
+      "maximum_violation": 0.32753869346570585,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 130
+    },
+    {
+      "iteration": 22,
+      "t": 0.00017127579633878027,
+      "violations": 4,
+      "maximum_violation": 0.32038327701041336,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 134
+    },
+    {
+      "iteration": 23,
+      "t": 0.00030622042942511207,
+      "violations": 3,
+      "maximum_violation": 0.28107298016909965,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 137
+    },
+    {
+      "iteration": 24,
+      "t": 0.00043949674848631584,
+      "violations": 4,
+      "maximum_violation": 0.27961250937698257,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 141
+    },
+    {
+      "iteration": 25,
+      "t": 0.0006382950008140684,
+      "violations": 3,
+      "maximum_violation": 0.2611282174548979,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 144
+    },
+    {
+      "iteration": 26,
+      "t": 0.0007595411726665571,
+      "violations": 4,
+      "maximum_violation": 0.3142430668755898,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 148
+    },
+    {
+      "iteration": 27,
+      "t": 0.0009218338388565359,
+      "violations": 3,
+      "maximum_violation": 0.28835868064076653,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 151
+    },
+    {
+      "iteration": 28,
+      "t": 0.00098161817787811,
+      "violations": 3,
+      "maximum_violation": 0.22326638967333867,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 154
+    },
+    {
+      "iteration": 29,
+      "t": 0.001076428762437455,
+      "violations": 4,
+      "maximum_violation": 0.3153697255828476,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 158
+    },
+    {
+      "iteration": 30,
+      "t": 0.0011352976878302432,
+      "violations": 4,
+      "maximum_violation": 0.25559812309067276,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 162
+    },
+    {
+      "iteration": 31,
+      "t": 0.0011643692284026626,
+      "violations": 3,
+      "maximum_violation": 0.2341863552661092,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 165
+    },
+    {
+      "iteration": 32,
+      "t": 0.0011829891867251776,
+      "violations": 4,
+      "maximum_violation": 0.2443835141308206,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 169
+    },
+    {
+      "iteration": 33,
+      "t": 0.0012121049650876642,
+      "violations": 3,
+      "maximum_violation": 0.23631825175220733,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 172
+    },
+    {
+      "iteration": 34,
+      "t": 0.0012409559414403879,
+      "violations": 4,
+      "maximum_violation": 0.2719784590306684,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 176
+    },
+    {
+      "iteration": 35,
+      "t": 0.0012559781725298138,
+      "violations": 4,
+      "maximum_violation": 0.27647921563972666,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 180
+    },
+    {
+      "iteration": 36,
+      "t": 0.0013224606989460039,
+      "violations": 4,
+      "maximum_violation": 0.2148305533233481,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 184
+    },
+    {
+      "iteration": 37,
+      "t": 0.0013669009723432841,
+      "violations": 4,
+      "maximum_violation": 0.2249104654029388,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 188
+    },
+    {
+      "iteration": 38,
+      "t": 0.0014210181898374455,
+      "violations": 3,
+      "maximum_violation": 0.2584218812201753,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 191
+    },
+    {
+      "iteration": 39,
+      "t": 0.001440519310695754,
+      "violations": 3,
+      "maximum_violation": 0.19662333694122047,
+      "actions": [
+        "cut:25",
+        "cut:31",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 194
+    },
+    {
+      "iteration": 40,
+      "t": 0.001477885561853564,
+      "violations": 4,
+      "maximum_violation": 0.20415585228571942,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 198
+    },
+    {
+      "iteration": 41,
+      "t": 0.0015253147029123532,
+      "violations": 4,
+      "maximum_violation": 0.2476285714746016,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 202
+    },
+    {
+      "iteration": 42,
+      "t": 0.0015321012769360502,
+      "violations": 4,
+      "maximum_violation": 0.3078519324777451,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 206
+    },
+    {
+      "iteration": 43,
+      "t": 0.0015706227176724892,
+      "violations": 3,
+      "maximum_violation": 0.1762816798663458,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 209
+    },
+    {
+      "iteration": 44,
+      "t": 0.001629382212922382,
+      "violations": 3,
+      "maximum_violation": 0.17778321083027837,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 212
+    },
+    {
+      "iteration": 45,
+      "t": 0.001656700990568568,
+      "violations": 4,
+      "maximum_violation": 0.18182959041658453,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 216
+    },
+    {
+      "iteration": 46,
+      "t": 0.0016933199251267226,
+      "violations": 4,
+      "maximum_violation": 0.24926972361293664,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24",
+        "cut:30"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 220
+    },
+    {
+      "iteration": 47,
+      "t": 0.0017055544528203244,
+      "violations": 4,
+      "maximum_violation": 0.18354188103693847,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 224
+    },
+    {
+      "iteration": 48,
+      "t": 0.001703789311238744,
+      "violations": 3,
+      "maximum_violation": 0.1582318813748511,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:24"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 227
+    }
+  ]
+}

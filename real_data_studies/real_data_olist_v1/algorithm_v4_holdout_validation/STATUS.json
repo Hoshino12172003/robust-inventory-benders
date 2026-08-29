@@ -1,0 +1,18 @@
+{
+  "status": "completed_does_not_validate_universal_runtime_superiority",
+  "cases": 12,
+  "hybrid_certified": 12,
+  "pure_ccg_certified": 11,
+  "direct_optimal": 12,
+  "jointly_certified_cases": 11,
+  "hybrid_runtime_wins_in_jointly_certified_cases": 1,
+  "hybrid_mean_runtime_jointly_certified": 88.02023549999153,
+  "pure_ccg_mean_runtime_jointly_certified": 55.893780727278106,
+  "hybrid_mean_runtime_all_cases": 81.08734444165991,
+  "pure_ccg_par2_mean_with_900_second_limit": 201.2359656666716,
+  "max_hybrid_objective_error_against_direct": 1.2211522071314818e-10,
+  "max_pure_objective_error_against_direct_when_certified": 4.813373033485391e-09,
+  "interpretation": "Hybrid v4 improved certification robustness but was slower on 10 of 11 jointly certified holdout cases. PAR-2 favors Hybrid only because pure CCG reproducibly failed certification on one case.",
+  "paper_results_modified": false,
+  "old_experiments_modified": false
+}

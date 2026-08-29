@@ -1,0 +1,36 @@
+{
+  "status": "frozen_before_confirmation_runs",
+  "candidate": "hybrid_v8_batch4_adaptive_normalized_max_efficacy_farkas_cut",
+  "candidate_source": "run_hybrid_v8.py",
+  "candidate_source_sha256": "AC98624CC509B6938DDB920FBCE901E1EF4F27DC1A76AA03E714547B81A45E13",
+  "frozen_parameters": {
+    "initial_blocks": [0, 1, 2, 3, 4, 5, 6],
+    "maximum_complete_scenario_blocks_per_iteration": 4,
+    "cut_scaling": "maximum_absolute_coefficient",
+    "cut_selection": "maximum_normalized_efficacy among non-promoted violating scenarios",
+    "minimum_normalized_cut_efficacy": 0.1,
+    "maximum_farkas_cuts_per_iteration": 1,
+    "rho": 0.0001,
+    "threads": 1,
+    "solver_seed": 0,
+    "mip_gap": 0.0
+  },
+  "confirmation_cases": {
+    "source_split": "test",
+    "unused_test_week_indices": [0, 4, 8, 12, 16],
+    "selection_rule": "complement of the twelve indices frozen for prior validation among the seventeen sorted test weeks"
+  },
+  "methods": ["hybrid_v8", "pure_single_scenario_ccg", "batch4_ccg"],
+  "run_order": "rotated by case position",
+  "primary_comparison": "hybrid_v8 versus pure_single_scenario_ccg",
+  "strong_ablation": "hybrid_v8 versus batch4_ccg",
+  "outcomes": [
+    "robust certification rate",
+    "paired runtime among jointly certified cases",
+    "objective agreement with the complete Direct model",
+    "iterations",
+    "complete scenario blocks",
+    "Farkas cuts"
+  ],
+  "decision_rule": "Report every case regardless of direction; do not modify v8 after observing confirmation outcomes."
+}

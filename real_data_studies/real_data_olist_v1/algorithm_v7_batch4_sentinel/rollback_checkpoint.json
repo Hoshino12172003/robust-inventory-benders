@@ -1,0 +1,7 @@
+{
+  "checkpoint": "before_hybrid_v7_batch4_sentinel",
+  "parent": "algorithm_v5_cut_cleanup",
+  "rollback_action": "ignore or remove algorithm_v7_batch4_sentinel",
+  "policy": "promote four most violated scenarios after first separation and add at most one remaining Farkas sentinel cut",
+  "paper_results_modified": false
+}

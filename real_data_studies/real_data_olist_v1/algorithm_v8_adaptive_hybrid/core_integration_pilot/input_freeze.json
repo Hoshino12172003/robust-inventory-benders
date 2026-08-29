@@ -1,0 +1,40 @@
+{
+  "status": "inputs_frozen_before_optimization",
+  "config_sha256": "2ca571c9d078fb5a65f935603a9d07924c1f3c22bc4bf36c3c0851a505a2c7fd",
+  "protocol_sha256": "6c1f79b91b990bb26d8e0e8db4b126e96fc35d28ee8b722e343fa205067de40b",
+  "runner_sha256": "3f778dd3355abdea143947fa6d69d5a0ee0fae38e29bc41d882c3e7334adca88",
+  "core_source_sha256": "7c4b118e15eafc9e45a17fb1dcae1dc2b390d6c6fbc4fba24379440c3cb4be70",
+  "file_count": 6,
+  "files": [
+    {
+      "path": "cases/seed_10/instance.json",
+      "sha256": "b9061a977c69165d0cd0c8eaf6d918c9cc8f1e4c5a2b5e116c43498bd32f1a7d",
+      "bytes": 2183
+    },
+    {
+      "path": "cases/seed_10/scenarios.json",
+      "sha256": "af66de5cc69790bb9fef30ccf9c44957ca315f0d283da80eeca531f80276752e",
+      "bytes": 33572
+    },
+    {
+      "path": "cases/seed_11/instance.json",
+      "sha256": "654e4458409d43efc5444eea1b6e1d8855ef755a772c4b0ac134ae58869327ab",
+      "bytes": 2186
+    },
+    {
+      "path": "cases/seed_11/scenarios.json",
+      "sha256": "acc0e4ebfedc82be481f728ff84d8dfd8f96c98ef7fd639923711dd910ec3855",
+      "bytes": 33860
+    },
+    {
+      "path": "cases/seed_12/instance.json",
+      "sha256": "597fe0ac47b0d3bf7268010392cfc15754c8123bc7a27953119ad5c88f71ea10",
+      "bytes": 2179
+    },
+    {
+      "path": "cases/seed_12/scenarios.json",
+      "sha256": "feb302c7e19037f9678025db0e2db4d42ed90f04d44e6161707d9d873adf7ff6",
+      "bytes": 34004
+    }
+  ]
+}

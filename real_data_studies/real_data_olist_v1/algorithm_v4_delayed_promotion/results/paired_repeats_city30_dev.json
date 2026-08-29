@@ -1,0 +1,109 @@
+{
+  "purpose": "runtime stability audit on the 30-city instance",
+  "policy": "frozen v4 p4 versus unchanged pure CCG implementation",
+  "test_split_used": false,
+  "trials": [
+    {
+      "repeat": 1,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "v4",
+      "status": "optimal",
+      "runtime": 12.801062199985608,
+      "objective_t": 0.027200275729919482,
+      "iterations": 3,
+      "master_runtime": 10.108965099905618,
+      "separation_runtime": 2.551293500000611,
+      "blocked_scenarios": 11,
+      "cuts": 20,
+      "certified": true
+    },
+    {
+      "repeat": 1,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 14.181552099995315,
+      "objective_t": 0.027200275826962127,
+      "iterations": 5,
+      "master_runtime": 10.105186900123954,
+      "separation_runtime": 3.888727000099607,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "certified": true
+    },
+    {
+      "repeat": 2,
+      "order": [
+        "pure_ccg",
+        "v4"
+      ],
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 12.929322600015439,
+      "objective_t": 0.027200275826962127,
+      "iterations": 5,
+      "master_runtime": 9.572011400130577,
+      "separation_runtime": 3.226119800005108,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "certified": true
+    },
+    {
+      "repeat": 2,
+      "order": [
+        "pure_ccg",
+        "v4"
+      ],
+      "method": "v4",
+      "status": "optimal",
+      "runtime": 11.382718100096099,
+      "objective_t": 0.027200275729919482,
+      "iterations": 3,
+      "master_runtime": 8.916341800009832,
+      "separation_runtime": 2.353774599963799,
+      "blocked_scenarios": 11,
+      "cuts": 20,
+      "certified": true
+    },
+    {
+      "repeat": 3,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "v4",
+      "status": "optimal",
+      "runtime": 12.022000400000252,
+      "objective_t": 0.027200275729919482,
+      "iterations": 3,
+      "master_runtime": 9.524056400055997,
+      "separation_runtime": 2.359022800112143,
+      "blocked_scenarios": 11,
+      "cuts": 20,
+      "certified": true
+    },
+    {
+      "repeat": 3,
+      "order": [
+        "v4",
+        "pure_ccg"
+      ],
+      "method": "pure_ccg",
+      "status": "optimal",
+      "runtime": 14.293275600066409,
+      "objective_t": 0.027200275826962127,
+      "iterations": 5,
+      "master_runtime": 10.358025399851613,
+      "separation_runtime": 3.7662748001748696,
+      "blocked_scenarios": 11,
+      "cuts": 0,
+      "certified": true
+    }
+  ]
+}

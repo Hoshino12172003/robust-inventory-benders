@@ -1,0 +1,27 @@
+{
+  "experiment_name": "hybrid_v8_portable_finite_scenario_pilot",
+  "stage": "development_portability_pilot",
+  "authorization": "authorized_after_protocol_commit_only",
+  "seeds": [0, 1, 2],
+  "instance": {
+    "num_warehouses": 3,
+    "num_products": 3,
+    "num_regions": 4,
+    "budget_factor": 0.58,
+    "demand_scale": 1.0,
+    "capacity_factor": 1.18,
+    "cost_scale": 1.0
+  },
+  "gamma": 2,
+  "expected_scenario_count": 79,
+  "rho": 0.0001,
+  "methods": ["hybrid_v8", "pure_ccg", "batch4_ccg", "direct"],
+  "solver": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-7,
+    "MIPGap": 0.0
+  },
+  "objective_abs_tolerance": 1e-6,
+  "output_dir": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/portable_pilot"
+}

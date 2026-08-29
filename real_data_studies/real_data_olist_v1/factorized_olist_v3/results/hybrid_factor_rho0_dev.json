@@ -1,0 +1,62 @@
+{
+  "method": "hybrid_factor",
+  "status": "optimal",
+  "runtime": 6.374089899938554,
+  "objective_t": 0.15718563564701882,
+  "robust_minimum_fill_rate": 0.8428143643529812,
+  "iterations": 3,
+  "master_runtime": 5.2011554999044165,
+  "separation_runtime": 1.061015600222163,
+  "blocked_scenarios": 15,
+  "cuts": 12,
+  "robust_feasibility_certified": true,
+  "cost_budget": 18439.625855712213,
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.0,
+      "violations": 26,
+      "maximum_violation": 1.1010192572161628,
+      "actions": [
+        "cut:31",
+        "cut:25",
+        "cut:30",
+        "cut:24",
+        "cut:28",
+        "cut:29",
+        "cut:11",
+        "cut:37",
+        "cut:23",
+        "cut:10"
+      ],
+      "blocked_scenarios": 7,
+      "cuts": 10
+    },
+    {
+      "iteration": 2,
+      "t": 0.0,
+      "violations": 25,
+      "maximum_violation": 2.250232390717967,
+      "actions": [
+        "block:31",
+        "block:25",
+        "block:24",
+        "block:30",
+        "block:29",
+        "block:23",
+        "block:28",
+        "block:11",
+        "cut:27",
+        "cut:22"
+      ],
+      "blocked_scenarios": 15,
+      "cuts": 12
+    },
+    {
+      "iteration": 3,
+      "t": 0.15718563564701882,
+      "violations": 0,
+      "actions": []
+    }
+  ]
+}

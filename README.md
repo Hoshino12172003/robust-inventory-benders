@@ -178,3 +178,13 @@ The plotting script uses `matplotlib` when available and exits gracefully if it 
 - `src/policies.py`: master `MIPGap` policy interface.
 - `src/experiment.py`: legacy lightweight experiment runner.
 - `src/experiment_suite.py`: reproducible paper experiment suite.
+
+## Hybrid v8 real-data confirmation
+
+The frozen Olist-derived Hybrid v8 implementation, prepared inputs, raw outputs,
+hash manifests, and exact rerun commands are available under
+`real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/`.
+Start with its `REPRODUCE.md` and run `verify_reproducibility.py` before any
+optimization. The archived evidence supports comparison with standard
+single-scenario CCG; it does not claim that the Farkas-cut component is faster
+than the Batch-4 ablation.

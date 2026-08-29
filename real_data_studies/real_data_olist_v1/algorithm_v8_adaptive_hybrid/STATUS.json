@@ -1,0 +1,32 @@
+{
+  "status": "candidate_frozen_sealed_confirmation_complete",
+  "candidate": "hybrid_v8_batch4_adaptive_normalized_max_efficacy_farkas_cut",
+  "candidate_source_sha256": "AC98624CC509B6938DDB920FBCE901E1EF4F27DC1A76AA03E714547B81A45E13",
+  "development_comparison": {
+    "cases": 12,
+    "v8_certified": 12,
+    "pure_ccg_certified": 11,
+    "jointly_certified": 11,
+    "v8_wins": 11,
+    "v8_losses": 0,
+    "runtime_reduction_percent": 34.5319711974116,
+    "geometric_mean_speedup": 1.6821771157944336
+  },
+  "sealed_confirmation": {
+    "cases": 5,
+    "v8_certified": 5,
+    "pure_ccg_certified": 5,
+    "batch4_certified": 5,
+    "v8_vs_pure_wins": 5,
+    "v8_vs_pure_losses": 0,
+    "v8_vs_pure_geometric_mean_speedup": 2.006793067029054,
+    "v8_vs_batch4_wins": 1,
+    "v8_vs_batch4_losses": 4,
+    "v8_vs_batch4_geometric_mean_speedup": 0.9979396484470523,
+    "v8_cases_with_farkas_cuts": 1
+  },
+  "supported_claim": "Hybrid v8 is faster than standard single-scenario pure CCG on all five sealed confirmation cases while preserving certification and Direct objective agreement.",
+  "unsupported_claim": "The Farkas-cut component or Hybrid v8 is faster than Batch-4 CCG.",
+  "old_experiment_freeze": "verified_487_files_unchanged",
+  "paper_results_modified": false
+}

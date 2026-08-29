@@ -1,0 +1,247 @@
+{
+  "candidate": "hybrid_v8_screen_b3_c1",
+  "status": "optimal",
+  "runtime": 4.462179100024514,
+  "objective_t": 0.011970369299026304,
+  "robust_minimum_fill_rate": 0.9880296307009737,
+  "iterations": 3,
+  "master_runtime": 3.4373896000906825,
+  "separation_runtime": 0.9048235000809655,
+  "blocked_scenarios": 13,
+  "active_cuts": 1,
+  "cuts_added_total": 2,
+  "cuts_removed_total": 1,
+  "robust_feasibility_certified": true,
+  "cost_budget": 18441.469818297785,
+  "rho": 0.0001,
+  "policy": {
+    "initial_blocks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "max_cuts_per_iteration": 1,
+    "promotion_hits": 1,
+    "max_promotions_per_iteration": 3,
+    "remove_promoted_scenario_cuts": true
+  },
+  "solver_parameters": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-07,
+    "MIPGap": 0.0
+  },
+  "y_values": [
+    1.0,
+    -0.0,
+    1.0,
+    1.0,
+    -0.0,
+    -0.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "x_values": [
+    [
+      0.0,
+      43.12657454545454,
+      30.480769,
+      51.75,
+      43.45
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      42.86826484848485,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.10224181818181828,
+      18.45,
+      8.903846,
+      17.9,
+      15.7
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      9.744557655757575,
+      9.8,
+      10.0,
+      4.4807690000000004,
+      9.8
+    ],
+    [
+      24.599871698899683,
+      7.320851036072778,
+      8.522097539675467,
+      0.0,
+      0.0
+    ],
+    [
+      12.236034916666668,
+      4.1478290000000015,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      3.1194281028121593,
+      8.352225963927221,
+      4.596154,
+      8.0,
+      11.0
+    ],
+    [
+      16.23638,
+      0.0,
+      1.0000000010279564e-06,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      15.281276036999996,
+      17.0,
+      13.788462
+    ],
+    [
+      7.9,
+      8.0,
+      5.310478000000005,
+      7.0,
+      6.0
+    ],
+    [
+      15.189941212121214,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      8.258703636363634,
+      0.0,
+      17.307067000000004,
+      0.0,
+      0.0
+    ],
+    [
+      2.3484848382491746e-07,
+      19.102171,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      4.836746140606061,
+      3.25,
+      5.45,
+      7.730769,
+      3.45
+    ],
+    [
+      7.668515027578733,
+      0.0,
+      7.14414620449509,
+      0.0,
+      0.0
+    ],
+    [
+      10.482148759216077,
+      0.0,
+      8.846997547293473,
+      0.0,
+      0.0
+    ],
+    [
+      7.683090303030302,
+      21.973425454545456,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.0,
+      "violations": 25,
+      "maximum_violation": 1.1228865448283833,
+      "actions": [
+        "block:31;remove_cuts:0",
+        "block:25;remove_cuts:0",
+        "block:30;remove_cuts:0",
+        "cut:24"
+      ],
+      "blocked_scenarios": 10,
+      "active_cuts": 1,
+      "cuts_removed_total": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.0,
+      "violations": 7,
+      "maximum_violation": 0.3122660753334823,
+      "actions": [
+        "block:24;remove_cuts:1",
+        "block:35;remove_cuts:0",
+        "block:37;remove_cuts:0",
+        "cut:33"
+      ],
+      "blocked_scenarios": 13,
+      "active_cuts": 1,
+      "cuts_removed_total": 1
+    },
+    {
+      "iteration": 3,
+      "t": 0.011970369299026304,
+      "violations": 0,
+      "actions": [],
+      "blocked_scenarios": 13,
+      "active_cuts": 1
+    }
+  ],
+  "screening_policy": {
+    "scenario_blocks_per_iteration": 3,
+    "farkas_cuts_per_iteration": 1,
+    "promotion_hits": 1
+  }
+}

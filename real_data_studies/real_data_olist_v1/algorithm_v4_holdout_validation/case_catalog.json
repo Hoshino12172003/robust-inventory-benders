@@ -1,0 +1,134 @@
+[
+  {
+    "case_id": "week_2018-05-07",
+    "week_start": "2018-05-07",
+    "test_week_index": 1,
+    "run_order": [
+      "hybrid_v4",
+      "pure_ccg"
+    ],
+    "observed_total_demand": 749.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-05-14",
+    "week_start": "2018-05-14",
+    "test_week_index": 2,
+    "run_order": [
+      "pure_ccg",
+      "hybrid_v4"
+    ],
+    "observed_total_demand": 733.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-05-21",
+    "week_start": "2018-05-21",
+    "test_week_index": 3,
+    "run_order": [
+      "hybrid_v4",
+      "pure_ccg"
+    ],
+    "observed_total_demand": 384.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-06-04",
+    "week_start": "2018-06-04",
+    "test_week_index": 5,
+    "run_order": [
+      "pure_ccg",
+      "hybrid_v4"
+    ],
+    "observed_total_demand": 556.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-06-11",
+    "week_start": "2018-06-11",
+    "test_week_index": 6,
+    "run_order": [
+      "hybrid_v4",
+      "pure_ccg"
+    ],
+    "observed_total_demand": 604.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-06-18",
+    "week_start": "2018-06-18",
+    "test_week_index": 7,
+    "run_order": [
+      "pure_ccg",
+      "hybrid_v4"
+    ],
+    "observed_total_demand": 623.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-07-02",
+    "week_start": "2018-07-02",
+    "test_week_index": 9,
+    "run_order": [
+      "hybrid_v4",
+      "pure_ccg"
+    ],
+    "observed_total_demand": 514.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-07-09",
+    "week_start": "2018-07-09",
+    "test_week_index": 10,
+    "run_order": [
+      "pure_ccg",
+      "hybrid_v4"
+    ],
+    "observed_total_demand": 308.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-07-16",
+    "week_start": "2018-07-16",
+    "test_week_index": 11,
+    "run_order": [
+      "hybrid_v4",
+      "pure_ccg"
+    ],
+    "observed_total_demand": 614.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-07-30",
+    "week_start": "2018-07-30",
+    "test_week_index": 13,
+    "run_order": [
+      "pure_ccg",
+      "hybrid_v4"
+    ],
+    "observed_total_demand": 762.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-08-06",
+    "week_start": "2018-08-06",
+    "test_week_index": 14,
+    "run_order": [
+      "hybrid_v4",
+      "pure_ccg"
+    ],
+    "observed_total_demand": 769.0,
+    "scenario_count": 42
+  },
+  {
+    "case_id": "week_2018-08-13",
+    "week_start": "2018-08-13",
+    "test_week_index": 15,
+    "run_order": [
+      "pure_ccg",
+      "hybrid_v4"
+    ],
+    "observed_total_demand": 748.0,
+    "scenario_count": 42
+  }
+]
