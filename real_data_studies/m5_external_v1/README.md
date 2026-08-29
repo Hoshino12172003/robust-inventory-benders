@@ -20,7 +20,7 @@ merged.  After that merge, create a new repository-external output directory
 with:
 
 ```text
-python real_data_studies/m5_external_v1/prepare_m5_inputs.py RAW_DIRECTORY OUTPUT_DIRECTORY
+python -m real_data_studies.m5_external_v1.prepare_m5_inputs RAW_DIRECTORY OUTPUT_DIRECTORY
 ```
 
 The processor first checks the raw hashes, then writes factor membership,
