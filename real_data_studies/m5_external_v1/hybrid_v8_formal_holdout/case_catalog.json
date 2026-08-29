@@ -1,0 +1,110 @@
+[
+  {
+    "case_id": "m5_week_01_d1858_d1864",
+    "case_index": 0,
+    "first_day": 1858,
+    "last_day": 1864,
+    "first_date": "2016-02-29",
+    "last_date": "2016-03-06",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_02_d1865_d1871",
+    "case_index": 1,
+    "first_day": 1865,
+    "last_day": 1871,
+    "first_date": "2016-03-07",
+    "last_date": "2016-03-13",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_03_d1872_d1878",
+    "case_index": 2,
+    "first_day": 1872,
+    "last_day": 1878,
+    "first_date": "2016-03-14",
+    "last_date": "2016-03-20",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_04_d1879_d1885",
+    "case_index": 3,
+    "first_day": 1879,
+    "last_day": 1885,
+    "first_date": "2016-03-21",
+    "last_date": "2016-03-27",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_05_d1886_d1892",
+    "case_index": 4,
+    "first_day": 1886,
+    "last_day": 1892,
+    "first_date": "2016-03-28",
+    "last_date": "2016-04-03",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_06_d1893_d1899",
+    "case_index": 5,
+    "first_day": 1893,
+    "last_day": 1899,
+    "first_date": "2016-04-04",
+    "last_date": "2016-04-10",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_07_d1900_d1906",
+    "case_index": 6,
+    "first_day": 1900,
+    "last_day": 1906,
+    "first_date": "2016-04-11",
+    "last_date": "2016-04-17",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_08_d1907_d1913",
+    "case_index": 7,
+    "first_day": 1907,
+    "last_day": 1913,
+    "first_date": "2016-04-18",
+    "last_date": "2016-04-24",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_09_d1914_d1920",
+    "case_index": 8,
+    "first_day": 1914,
+    "last_day": 1920,
+    "first_date": "2016-04-25",
+    "last_date": "2016-05-01",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_10_d1921_d1927",
+    "case_index": 9,
+    "first_day": 1921,
+    "last_day": 1927,
+    "first_date": "2016-05-02",
+    "last_date": "2016-05-08",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_11_d1928_d1934",
+    "case_index": 10,
+    "first_day": 1928,
+    "last_day": 1934,
+    "first_date": "2016-05-09",
+    "last_date": "2016-05-15",
+    "scenario_count": 22
+  },
+  {
+    "case_id": "m5_week_12_d1935_d1941",
+    "case_index": 11,
+    "first_day": 1935,
+    "last_day": 1941,
+    "first_date": "2016-05-16",
+    "last_date": "2016-05-22",
+    "scenario_count": 22
+  }
+]

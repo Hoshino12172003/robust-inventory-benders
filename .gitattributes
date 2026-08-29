@@ -1,1 +1,3 @@
 * text=auto eol=lf
+real_data_studies/m5_external_v1/hybrid_v8_formal_holdout/calibration_factor_scores.csv -text
+real_data_studies/m5_external_v1/hybrid_v8_formal_holdout/factor_membership.csv -text
