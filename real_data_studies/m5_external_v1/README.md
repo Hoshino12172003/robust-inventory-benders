@@ -27,3 +27,15 @@ The processor first checks the raw hashes, then writes factor membership,
 calibration diagnostics, 12 weekly cases, 22 scenarios per case, and an input
 freeze manifest.  Optimization is a later gated step and must consume those
 frozen inputs without rewriting them.
+
+After the processed-input PR and the formal-runner PR have both merged, verify
+the sealed execution plan without solving:
+
+```text
+python -m real_data_studies.m5_external_v1.run_formal_holdout --stage verify
+```
+
+The `run` stage is the only command authorized to create formal optimization
+results.  It verifies every frozen input hash before solving and stores one
+raw file per method and case so an interrupted run can resume without rerunning
+completed methods.
