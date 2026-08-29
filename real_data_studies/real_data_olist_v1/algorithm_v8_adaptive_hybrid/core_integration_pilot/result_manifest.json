@@ -1,0 +1,27 @@
+{
+  "schema": "hybrid_v8_core_integration_result_manifest_v1",
+  "protocol_commit": "bf9b34f",
+  "status": "results_archived_after_preregistered_run",
+  "files": [
+    {
+      "path": "results/seed_10.json",
+      "sha256": "27f1efcddca0367256397d804274ed07fa582864ca00569fa3418ebed5752dcf",
+      "bytes": 14688
+    },
+    {
+      "path": "results/seed_11.json",
+      "sha256": "1ad8c5e8c73152793549c3188c713002038a64cb5c166a57debe164ffad01d82",
+      "bytes": 15795
+    },
+    {
+      "path": "results/seed_12.json",
+      "sha256": "6646e4c616eb9fbacc331f392666a091ecec92df3ba152a5c007b1bd03746d0e",
+      "bytes": 14284
+    },
+    {
+      "path": "summary.json",
+      "sha256": "d84f8fdab74c8fc5844b9fac3fc45a350cf5336f87f13bf7ac5ac216da4bc4ae",
+      "bytes": 1789
+    }
+  ]
+}

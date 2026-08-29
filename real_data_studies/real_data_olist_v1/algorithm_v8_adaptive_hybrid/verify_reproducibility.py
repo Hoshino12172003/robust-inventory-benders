@@ -46,10 +46,18 @@ def main() -> None:
     pilot_result_count = verify_manifest(
         pilot_root / "result_manifest.json", root=pilot_root
     )
+    core_root = HERE / "core_integration_pilot"
+    core_input_count = verify_manifest(
+        core_root / "input_freeze.json", root=core_root
+    )
+    core_result_count = verify_manifest(
+        core_root / "result_manifest.json", root=core_root
+    )
     print(
         f"Verification passed: candidate source, {input_count} sealed inputs, "
         f"{artifact_count} archived artifacts, {pilot_input_count} pilot inputs, "
-        f"and {pilot_result_count} pilot outputs."
+        f"{pilot_result_count} pilot outputs, {core_input_count} core-pilot inputs, "
+        f"and {core_result_count} core-pilot outputs."
     )
 
 
