@@ -1,0 +1,52 @@
+{
+  "schema": "m5_formal_holdout_environment_v1",
+  "git_commit": "ba5cd7be98cb77082062f36d68a02a4472d74e4d",
+  "python": "3.12.7 (tags/v3.12.7:0b05ead, Oct  1 2024, 03:06:41) [MSC v.1941 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "gurobi_version": [
+    13,
+    0,
+    1
+  ],
+  "config_sha256": "f250707a6ce4a57098cb9a18a2b0004864528f724aee303555a24e7ae5f28833",
+  "input_freeze_sha256": "5ac4f6f70ebc409a50dcfb16ed6d7bddf9c0a309683c4406d3ffaa8840f1c3af",
+  "runner_sha256": "41fd1e132c27946c4e6569e23c0249ad56c8a48164d1b673d330b9b03d9e920a",
+  "hybrid_v8_sha256": "ac98624cc509b6938ddb920fbce901e1ef4f27dc1a76aa03e714547b81a45e13",
+  "pure_ccg_sha256": "8865f9489be36c4ec78b36a8e564350c266b48f05392acfd1200e7c9026aa466",
+  "batch4_sha256": "638fa90bcdffa00fc4fa0cec696f79ec47addc3620b7edc5826b2f2030e27c85",
+  "solver_controls": {
+    "backend": "Gurobi",
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-07,
+    "final_MIPGap": 0.0,
+    "time_limit_seconds": 1800.0,
+    "PAR2_penalty_seconds": 3600.0
+  },
+  "method_orders": [
+    [
+      "hybrid_v8",
+      "pure_ccg",
+      "batch4_ccg",
+      "direct"
+    ],
+    [
+      "pure_ccg",
+      "batch4_ccg",
+      "direct",
+      "hybrid_v8"
+    ],
+    [
+      "batch4_ccg",
+      "direct",
+      "hybrid_v8",
+      "pure_ccg"
+    ],
+    [
+      "direct",
+      "hybrid_v8",
+      "pure_ccg",
+      "batch4_ccg"
+    ]
+  ]
+}
