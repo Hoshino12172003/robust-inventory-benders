@@ -1,0 +1,13 @@
+{
+  "case_id": "m5_week_03_d1872_d1878",
+  "case_index": 2,
+  "method_order": [
+    "batch4_ccg",
+    "direct",
+    "hybrid_v8",
+    "pure_ccg"
+  ],
+  "scenario_count": 22,
+  "input_instance_sha256": "6f90a8bb476592d8d068fbde94f453bdfe252e0e15f1483ae28fcf9e16979e63",
+  "input_scenarios_sha256": "f417fe017e141092f475ef60907a0041aacf1d7f0bb6d3981a25d61a134aec67"
+}

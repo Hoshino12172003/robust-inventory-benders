@@ -1,0 +1,9 @@
+{
+  "method": "direct_finite_scenarios",
+  "status": "optimal",
+  "runtime": 8.850352699984796,
+  "objective_t": 0.992514978635702,
+  "objective_bound": 0.992514978635702,
+  "gap": 0.0,
+  "scenario_count": 22
+}

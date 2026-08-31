@@ -1,0 +1,169 @@
+{
+  "candidate": "hybrid_v8_batch4_normalized_max_cut",
+  "status": "optimal",
+  "runtime": 3.953790899948217,
+  "objective_t": 0.9924043514611612,
+  "robust_minimum_fill_rate": 0.007595648538838762,
+  "iterations": 2,
+  "master_runtime": 3.6525355998892337,
+  "separation_runtime": 0.25171879993285984,
+  "blocked_scenarios": 11,
+  "active_cuts": 0,
+  "cuts_added_total": 0,
+  "cuts_removed_total": 0,
+  "robust_feasibility_certified": true,
+  "cost_budget": 13212274.224701377,
+  "rho": 0.0001,
+  "policy": {
+    "initial_blocks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "max_blocks_per_iteration": 4,
+    "cut_selection": "maximum_max_normalized_efficacy",
+    "normalized_farkas_cuts_per_iteration": 1,
+    "minimum_normalized_cut_efficacy": 0.1,
+    "remove_promoted_scenario_cuts": true
+  },
+  "solver_parameters": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-07,
+    "MIPGap": 0.0
+  },
+  "y_values": [
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.0
+  ],
+  "x_values": [
+    [
+      773.1615444232884,
+      720.9600000000016,
+      5389.438337251708,
+      1868.4080644569567,
+      229.0,
+      2824.0,
+      887.4464555766848
+    ],
+    [
+      3845.7450000000003,
+      4072.96,
+      15067.631115000251,
+      1860.1949999999997,
+      693.9,
+      8334.765000000001,
+      1972.62
+    ],
+    [
+      0.0,
+      6008.04,
+      21404.925,
+      476.5919355430451,
+      673.2,
+      6882.234999999999,
+      289.3800000000001
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      3845.7450000000003,
+      6008.04,
+      13824.005547748044,
+      3623.8050000000003,
+      693.9,
+      5885.0,
+      1972.6200000000001
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.7403126687885853,
+      "violations": 8,
+      "maximum_violation": 194.49446969382961,
+      "actions": [
+        "block:12;remove_cuts:0",
+        "block:17;remove_cuts:0",
+        "block:8;remove_cuts:0",
+        "block:16;remove_cuts:0",
+        "skip_low_efficacy_cut:14;efficacy:0.012885668230371275"
+      ],
+      "blocked_scenarios": 11,
+      "active_cuts": 0,
+      "cuts_removed_total": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.9924043514611612,
+      "violations": 0,
+      "actions": [],
+      "blocked_scenarios": 11,
+      "active_cuts": 0
+    }
+  ]
+}

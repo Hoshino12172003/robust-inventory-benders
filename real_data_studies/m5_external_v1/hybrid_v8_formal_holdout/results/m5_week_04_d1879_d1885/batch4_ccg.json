@@ -1,0 +1,168 @@
+{
+  "candidate": "batch4_ccg_no_farkas_cuts",
+  "status": "optimal",
+  "runtime": 4.02196120005101,
+  "objective_t": 0.991781754399335,
+  "robust_minimum_fill_rate": 0.008218245600664975,
+  "iterations": 2,
+  "master_runtime": 3.73329190001823,
+  "separation_runtime": 0.23548390017822385,
+  "blocked_scenarios": 11,
+  "active_probe_cuts": 0,
+  "cuts_added_total": 0,
+  "cuts_removed_total": 0,
+  "probe_resets": 1,
+  "robust_feasibility_certified": true,
+  "cost_budget": 13664529.893184267,
+  "rho": 0.0001,
+  "policy": {
+    "initial_blocks": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "max_scenario_blocks_per_iteration": 4,
+    "promotion_hits": 1,
+    "farkas_cuts_per_iteration": 0
+  },
+  "solver_parameters": {
+    "Threads": 1,
+    "Seed": 0,
+    "FeasibilityTol": 1e-07,
+    "MIPGap": 0.0
+  },
+  "y_values": [
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    1.0,
+    -0.0,
+    0.0,
+    -0.0,
+    -0.0,
+    -0.0
+  ],
+  "x_values": [
+    [
+      1906.0,
+      2279.0,
+      14943.528999999999,
+      1333.3899999999994,
+      192.0,
+      2719.0,
+      1470.0
+    ],
+    [
+      3845.7450000000003,
+      6008.04,
+      0.0,
+      3623.8050000000003,
+      693.9,
+      8334.765000000001,
+      1972.62
+    ],
+    [
+      2598.696883283238,
+      6008.04,
+      15864.791116716753,
+      3152.0,
+      90.0,
+      5340.0,
+      1619.3799999999992
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      3845.7450000000003,
+      6008.04,
+      13697.47099999999,
+      3623.8050000000003,
+      525.1,
+      6460.235000000001,
+      1972.6200000000001
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "iteration_log": [
+    {
+      "iteration": 1,
+      "t": 0.7484679415890538,
+      "violations": 7,
+      "maximum_violation": 190.50068356773954,
+      "actions": [
+        "block:12",
+        "block:17",
+        "block:8",
+        "block:16",
+        "reset_probe_cuts:0"
+      ],
+      "blocked_scenarios": 11,
+      "active_probe_cuts": 0,
+      "cuts_removed_total": 0
+    },
+    {
+      "iteration": 2,
+      "t": 0.991781754399335,
+      "violations": 0,
+      "actions": [],
+      "blocked_scenarios": 11,
+      "active_probe_cuts": 0
+    }
+  ]
+}

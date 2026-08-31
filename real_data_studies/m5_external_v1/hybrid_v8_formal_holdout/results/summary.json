@@ -1,0 +1,43 @@
+{
+  "schema": "m5_formal_holdout_summary_v1",
+  "status": "complete_all_preregistered_cases",
+  "cases": 12,
+  "certification": {
+    "hybrid_v8": 12,
+    "pure_ccg": 12,
+    "batch4_ccg": 12,
+    "direct": 12
+  },
+  "hybrid_v8_vs_pure_ccg": {
+    "cases": 12,
+    "hybrid_wins_on_par2": 2,
+    "hybrid_losses_on_par2": 10,
+    "ties_on_par2": 0,
+    "exact_two_sided_sign_test_p": 0.03857421875,
+    "jointly_certified": 12,
+    "hybrid_mean_raw_runtime_joint": 3.9398390250086472,
+    "other_mean_raw_runtime_joint": 2.75169468333479,
+    "geometric_mean_other_over_hybrid_runtime_joint": 0.6873935469283255,
+    "par2_penalty_seconds": 3600.0
+  },
+  "hybrid_v8_vs_batch4_ccg": {
+    "cases": 12,
+    "hybrid_wins_on_par2": 4,
+    "hybrid_losses_on_par2": 8,
+    "ties_on_par2": 0,
+    "exact_two_sided_sign_test_p": 0.3876953125,
+    "jointly_certified": 12,
+    "hybrid_mean_raw_runtime_joint": 3.9398390250086472,
+    "other_mean_raw_runtime_joint": 3.903166808343182,
+    "geometric_mean_other_over_hybrid_runtime_joint": 0.9921512660729302,
+    "par2_penalty_seconds": 3600.0
+  },
+  "direct_objective_check": {
+    "absolute_tolerance": 1e-06,
+    "certified_pairs_checked": 36,
+    "pairs_within_tolerance": 36,
+    "maximum_absolute_error": 7.038813976123492e-14
+  },
+  "hybrid_v8_total_farkas_cuts": 0,
+  "hybrid_v8_cases_with_farkas_cuts": 0
+}
