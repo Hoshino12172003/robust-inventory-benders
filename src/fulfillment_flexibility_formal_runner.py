@@ -199,9 +199,9 @@ def seed_nonreuse_audit(root: Path = ROOT) -> dict[str, Any]:
         if prior_hits.get(seed) or explicit_text_hits.get(seed)
     }
     archive_files = sorted(
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".zip", ".tar", ".gz"}
+        relative.replace("\\", "/")
+        for relative in tracked
+        if Path(relative).suffix.lower() in {".zip", ".tar", ".gz"}
     )
     return {
         "schema": "fulfillment_flexibility_formal_seed_audit_v1",
