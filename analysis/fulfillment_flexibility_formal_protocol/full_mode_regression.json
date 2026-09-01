@@ -1,0 +1,60 @@
+{
+  "cases": [
+    {
+      "T_difference": 0.0,
+      "cost_objective_difference": 1.8189894035458565e-12,
+      "formal_cost_cap_feasible": true,
+      "formal_first_stage_feasibility": {
+        "feasible": true,
+        "first_stage_cost": 933.57,
+        "maximum_violation": 0.0
+      },
+      "formal_robust_cost": 6629.152532752223,
+      "gamma": 1,
+      "inventory_l1_difference": 0.0,
+      "original_cost_cap_feasible": true,
+      "original_first_stage_feasibility": {
+        "feasible": true,
+        "first_stage_cost": 933.57,
+        "maximum_violation": 0.0
+      },
+      "original_robust_cost": 6629.152532752223,
+      "pass": true,
+      "robust_cost_difference": 0.0,
+      "scale": "very_small_nonformal_regression",
+      "scenario_count": 5,
+      "seed": 0,
+      "warehouse_opening_hamming": 0
+    },
+    {
+      "T_difference": 0.0,
+      "cost_objective_difference": 0.0,
+      "formal_cost_cap_feasible": true,
+      "formal_first_stage_feasibility": {
+        "feasible": true,
+        "first_stage_cost": 784.18,
+        "maximum_violation": 0.0
+      },
+      "formal_robust_cost": 7072.557865678244,
+      "gamma": 1,
+      "inventory_l1_difference": 0.0,
+      "original_cost_cap_feasible": true,
+      "original_first_stage_feasibility": {
+        "feasible": true,
+        "first_stage_cost": 784.18,
+        "maximum_violation": 0.0
+      },
+      "original_robust_cost": 7072.557865678243,
+      "pass": true,
+      "robust_cost_difference": 9.094947017729282e-13,
+      "scale": "very_small_nonformal_regression",
+      "scenario_count": 5,
+      "seed": 1,
+      "warehouse_opening_hamming": 0
+    }
+  ],
+  "formal_seed_accessed": false,
+  "interpretation": "Objective and feasible-region equivalence are required. Opening, inventory, and robust-cost differences are recorded because T-only service optima need not be unique.",
+  "schema": "fulfillment_flexibility_full_mode_regression_v1",
+  "status": "pass"
+}
