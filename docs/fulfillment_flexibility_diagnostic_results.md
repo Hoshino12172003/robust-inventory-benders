@@ -113,13 +113,18 @@ allowance are identical.
    comparison yielded strict `k1 > k2 > full` nesting in all six instances.
    The re-optimized comparison yielded six k1-to-k2 wins, five k2-to-full wins,
    and six k1-to-full wins. The pooled median k1-to-full reduction was 72.78%.
-2. **Is the effect caused by network design?** Partly. Openings changed in four
+2. **Does k2 capture most of the full benefit?** On mean absolute reductions,
+   k2 captured 79.4% of the re-optimized k1-to-full improvement and 62.2% of
+   the fixed-first-stage improvement. This indicates diminishing returns on
+   average, but the remaining k2-to-full effect was still material and was
+   positive in every fixed-first-stage instance.
+3. **Is the effect caused by network design?** Partly. Openings changed in four
    instances and inventory positioning changed in all six. These are genuine
    design responses to the eligibility regime.
-3. **Is there an independent recourse effect?** Yes. With the full-mode first
+4. **Is there an independent recourse effect?** Yes. With the full-mode first
    stage fixed, expanded eligibility still reduced the pooled mean worst-region
    shortage rate by 0.5518 and won every paired comparison.
-4. **Does flexibility reduce shortage without a proportional cost increase?**
+5. **Does flexibility reduce shortage without a proportional cost increase?**
    In this diagnostic, it did more: additional fulfillment expenditures were
    outweighed by avoided shortage and violation costs, so robust total cost
    declined. The result should be interpreted as development evidence, not as
