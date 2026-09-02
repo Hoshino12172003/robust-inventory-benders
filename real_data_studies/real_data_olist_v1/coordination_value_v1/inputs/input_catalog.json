@@ -1,0 +1,296 @@
+{
+  "status": "source_inputs_frozen_before_formal_optimization",
+  "case_count": 17,
+  "file_count": 34,
+  "cases": [
+    {
+      "case_id": "week_2018-04-30",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-04-30/instance.json",
+          "sha256": "B179A40BA901EFE23A95A416DD7B24B2EAADF3F588582D4A8CB3E5EC0665B800",
+          "bytes": 24602
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-04-30/scenarios.json",
+          "sha256": "8B4769EE73279978187F9554FD2DCA4CA178BFC9BB9385E07E15A6FD4E533278",
+          "bytes": 59260
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-05-07",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-05-07/instance.json",
+          "sha256": "C0B2DC6CA346DD1B792E56666554A1E5E7D3B757CD4B9DA6EF6C0EFCCA4FA907",
+          "bytes": 24608
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-05-07/scenarios.json",
+          "sha256": "5B1B59EA6958F404F14162BFE31F2C3FCB5939FC3D878FF8014DA39E10074726",
+          "bytes": 59422
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-05-14",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-05-14/instance.json",
+          "sha256": "46C5CE4E3D5EE1881999B07ABC22CA0F7E744A570796380027BC1BE37C8B0BF1",
+          "bytes": 24607
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-05-14/scenarios.json",
+          "sha256": "6247BBFECA4E08C5BD7627B90DBC928CCC043B07C543229ED8339B7D18BF54CE",
+          "bytes": 59444
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-05-21",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-05-21/instance.json",
+          "sha256": "641EFFBD77A1F10EC7FCC05E2B1434722AACFC3AB0A754AA24CA5D12FEEDE9A2",
+          "bytes": 24592
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-05-21/scenarios.json",
+          "sha256": "84212C94AB024E66F1C863662B34282E15B45D16874B116DD334B2D8177CFE4F",
+          "bytes": 58654
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-05-28",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-05-28/instance.json",
+          "sha256": "258FAA78E33C98E4EBC31020EDFBF03A03BE3F42B53C46FEC196CE0AA4C3BA48",
+          "bytes": 24593
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-05-28/scenarios.json",
+          "sha256": "85BC787DB8AFF872E4003DA75B1A5DCF18E37C77AFF410641CE78C98B10532A6",
+          "bytes": 58882
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-06-04",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-06-04/instance.json",
+          "sha256": "F3348CE74C2BD5BBA471B7F01E961C336DAA1FE0D7EC2C61763C47A9E6326129",
+          "bytes": 24599
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-06-04/scenarios.json",
+          "sha256": "509AB18E3B6AA10BEDB318351487A05FF58DB5F7D99F09363368AA026B60E011",
+          "bytes": 59364
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-06-11",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-06-11/instance.json",
+          "sha256": "1B2B7F5CDA69700430C69AC850A56D87D82DE013EF37B69C87E36AEBF40D5680",
+          "bytes": 24600
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-06-11/scenarios.json",
+          "sha256": "72AEB8EDFB0341E64BD7C76D08B0DB34B2E9EC79622D7BCECB6DB49311CECB49",
+          "bytes": 59390
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-06-18",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-06-18/instance.json",
+          "sha256": "B5483E4B828D641B906C17982A5BC02EF28A0944E046E282E55316536EC19B46",
+          "bytes": 24602
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-06-18/scenarios.json",
+          "sha256": "C02D42C4DAAD8C489E66E2A45C125018327C777CB06D475A3F26EA6139C3A338",
+          "bytes": 59186
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-06-25",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-06-25/instance.json",
+          "sha256": "1E563D5E59A47D6442C7561FF4B1F5ACBA81F309B46266D07424DEC8EFE1FB45",
+          "bytes": 24602
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-06-25/scenarios.json",
+          "sha256": "ECB42457CEBCB03625207196C724B69120D6D7692A9CF995FE5606088F0086F5",
+          "bytes": 59692
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-07-02",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-02/instance.json",
+          "sha256": "B58C2A74FC01BC6A535CD29F0DB2A2381515A036D211B8002B5AFAD07925305D",
+          "bytes": 24597
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-02/scenarios.json",
+          "sha256": "4323EB7C3CF17BCAD037FD56892FF3C08AA8E9C03E191441A2B3ADD1C1C417E1",
+          "bytes": 59168
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-07-09",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-09/instance.json",
+          "sha256": "071F48D0ADFE9A0FF78F6B27A0830C758C5970D2427F8C650F64075310762477",
+          "bytes": 24592
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-09/scenarios.json",
+          "sha256": "6310E5BBB048778F7C195BD7C0529AC57A9198039B2DFFB69BD56C3CA9B6F56E",
+          "bytes": 58862
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-07-16",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-16/instance.json",
+          "sha256": "698A1ECF15BF9D30E5F6146F037F58A1FA970B9512A328C00B6DB524A52D1F9E",
+          "bytes": 24604
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-16/scenarios.json",
+          "sha256": "BF812267C088C0DD956A1A6F1DAAAC04AB6B0F7C87B55912A4ACF4EECB3FDDC2",
+          "bytes": 59302
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-07-23",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-07-23/instance.json",
+          "sha256": "4046C9CEA512F5ECD4CB6F026AC3769FCC846390F8FE5111ECE5FC25A8681366",
+          "bytes": 24601
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-07-23/scenarios.json",
+          "sha256": "E1100561A2D5AC291194793385C5A67F5FC40C788FA69FAEDD297138EB52EA24",
+          "bytes": 59458
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-07-30",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-30/instance.json",
+          "sha256": "DD9CB2DC6B5911DC9F145F38DF68EED14BBCE15107DC17942B2FB9E1DF7ACFC3",
+          "bytes": 24602
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-07-30/scenarios.json",
+          "sha256": "36364A640FB1606B6C479DFF7CA4C81C2BC9D2FF60EB32088724A28E4DBE7CCD",
+          "bytes": 59650
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-08-06",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-08-06/instance.json",
+          "sha256": "C723ED9B3D7849EADEC539DCA270DF1BBD43FB09D5B304CCD04D54D2BFD41EB3",
+          "bytes": 24609
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-08-06/scenarios.json",
+          "sha256": "FFC24D1A9FC905BF82A63CE9145F44362460A1799E4B6335B708A82574BEDC33",
+          "bytes": 60040
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-08-13",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-08-13/instance.json",
+          "sha256": "9B1A1DA953F63446A2323AA97C1F95E0890DB75BE223A221FA2A39B490941DEF",
+          "bytes": 24604
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v4_holdout_validation/cases/week_2018-08-13/scenarios.json",
+          "sha256": "14409B347E71E7E8FF9D7F7DD950777FA73AFAA0BD35849BFE40D1723D31E0EF",
+          "bytes": 59462
+        }
+      ]
+    },
+    {
+      "case_id": "week_2018-08-20",
+      "files": [
+        {
+          "role": "instance",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-08-20/instance.json",
+          "sha256": "012D39F6ABC05B006D866DAAF3DF3724EF6A3F3413ED692A16BCA45662F55DE4",
+          "bytes": 24592
+        },
+        {
+          "role": "scenarios",
+          "path": "real_data_studies/real_data_olist_v1/algorithm_v8_adaptive_hybrid/sealed_confirmation/cases/week_2018-08-20/scenarios.json",
+          "sha256": "AB217DCC4DA596EB0A1CF987828BF0A47C8EAD62290334383F8194CEFE14BB3E",
+          "bytes": 58856
+        }
+      ]
+    }
+  ]
+}

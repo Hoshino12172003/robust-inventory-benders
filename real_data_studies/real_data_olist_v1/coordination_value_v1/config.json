@@ -1,0 +1,17 @@
+{
+  "status": "preregistered_before_formal_optimization",
+  "policies": [
+    "flexible_multiwarehouse",
+    "optimized_single_source"
+  ],
+  "rho_grid": [0.0, 0.01, 0.025, 0.05, 0.1],
+  "primary_rho": 0.025,
+  "severe_shortage_threshold": 0.1,
+  "threads": 1,
+  "solver_seed": 0,
+  "mip_gap": 0.0001,
+  "feasibility_tolerance": 1e-07,
+  "time_limit_seconds_per_solve": 300.0,
+  "common_budget_reference": "optimized_single_source_cost_anchor",
+  "formal_run_authorized": false
+}
