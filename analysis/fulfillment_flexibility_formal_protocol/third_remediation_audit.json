@@ -1,0 +1,61 @@
+{
+  "schema": "fulfillment_flexibility_formal_third_remediation_audit_v1",
+  "implementation_commit": "968c8a40698b5cacc75d12491507733d416f536a",
+  "scope": "second-independent-review reproducibility blockers only",
+  "protocol_only": true,
+  "backend_qualification_on_current_low_memory_host": "REJECTED",
+  "route_b_implemented": false,
+  "reporting_current_identity_validation": {
+    "stale_protocol_hash": "REJECTED",
+    "stale_scientific_config_identity": "REJECTED",
+    "cross_scale_solver_identity_mismatch": "REJECTED",
+    "stale_model_source_identity": "REJECTED"
+  },
+  "result_binding_validation": {
+    "certified_checkpoint_plus_altered_raw_T": "REJECTED",
+    "certified_checkpoint_plus_altered_anchor": "REJECTED",
+    "certified_true_but_checkpoint_status_nonoptimal": "REJECTED"
+  },
+  "common_budget_validation": {
+    "tampered_common_anchor": "REJECTED",
+    "tampered_common_budget": "REJECTED",
+    "one_fixed_service_using_different_budget": "REJECTED"
+  },
+  "checkpoint_validation": {
+    "generator_source_drift": "REJECTED",
+    "dirty_execution_source": "REJECTED",
+    "concurrent_overwrite": "REJECTED",
+    "resume_regression": "PASS"
+  },
+  "targeted_tests": {
+    "command": "python -m pytest -q -p no:cacheprovider tests/test_fulfillment_flexibility_formal.py",
+    "result": "29 passed in 15.43s",
+    "formal_instance_generation": false
+  },
+  "tiny_nonformal_regression": {
+    "seeds": [0, 1],
+    "status": "PASS",
+    "maximum_cost_objective_difference": 1.8189894035458565e-12,
+    "maximum_T_difference": 0.0,
+    "nonformal_solver_called": true
+  },
+  "k1_k2_all_arc_fixed_zero_oracle": "PASS",
+  "cluster_statistics_regression": "PASS",
+  "dry_run": {
+    "status": "pass_protocol_only_no_formal_optimization",
+    "task_count_metadata_only": 240,
+    "formal_solver_imported_or_called": false
+  },
+  "formal_seeds": [230, 231, 232, 233, 234, 235, 236, 237, 238, 239],
+  "formal_sample_generated": false,
+  "formal_sample_loaded": false,
+  "formal_sample_inspected": false,
+  "formal_sample_solved": false,
+  "formal_solver_called": false,
+  "formal_output_exists": false,
+  "formal_run_authorized": false,
+  "fallback_active": false,
+  "gamma": 2,
+  "rho": 0.025,
+  "evidence_boundary": "Repository-visible and current-process evidence cannot prove absence of unseen external or manual runs."
+}

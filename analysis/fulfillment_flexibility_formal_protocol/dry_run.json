@@ -1,0 +1,112 @@
+{
+  "formal_instances": [
+    {
+      "scale": "medium_large",
+      "seed": 230
+    },
+    {
+      "scale": "medium_large",
+      "seed": 231
+    },
+    {
+      "scale": "medium_large",
+      "seed": 232
+    },
+    {
+      "scale": "medium_large",
+      "seed": 233
+    },
+    {
+      "scale": "medium_large",
+      "seed": 234
+    },
+    {
+      "scale": "medium_large",
+      "seed": 235
+    },
+    {
+      "scale": "medium_large",
+      "seed": 236
+    },
+    {
+      "scale": "medium_large",
+      "seed": 237
+    },
+    {
+      "scale": "medium_large",
+      "seed": 238
+    },
+    {
+      "scale": "medium_large",
+      "seed": 239
+    },
+    {
+      "scale": "large",
+      "seed": 230
+    },
+    {
+      "scale": "large",
+      "seed": 231
+    },
+    {
+      "scale": "large",
+      "seed": 232
+    },
+    {
+      "scale": "large",
+      "seed": 233
+    },
+    {
+      "scale": "large",
+      "seed": 234
+    },
+    {
+      "scale": "large",
+      "seed": 235
+    },
+    {
+      "scale": "large",
+      "seed": 236
+    },
+    {
+      "scale": "large",
+      "seed": 237
+    },
+    {
+      "scale": "large",
+      "seed": 238
+    },
+    {
+      "scale": "large",
+      "seed": 239
+    }
+  ],
+  "formal_output_exists": false,
+  "formal_solver_imported_or_called": false,
+  "gamma": 2,
+  "gate_failures": [
+    {
+      "config": "fulfillment_flexibility_formal_medium_large.yaml",
+      "reason": "FORMAL OPTIMIZATION PROHIBITED UNTIL PROTOCOL REVIEW AND AUTHORIZATION"
+    },
+    {
+      "config": "fulfillment_flexibility_formal_large.yaml",
+      "reason": "FORMAL OPTIMIZATION PROHIBITED UNTIL PROTOCOL REVIEW AND AUTHORIZATION"
+    }
+  ],
+  "modes": [
+    "k1",
+    "k2",
+    "full"
+  ],
+  "rho": 0.025,
+  "schema": "fulfillment_flexibility_formal_dry_run_v1",
+  "seed_audit_pass": true,
+  "source_commit": "b13ed7dae61590d722586bd07c9419ab0751f746",
+  "status": "pass_protocol_only_no_formal_optimization",
+  "task_count": 240,
+  "tasks_by_scale": {
+    "large": 120,
+    "medium_large": 120
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "schema": "fulfillment_flexibility_formal_remediation_test_evidence_v1",
+  "implementation_commit": "ad250a9708025666c67274146d90d62c201c4c58",
+  "targeted_command": "python -m pytest -q -p no:cacheprovider --basetemp .pytest-formal-remediation tests/test_fulfillment_flexibility_formal.py",
+  "targeted_result": {
+    "passed": 18,
+    "failed": 0,
+    "runtime_seconds": 25.89
+  },
+  "full_mode_regression": {
+    "status": "pass",
+    "cases": 2,
+    "maximum_cost_objective_difference": 1.8189894035458565e-12,
+    "maximum_T_difference": 0.0,
+    "formal_seed_accessed": false
+  },
+  "restricted_arc_oracle": {
+    "modes": ["k1", "k2"],
+    "construction": "all shipment arcs with ineligible arcs fixed to zero",
+    "anchor_and_service_objectives_match_omission_model": true,
+    "formal_seed_accessed": false
+  },
+  "global_command": "python -m pytest -q -p no:cacheprovider --basetemp .pytest-formal-global-remediation",
+  "global_partial_result_before_interrupt": {
+    "passed": 732,
+    "failed": 6,
+    "skipped": 1,
+    "windows_permission_errors": 0,
+    "classification": "all_observed_failures_inherited_or_cross_test_state_not_PR80_targeted_regressions"
+  },
+  "formal_sample_generated": false,
+  "formal_sample_inspected": false,
+  "formal_solver_called": false,
+  "formal_output_exists": false
+}

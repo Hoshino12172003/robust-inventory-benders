@@ -1,0 +1,32 @@
+{
+  "schema": "fulfillment_flexibility_formal_identity_chain_audit_v1",
+  "implementation_commit": "ad250a9708025666c67274146d90d62c201c4c58",
+  "bound_fields": [
+    "scale",
+    "seed",
+    "mode",
+    "task_type",
+    "gamma",
+    "rho",
+    "source_commit",
+    "protocol_sha256",
+    "config_sha256",
+    "scientific_config_sha256",
+    "runner_sha256",
+    "reporting_sha256",
+    "eligibility_sha256",
+    "scenario_sha256",
+    "solver_parameter_sha256",
+    "first_stage_sha256",
+    "anchor_sha256",
+    "common_budget_sha256"
+  ],
+  "both_scale_manifests_required": true,
+  "mixed_manifest_test": "pass_fail_closed",
+  "all_twelve_task_checkpoints_required_per_instance": true,
+  "incompatible_results_pooling_prohibited": true,
+  "formal_sample_generated": false,
+  "formal_sample_inspected": false,
+  "formal_solver_called": false,
+  "formal_output_exists": false
+}

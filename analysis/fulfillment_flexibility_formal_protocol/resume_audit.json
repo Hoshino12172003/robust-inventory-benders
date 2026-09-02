@@ -1,0 +1,18 @@
+{
+  "schema": "fulfillment_flexibility_formal_resume_audit_v1",
+  "implementation_commit": "ad250a9708025666c67274146d90d62c201c4c58",
+  "checkpoint_unit": "completed_certified_optimization_task",
+  "tasks_per_instance": 12,
+  "publication": "immutable_atomic_write_then_rename",
+  "certified_identity_valid_checkpoint_skipped": true,
+  "temporary_file_ignored": true,
+  "corrupt_checkpoint_fails_closed": true,
+  "identity_mismatch_fails_closed": true,
+  "uncertified_result_not_checkpointed": true,
+  "manual_deletion_required_for_resume": false,
+  "solver_free_interruption_resume_test": "pass",
+  "formal_sample_generated": false,
+  "formal_sample_inspected": false,
+  "formal_solver_called": false,
+  "formal_output_exists": false
+}

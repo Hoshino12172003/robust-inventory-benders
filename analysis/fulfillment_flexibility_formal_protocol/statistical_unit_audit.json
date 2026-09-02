@@ -1,0 +1,19 @@
+{
+  "schema": "fulfillment_flexibility_formal_statistical_unit_audit_v1",
+  "implementation_commit": "ad250a9708025666c67274146d90d62c201c4c58",
+  "within_scale_unit": "scale_seed_instance",
+  "pooled_independent_cluster": "synthetic_seed",
+  "cluster_count": 10,
+  "cluster_seeds": [230, 231, 232, 233, 234, 235, 236, 237, 238, 239],
+  "cluster_effect": "arithmetic_mean_of_medium_large_and_large_effect_within_seed",
+  "pooled_sign_test_uses_cluster_effect": true,
+  "pooled_bootstrap_resamples_clusters": true,
+  "scales_move_together_within_resample": true,
+  "scale_specific_sign_tests_use_ten_seeds": true,
+  "holm_scope": "pooled_H2_and_H3_within_each_comparison_family",
+  "solver_free_clustered_statistics_test": "pass",
+  "formal_sample_generated": false,
+  "formal_sample_inspected": false,
+  "formal_solver_called": false,
+  "formal_output_exists": false
+}

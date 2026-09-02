@@ -1,0 +1,27 @@
+{
+  "schema": "fulfillment_flexibility_formal_protocol_test_evidence_v1",
+  "implementation_commit": "b13ed7dae61590d722586bd07c9419ab0751f746",
+  "targeted_command": "python -m pytest tests/test_fulfillment_flexibility_formal.py -q --basetemp .pytest-formal-protocol-final",
+  "targeted_result": {
+    "passed": 10,
+    "failed": 0,
+    "runtime_seconds": 11.22
+  },
+  "full_mode_regression": {
+    "cases": 2,
+    "status": "pass",
+    "formal_seed_accessed": false
+  },
+  "inherited_main_failure_command": "python -m pytest tests/test_experiment_suite.py::test_formal_experiment_configs_exist_and_parse -q --basetemp .pytest-formal-inherited",
+  "inherited_main_failure": {
+    "test": "test_formal_experiment_configs_exist_and_parse",
+    "error": "KeyError: output_dir",
+    "preexisting_main_configs_without_output_dir": [
+      "fairness_gamma_minimal_paired_benchmark.yaml",
+      "fairness_hybrid_final_cross_scale_holdout.yaml",
+      "fairness_hybrid_gamma_sensitivity.yaml"
+    ],
+    "new_formal_configs_have_output_dir": true,
+    "modified_in_this_pr": false
+  }
+}

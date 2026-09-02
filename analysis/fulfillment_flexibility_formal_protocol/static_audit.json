@@ -1,0 +1,68 @@
+{
+  "audited_git_commit": "b13ed7dae61590d722586bd07c9419ab0751f746",
+  "config_sha256": {
+    "fulfillment_flexibility_formal_large.yaml": "0F0C63B76B4CE8BB710E83A367F3F7E3DD978E62ACA73E162428AF5B124F8A58",
+    "fulfillment_flexibility_formal_medium_large.yaml": "A36192FF435D984B78F7E906B3EEE6AD84FF64B86547B738077322CEA66D366D"
+  },
+  "decision": "protocol_ready_but_formal_optimization_prohibited",
+  "fallback_rule_frozen": true,
+  "formal_instance_count": 20,
+  "formal_optimization_authorized": false,
+  "host_free_disk_bytes": 260360511488,
+  "host_total_ram_bytes": 33820106752,
+  "model_size_estimates": {
+    "large": {
+      "full": {
+        "anchor_rows": 787106,
+        "columns": 4060977,
+        "omitted_ineligible_arc_variables_per_scenario": 0,
+        "scenario_count": 4657,
+        "service_rows": 842990
+      },
+      "k1": {
+        "anchor_rows": 787106,
+        "columns": 931473,
+        "omitted_ineligible_arc_variables_per_scenario": 672,
+        "scenario_count": 4657,
+        "service_rows": 842990
+      },
+      "k2": {
+        "anchor_rows": 787106,
+        "columns": 1378545,
+        "omitted_ineligible_arc_variables_per_scenario": 576,
+        "scenario_count": 4657,
+        "service_rows": 842990
+      }
+    },
+    "medium_large": {
+      "full": {
+        "anchor_rows": 188636,
+        "columns": 780049,
+        "omitted_ineligible_arc_variables_per_scenario": 0,
+        "scenario_count": 1831,
+        "service_rows": 206946
+      },
+      "k1": {
+        "anchor_rows": 188636,
+        "columns": 230749,
+        "omitted_ineligible_arc_variables_per_scenario": 300,
+        "scenario_count": 1831,
+        "service_rows": 206946
+      },
+      "k2": {
+        "anchor_rows": 188636,
+        "columns": 340609,
+        "omitted_ineligible_arc_variables_per_scenario": 240,
+        "scenario_count": 1831,
+        "service_rows": 206946
+      }
+    }
+  },
+  "optimization_task_count": 240,
+  "primary_hardware_gate_pass": false,
+  "protocol_sha256": "75AE4479BFBE73596CC6509257FD32B17F38BCF062BA728C7BA6B4636E2C6D8E",
+  "schema": "fulfillment_flexibility_formal_static_audit_v1",
+  "scientific_concern": "The exact large extensive form has about 4.06 million columns. Current-host execution is blocked unless the hardware gate passes or a separately reviewed eligibility-aware scalable solver is introduced without changing the model.",
+  "seed_audit_pass": true,
+  "worst_case_sequential_hours": 120.0
+}

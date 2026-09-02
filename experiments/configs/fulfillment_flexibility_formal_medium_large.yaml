@@ -1,0 +1,57 @@
+schema_version: 1
+experiment_name: fulfillment_flexibility_formal_medium_large
+stage: FORMAL_PROTOCOL_ONLY
+formal_run_authorized: false
+authorization_file: experiments/configs/fulfillment_flexibility_formal_authorization.json
+execution_qualification_file: experiments/configs/fulfillment_flexibility_formal_execution_qualification.json
+protocol_document: docs/fulfillment_flexibility_formal_protocol.md
+seed_audit_document: docs/fulfillment_flexibility_formal_seed_audit.md
+static_audit_document: docs/fulfillment_flexibility_formal_static_audit.md
+output_dir: experiments/results_fulfillment_flexibility/formal
+scale: medium_large
+instance:
+  num_warehouses: 6
+  num_products: 6
+  num_regions: 10
+  budget_factor: 0.68
+  capacity_factor: 1.25
+seeds: [230, 231, 232, 233, 234, 235, 236, 237, 238, 239]
+fallback_seeds: [230, 231, 232, 233, 234]
+modes: [k1, k2, full]
+gamma: 2
+rho: 0.025
+exact_scenarios: true
+expected_scenario_count: 1831
+max_scenarios: 5000
+solver_backend: exact_finite_scenario_extensive_form
+solver:
+  time_limit_seconds: 1800
+  threads: 1
+  seed: 0
+  mip_gap: 0.0001
+  feasibility_tolerance: 1.0e-7
+certification:
+  require_optimal_status: true
+  objective_bound_tolerance: 0.0001
+  objective_recomputation_tolerance: 1.0e-7
+  cost_cap_absolute_tolerance: 1.0e-6
+  cost_cap_relative_tolerance: 1.0e-6
+  require_complete_scenario_coverage: true
+analysis:
+  primary: fixed_first_stage_k1_vs_full
+  secondary: [fixed_first_stage_k1_vs_k2, fixed_first_stage_k2_vs_full]
+  sign_test: exact_two_sided
+  bootstrap_resamples: 10000
+  bootstrap_seed: 20260901
+  secondary_p_value_adjustment: Holm
+  independent_unit: synthetic_seed_cluster
+  pooled_cluster_effect: arithmetic_mean_across_scales
+fallback_rule:
+  frozen_before_optimization: true
+  sample: five_seeds_per_scale
+  activation_requires_protocol_amendment_before_any_formal_solver_access: true
+  triggers:
+    minimum_ram_bytes: 68719476736
+    minimum_free_disk_bytes: 268435456000
+    maximum_projected_sequential_hours: 168
+overwrite_supported: false
