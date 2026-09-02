@@ -13,11 +13,12 @@ from .experiment_protocol import atomic_write_csv, atomic_write_json, canonical_
 from .fulfillment_flexibility_formal_runner import (
     FORMAL_SEEDS,
     MODES,
+    RHO,
     RESULT_ROOT,
     ROOT,
     _anchor_identity,
-    _git_commit,
-    eligibility_identity,
+    protocol_identity,
+    solver_environment_identity,
 )
 
 
@@ -40,7 +41,9 @@ def _validate_manifest_family(manifests: dict[str, dict[str, Any]]) -> None:
         raise FormalReportingError("both scale manifests are required")
     shared_keys = (
         "source_commit", "protocol_sha256", "runner_sha256", "reporting_sha256",
-        "eligibility_sha256", "gamma", "rho_hex", "formal_seeds",
+        "eligibility_sha256", "solver_parameter_sha256", "instance_generator_sha256",
+        "scenario_generator_sha256", "strict_solver_environment_sha256",
+        "gurobi_major_minor", "gamma", "rho_hex", "formal_seeds",
     )
     reference = manifests["medium_large"]["identity"]
     for scale, manifest in manifests.items():
@@ -54,19 +57,125 @@ def _validate_manifest_family(manifests: dict[str, dict[str, Any]]) -> None:
         identity = manifest["identity"]
         if manifest.get("scale") != scale or manifest.get("seeds") != list(FORMAL_SEEDS):
             raise FormalReportingError("manifest scale or seed set drifted")
-        if identity.get("source_commit") != _git_commit(ROOT):
-            raise FormalReportingError("formal source commit does not match reporting checkout")
-        if identity.get("runner_sha256") != file_sha256(
-            ROOT / "src/fulfillment_flexibility_formal_runner.py"
-        ).upper():
-            raise FormalReportingError("formal runner identity drifted")
-        if identity.get("reporting_sha256") != file_sha256(Path(__file__)).upper():
-            raise FormalReportingError("formal reporting identity drifted")
-        if identity.get("eligibility_sha256") != eligibility_identity():
-            raise FormalReportingError("formal eligibility identity drifted")
         config_path = ROOT / f"experiments/configs/fulfillment_flexibility_formal_{scale}.yaml"
-        if identity.get("config_sha256") != file_sha256(config_path).upper():
-            raise FormalReportingError("formal config identity drifted")
+        expected_identity = protocol_identity(config_path, ROOT)
+        for name, value in expected_identity.items():
+            if identity.get(name) != value:
+                raise FormalReportingError(f"formal current identity drifted: {name}")
+        expected_model_sources = {
+            "runner": file_sha256(ROOT / "src/fulfillment_flexibility_formal_runner.py").upper(),
+            "instance": file_sha256(ROOT / "src/instance.py").upper(),
+            "scenarios": file_sha256(ROOT / "src/scenarios.py").upper(),
+        }
+        if manifest.get("model_source_sha256") != expected_model_sources:
+            raise FormalReportingError("formal model-source identity drifted")
+        solver_environment = manifest.get("solver_environment")
+        if not isinstance(solver_environment, dict):
+            raise FormalReportingError("formal solver environment metadata missing")
+        if solver_environment.get("strict") != solver_environment_identity()["strict"]:
+            raise FormalReportingError("formal strict solver environment drifted")
+
+
+def _result_sha256(result: dict[str, Any]) -> str:
+    return canonical_json_sha256(result)
+
+
+def _require_bound_result(
+    raw_result: Any,
+    checkpoint: dict[str, Any],
+    label: str,
+) -> dict[str, Any]:
+    checkpoint_result = checkpoint.get("result")
+    if not isinstance(checkpoint_result, dict):
+        raise FormalReportingError(f"checkpoint result missing: {label}")
+    if checkpoint_result.get("certified") is not True or checkpoint_result.get("status") != "optimal":
+        raise FormalReportingError(f"checkpoint result is not certified optimal: {label}")
+    checkpoint_sha256 = checkpoint.get("result_sha256")
+    if checkpoint_sha256 != _result_sha256(checkpoint_result):
+        raise FormalReportingError(f"checkpoint result hash mismatch: {label}")
+    if not isinstance(raw_result, dict) or _result_sha256(raw_result) != checkpoint_sha256:
+        raise FormalReportingError(f"raw/checkpoint result mismatch: {label}")
+    return checkpoint_result
+
+
+def _validate_anchor_certificate(result: dict[str, Any], label: str) -> None:
+    objective = _finite(result.get("objective"), f"{label} objective")
+    bound = _finite(result.get("bound"), f"{label} bound")
+    reported_gap = _finite(result.get("gap"), f"{label} gap")
+    recomputed_gap = abs(objective - bound)
+    if abs(reported_gap - recomputed_gap) > 1.0e-12:
+        raise FormalReportingError(f"anchor gap recomputation mismatch: {label}")
+    if recomputed_gap > 1.0e-4 or _finite(
+        result.get("formal_anchor_mip_gap"), f"{label} MIPGap"
+    ) != 0.0:
+        raise FormalReportingError(f"anchor certification rule violated: {label}")
+
+
+def _validate_service_certificate(result: dict[str, Any], label: str) -> None:
+    incumbent = _finite(result.get("incumbent"), f"{label} incumbent")
+    lower_bound = _finite(result.get("lower_bound"), f"{label} lower bound")
+    reported_gap = _finite(result.get("objective_bound_gap"), f"{label} gap")
+    recomputed_gap = abs(incumbent - lower_bound)
+    if abs(reported_gap - recomputed_gap) > 1.0e-12 or recomputed_gap > 1.0e-4:
+        raise FormalReportingError(f"service certification rule violated: {label}")
+
+
+def _validate_task_source_identity(
+    task_identity: dict[str, Any],
+    manifest_identity: dict[str, Any],
+    instance_sha256: str,
+    scenario_sha256: str,
+) -> None:
+    if task_identity.get("scenario_sha256") != scenario_sha256:
+        raise FormalReportingError("task scenario identity mismatch")
+    if task_identity.get("instance_sha256") != instance_sha256:
+        raise FormalReportingError("task instance identity mismatch")
+    for source_name in (
+        "solver_parameter_sha256", "instance_generator_sha256",
+        "scenario_generator_sha256", "eligibility_sha256",
+        "strict_solver_environment_sha256",
+    ):
+        if task_identity.get(source_name) != manifest_identity.get(source_name):
+            raise FormalReportingError(f"task source identity mismatch: {source_name}")
+
+
+def _validate_common_budget_chain(
+    payload: dict[str, Any],
+    checkpoint_identities: dict[str, dict[str, Any]],
+    checkpoints: dict[str, dict[str, Any]],
+    common_budget_sha256: str,
+) -> tuple[float, float]:
+    fixed_anchor_values = [
+        _finite(
+            checkpoints[f"fixed_first_stage_cost_anchor_{mode}"]["result"].get("objective"),
+            f"fixed anchor {mode}",
+        )
+        for mode in MODES
+    ]
+    recomputed_common_anchor = max(fixed_anchor_values)
+    reported_common_anchor = _finite(
+        payload.get("fixed_first_stage_common_anchor"), "fixed common anchor"
+    )
+    if abs(reported_common_anchor - recomputed_common_anchor) > 1.0e-7:
+        raise FormalReportingError("fixed common anchor mismatch")
+    recomputed_common_budget = (1.0 + RHO) * recomputed_common_anchor
+    recomputed_common_budget_sha256 = canonical_json_sha256({
+        "anchor": recomputed_common_anchor,
+        "rho_hex": float(RHO).hex(),
+    })
+    if common_budget_sha256 != recomputed_common_budget_sha256:
+        raise FormalReportingError("fixed common-budget hash mismatch")
+    for mode in MODES:
+        fixed_service_identity = checkpoint_identities[f"fixed_first_stage_service_{mode}"]
+        if fixed_service_identity.get("common_budget_sha256") != recomputed_common_budget_sha256:
+            raise FormalReportingError("fixed service references a different common budget")
+        service_budget = _finite(
+            checkpoints[f"fixed_first_stage_service_{mode}"]["result"].get("cost_budget"),
+            f"fixed service budget {mode}",
+        )
+        if abs(service_budget - recomputed_common_budget) > 1.0e-7:
+            raise FormalReportingError("fixed service common budget mismatch")
+    return recomputed_common_anchor, recomputed_common_budget
 
 
 def _load_records(result_root: Path) -> list[dict[str, Any]]:
@@ -98,16 +207,28 @@ def _load_records(result_root: Path) -> list[dict[str, Any]]:
         if int(payload.get("scenario_count", -1)) <= 0:
             raise FormalReportingError("scenario coverage is missing")
         scenario_sha256 = identity.get("scenario_sha256")
+        instance_sha256 = identity.get("instance_sha256")
         first_stage_sha256 = identity.get("first_stage_sha256")
         common_budget_sha256 = identity.get("common_budget_sha256")
         if not all(isinstance(value, str) and value for value in (
-            scenario_sha256, first_stage_sha256, common_budget_sha256
+            scenario_sha256, instance_sha256, first_stage_sha256, common_budget_sha256
         )):
-            raise FormalReportingError("scenario, first-stage, or common-budget identity missing")
+            raise FormalReportingError(
+                "instance, scenario, first-stage, or common-budget identity missing"
+            )
         checkpoint_identities = payload.get("task_checkpoint_identities")
-        if not isinstance(checkpoint_identities, dict) or len(checkpoint_identities) != 12:
+        expected_task_names = {
+            f"{phase}_{mode}"
+            for phase in (
+                "reoptimized_cost_anchor", "reoptimized_service",
+                "fixed_first_stage_cost_anchor", "fixed_first_stage_service",
+            )
+            for mode in MODES
+        }
+        if not isinstance(checkpoint_identities, dict) or set(checkpoint_identities) != expected_task_names:
             raise FormalReportingError("task checkpoint identity matrix is incomplete")
         checkpoint_root = result_root / scale / "checkpoints" / f"seed_{seed}"
+        checkpoints: dict[str, dict[str, Any]] = {}
         for task_name, task_identity in checkpoint_identities.items():
             checkpoint_path = checkpoint_root / f"{task_name}.json"
             try:
@@ -116,20 +237,39 @@ def _load_records(result_root: Path) -> list[dict[str, Any]]:
                 raise FormalReportingError(f"missing or corrupt task checkpoint: {checkpoint_path}") from exc
             if checkpoint.get("identity") != task_identity:
                 raise FormalReportingError("task checkpoint identity mismatch")
-            if checkpoint.get("result", {}).get("certified") is not True:
-                raise FormalReportingError("task checkpoint is not certified")
-            if task_identity.get("scenario_sha256") != scenario_sha256:
-                raise FormalReportingError("task scenario identity mismatch")
-            if task_identity.get("solver_parameter_sha256") != manifest_identity.get(
-                "solver_parameter_sha256"
-            ):
-                raise FormalReportingError("task solver identity mismatch")
+            checkpoints[task_name] = checkpoint
+            _validate_task_source_identity(
+                task_identity, manifest_identity, instance_sha256, scenario_sha256
+            )
+        bound_reoptimized_services: dict[str, dict[str, Any]] = {}
         for mode in MODES:
-            expected_anchor = _anchor_identity(payload["anchors"][mode])
+            reoptimized_anchor = _require_bound_result(
+                payload["anchors"][mode],
+                checkpoints[f"reoptimized_cost_anchor_{mode}"],
+                f"reoptimized_cost_anchor_{mode}",
+            )
+            _validate_anchor_certificate(
+                reoptimized_anchor, f"reoptimized_cost_anchor_{mode}"
+            )
+            expected_anchor = _anchor_identity(reoptimized_anchor)
             if checkpoint_identities[f"reoptimized_service_{mode}"].get(
                 "anchor_sha256"
             ) != expected_anchor:
                 raise FormalReportingError("re-optimized anchor identity mismatch")
+            reoptimized_service = _require_bound_result(
+                payload["reoptimized"][mode],
+                checkpoints[f"reoptimized_service_{mode}"],
+                f"reoptimized_service_{mode}",
+            )
+            _validate_service_certificate(
+                reoptimized_service, f"reoptimized_service_{mode}"
+            )
+            bound_reoptimized_services[mode] = reoptimized_service
+            expected_mode_budget = (1.0 + RHO) * _finite(
+                reoptimized_anchor.get("objective"), "re-optimized anchor"
+            )
+            if abs(_finite(reoptimized_service.get("cost_budget"), "re-optimized budget") - expected_mode_budget) > 1.0e-7:
+                raise FormalReportingError("re-optimized service budget mismatch")
             fixed_anchor_identity = checkpoint_identities[
                 f"fixed_first_stage_cost_anchor_{mode}"
             ]
@@ -140,6 +280,43 @@ def _load_records(result_root: Path) -> list[dict[str, Any]]:
                 raise FormalReportingError("fixed service first-stage identity mismatch")
             if fixed_service_identity.get("common_budget_sha256") != common_budget_sha256:
                 raise FormalReportingError("fixed common-budget identity mismatch")
+            fixed_anchor = _require_bound_result(
+                payload["fixed_first_stage_anchors"][mode],
+                checkpoints[f"fixed_first_stage_cost_anchor_{mode}"],
+                f"fixed_first_stage_cost_anchor_{mode}",
+            )
+            _validate_anchor_certificate(
+                fixed_anchor, f"fixed_first_stage_cost_anchor_{mode}"
+            )
+            fixed_service = _require_bound_result(
+                payload["fixed_first_stage"][mode],
+                checkpoints[f"fixed_first_stage_service_{mode}"],
+                f"fixed_first_stage_service_{mode}",
+            )
+            _validate_service_certificate(
+                fixed_service, f"fixed_first_stage_service_{mode}"
+            )
+        full_result = bound_reoptimized_services["full"]
+        recomputed_first_stage_sha256 = canonical_json_sha256({
+            "y": full_result.get("y_values"),
+            "x": full_result.get("x_values"),
+        })
+        if first_stage_sha256 != recomputed_first_stage_sha256:
+            raise FormalReportingError("full first-stage identity mismatch")
+        for mode in MODES:
+            for task_name in (
+                f"fixed_first_stage_cost_anchor_{mode}",
+                f"fixed_first_stage_service_{mode}",
+            ):
+                result = checkpoints[task_name]["result"]
+                result_first_stage_sha256 = canonical_json_sha256({
+                    "y": result.get("y_values"), "x": result.get("x_values")
+                })
+                if result_first_stage_sha256 != recomputed_first_stage_sha256:
+                    raise FormalReportingError("fixed task first-stage values drifted")
+        _validate_common_budget_chain(
+            payload, checkpoint_identities, checkpoints, common_budget_sha256
+        )
         for evaluation in ("reoptimized", "fixed_first_stage"):
             section = payload.get(evaluation, {})
             if set(section) != set(MODES):
@@ -242,6 +419,7 @@ def build_tables(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]
     active_arcs: list[dict[str, Any]] = []
     warehouse_product: list[dict[str, Any]] = []
     region_product: list[dict[str, Any]] = []
+    regional: list[dict[str, Any]] = []
     for payload in records:
         scale = payload["identity"]["scale"]
         seed = int(payload["identity"]["seed"])
@@ -326,6 +504,11 @@ def build_tables(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]
                         "scale": scale, "seed": seed, "evaluation": evaluation, "mode": mode,
                         **row, "interpretation": "exploratory_nonunique_T_optimum",
                     })
+                for row in metrics["regional"]:
+                    regional.append({
+                        "scale": scale, "seed": seed, "evaluation": evaluation, "mode": mode,
+                        **row, "interpretation": "exploratory_nonunique_T_optimum",
+                    })
             t1 = _finite(by_mode["k1"]["objective_t"], "T_k1")
             t2 = _finite(by_mode["k2"]["objective_t"], "T_k2")
             tf = _finite(by_mode["full"]["objective_t"], "T_full")
@@ -394,6 +577,7 @@ def build_tables(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]
         "active_arc_diagnostic": active_arcs,
         "warehouse_product_diagnostic": warehouse_product,
         "region_product_diagnostic": region_product,
+        "regional_diagnostic": regional,
     }
 
 
@@ -529,7 +713,9 @@ def formal_decision(tables: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
             "network adaptation plus inventory adaptation plus recourse flexibility"
         ),
         "fixed_first_stage_interpretation": (
-            "recourse-set expansion under common y, x, scenarios, Gamma, and absolute cost allowance"
+            "recourse-set expansion under common y, x, scenarios, Gamma, and absolute cost allowance; "
+            "conditional on the certified full-mode T-optimal first-stage configuration selected "
+            "by the frozen solution procedure"
         ),
         "median_capture_k2_untruncated": statistics.median(capture) if capture else None,
         "diminishing_returns_instance_count": len(diminishing),
@@ -553,6 +739,7 @@ def write_formal_reports(result_root: Path) -> dict[str, Any]:
         "active_arc_diagnostic": "active_arc_diagnostic.csv",
         "warehouse_product_diagnostic": "warehouse_product_diagnostic.csv",
         "region_product_diagnostic": "region_product_diagnostic.csv",
+        "regional_diagnostic": "regional_diagnostic.csv",
     }
     for key, filename in mapping.items():
         rows = tables[key]

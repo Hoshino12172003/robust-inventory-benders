@@ -42,8 +42,10 @@ frozen 64 GiB primary gate. The formal configs additionally require at least
 even after scientific review unless:
 
 1. a host satisfying both hardware thresholds is used; or
-2. a separately reviewed eligibility-aware scalable exact backend is added
-   without changing model semantics or inspecting formal outcomes.
+2. a separate Route B PR implements and validates an eligibility-aware scalable
+   exact backend without changing model semantics or inspecting formal outcomes.
+
+PR #80 itself does not accept backend qualification as execution authorization.
 
 The preregistered 5+5 fallback reduces the total runtime envelope to 60 hours
 but does not reduce the per-instance large/full memory requirement. It cannot

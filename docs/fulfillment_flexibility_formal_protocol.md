@@ -121,8 +121,9 @@ amendment may activate the already frozen fallback seeds 230--234, giving 5+5,
 only if the hardware/runtime gate in both configs fails. No different seeds or
 post-result sample-size change is permitted. The fallback reduces the total
 runtime envelope but not the per-instance memory of the large formulation;
-therefore the hardware gate or a separately reviewed scalable exact backend is
-still required. No fallback has been activated in this protocol PR.
+therefore the high-memory hardware gate remains required in PR #80. A scalable
+exact backend requires a separate implementation and review. No fallback has
+been activated in this protocol PR.
 
 ## 5. Analysis A: re-optimized total system value
 
@@ -179,6 +180,11 @@ This construction supplies the same **absolute** allowance to k1, k2, and full.
 It must not be described as giving every mode exactly 2.5% above that mode's own
 fixed-configuration minimum; the common anchor is the maximum of the three
 fixed-mode anchors.
+
+The fixed-first-stage comparison is conditional on the certified full-mode
+`T`-optimal first-stage configuration selected by the frozen solution
+procedure. It is not claimed to be invariant across every possible `T`-optimal
+first-stage configuration.
 
 ## 7. Primary outcome and marginal flexibility
 
@@ -267,7 +273,9 @@ For re-optimized solutions, report openings, opening vectors, Hamming distance,
 total inventory, warehouse-product inventory vectors, normalized L1 inventory
 distance, inventory concentration, and active warehouse-region arcs. These
 separate network adaptation, inventory adaptation, and fixed-first-stage
-recourse effects.
+recourse effects. A separate exploratory regional diagnostics table exports the
+eligible and actually used warehouse counts for every region and the scenario
+in which that region reaches its worst shortage rate.
 
 Because the service model minimizes only `T`, opening, inventory, shipment, and
 realized-cost solutions need not be unique. Cost decompositions, source-use and
@@ -342,8 +350,19 @@ dependent service tasks.
 The later formal manifest, immutable task checkpoints, and raw outputs bind source commit, protocol and
 config hashes, runner and model-source hashes, seed list, eligibility source
 hash, Gamma, rho, scale, mode, instance hash, full first-stage identity, and
-common-budget identity. Reporting validates both manifests, every checkpoint,
-and the full identity chain before pooling. Existing certified evidence is never overwritten.
+common-budget identity. Task checkpoints also bind the instance-generator and
+scenario-generator source hashes. Reporting independently recomputes current
+frozen identities, verifies each raw result against the canonical certified
+checkpoint-result hash, and recomputes anchor and common-budget links before
+pooling. Existing certified evidence is never overwritten.
+
+Gurobi major/minor version is a strict solver-environment identity field.
+Exact package version, Python version and implementation, operating system,
+platform string, and architecture are reproducibility metadata. A separate
+Gurobi build identifier is recorded when exposed; current package metadata does
+not expose one without importing the solver. Harmless metadata differences do
+not invalidate evidence, but strict Gurobi major/minor identity and the frozen
+solver-parameter identity must match.
 
 ## 12. Full-mode regression
 
@@ -366,11 +385,12 @@ The preferred 20-instance design therefore has 240 tasks. With the frozen
 1,800-second per-task limit, the conservative sequential envelope is 120 hours.
 The exact large formulation has approximately 4.06 million columns before
 mode-specific row differences. Static audit therefore requires at least 64 GiB
-RAM and 250 GiB free disk or a separately reviewed eligibility-aware scalable
-exact backend. The 64 GiB value is only a minimum gate, not proof of sufficiency.
-An identity-bound reviewed high-memory hardware qualification or certified-
-backend qualification is mandatory. Current-host inadequacy is a pre-result operational issue, not a
-reason to inspect results and then alter the sample.
+RAM and 250 GiB free disk. The 64 GiB value is only a minimum gate, not proof of
+sufficiency. PR #80 accepts only an identity-bound reviewed high-memory
+extensive-form hardware qualification. A certified-backend qualification cannot
+authorize execution until a separate Route B implementation PR supplies and
+validates that backend. Current-host inadequacy is a pre-result operational
+issue, not a reason to inspect results and then alter the sample.
 
 ## 14. Execution gate and output isolation
 
@@ -379,10 +399,16 @@ validation requires. A separately reviewed amendment may transition the config
 to `true`; execution-stage validation then requires both an exact identity-bound
 authorization and a separate identity-bound execution qualification. This gate
 runs before solver import, instance generation, scenario enumeration, or output
-creation.
+creation. It also requires a clean relevant source tree; tracked modifications
+or relevant untracked files fail closed and are never automatically cleaned or
+stashed. The identity-bound authorization and hardware-qualification records
+are execution records rather than executable sources and are the only excluded
+paths; their contents are validated independently by the gate.
 
 After the gate passes, each of the twelve optimization tasks per instance is
-published as an immutable atomic write-then-rename checkpoint. Resume skips only
+published as an immutable create-once checkpoint. Finalization uses an atomic
+fail-if-exists hard-link operation so concurrent writers cannot overwrite an
+existing target. Resume skips only
 a certified, identity-valid checkpoint. Temporary, corrupt, uncertified, or
 identity-incompatible files fail closed. Task identity binds scale, seed, mode,
 task type, Gamma, rho, source, protocol/config/runner/eligibility/scenario/solver

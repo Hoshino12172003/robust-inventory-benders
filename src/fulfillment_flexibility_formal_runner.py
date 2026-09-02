@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import inspect
 import json
 import math
 import os
 from pathlib import Path
+import platform
 import re
 import subprocess
 import time
@@ -30,6 +32,11 @@ GAMMA = 2
 RHO = 0.025
 RESULT_ROOT = Path("experiments/results_fulfillment_flexibility/formal")
 REPORTING_SOURCE = ROOT / "src/fulfillment_flexibility_formal_reporting.py"
+EXECUTION_SOURCE_PATHS = (
+    "src",
+    "docs/fulfillment_flexibility_formal_protocol.md",
+    "experiments/configs",
+)
 FORMAL_PATH_MARKERS = (
     "fulfillment_flexibility_formal",
     "results_fulfillment_flexibility/formal",
@@ -378,8 +385,8 @@ def static_audit(config_paths: list[Path], root: Path = ROOT) -> dict[str, Any]:
         "decision": "protocol_ready_but_formal_optimization_prohibited",
         "scientific_concern": (
             "The exact large extensive form has about 4.06 million columns. "
-            "Current-host execution is blocked unless the hardware gate passes or a separately "
-            "reviewed eligibility-aware scalable solver is introduced without changing the model."
+            "Current-host execution is blocked unless the high-memory extensive-form hardware "
+            "gate passes. A scalable backend requires a separate implementation PR."
         ),
     }
 
@@ -398,9 +405,81 @@ def solver_parameter_identity(config: dict[str, Any]) -> str:
     return canonical_json_sha256(config.get("solver", {}))
 
 
+def solver_environment_identity() -> dict[str, Any]:
+    """Return strict solver identity plus non-strict reproducibility metadata."""
+    try:
+        gurobi_package_version = importlib.metadata.version("gurobipy")
+    except importlib.metadata.PackageNotFoundError:
+        gurobi_package_version = "not_installed"
+    components = gurobi_package_version.split(".")
+    gurobi_major_minor = ".".join(components[:2]) if len(components) >= 2 else gurobi_package_version
+    return {
+        "strict": {"gurobi_major_minor": gurobi_major_minor},
+        "metadata": {
+            "gurobi_package_version": gurobi_package_version,
+            "gurobi_build": None,
+            "gurobi_build_note": "not exposed by package metadata without importing the solver",
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "os_platform": platform.platform(),
+            "architecture": platform.machine(),
+            "python_executable_architecture": platform.architecture()[0],
+        },
+    }
+
+
+def model_source_identity(root: Path = ROOT) -> dict[str, str]:
+    return {
+        "instance_generator_sha256": file_sha256(root / "src/instance.py").upper(),
+        "scenario_generator_sha256": file_sha256(root / "src/scenarios.py").upper(),
+    }
+
+
+def execution_source_status(
+    root: Path = ROOT,
+    execution_record_paths: tuple[str, ...] = (),
+) -> list[str]:
+    completed = subprocess.run(
+        [
+            "git", "-C", str(root), "status", "--porcelain=v1", "--untracked-files=all",
+            "--", *EXECUTION_SOURCE_PATHS,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    allowed = {
+        Path(path).as_posix().lower()
+        for path in execution_record_paths
+        if not Path(path).is_absolute()
+    }
+    dirty = []
+    for line in completed.stdout.splitlines():
+        if not line.strip():
+            continue
+        relative = line[3:].strip().strip('"').replace("\\", "/").lower()
+        if relative not in allowed:
+            dirty.append(line)
+    return dirty
+
+
+def assert_clean_execution_source(
+    root: Path = ROOT,
+    execution_record_paths: tuple[str, ...] = (),
+) -> None:
+    dirty = execution_source_status(root, execution_record_paths)
+    if dirty:
+        raise FormalOptimizationProhibited(
+            "formal execution source tree is dirty: " + "; ".join(dirty)
+        )
+
+
 def protocol_identity(config_path: Path, root: Path = ROOT) -> dict[str, Any]:
     config = load_config(config_path)
     _validate_frozen_config(config)
+    model_sources = model_source_identity(root)
+    solver_environment = solver_environment_identity()
     return {
         "source_commit": _git_commit(root),
         "protocol_sha256": file_sha256(root / "docs/fulfillment_flexibility_formal_protocol.md").upper(),
@@ -410,6 +489,12 @@ def protocol_identity(config_path: Path, root: Path = ROOT) -> dict[str, Any]:
         "reporting_sha256": file_sha256(REPORTING_SOURCE).upper(),
         "eligibility_sha256": eligibility_identity(),
         "solver_parameter_sha256": solver_parameter_identity(config),
+        "instance_generator_sha256": model_sources["instance_generator_sha256"],
+        "scenario_generator_sha256": model_sources["scenario_generator_sha256"],
+        "strict_solver_environment_sha256": canonical_json_sha256(
+            solver_environment["strict"]
+        ),
+        "gurobi_major_minor": solver_environment["strict"]["gurobi_major_minor"],
         "gamma": GAMMA,
         "rho_hex": float(RHO).hex(),
         "formal_seeds": list(FORMAL_SEEDS),
@@ -424,6 +509,9 @@ def execution_qualification_identity(config_path: Path, root: Path = ROOT) -> di
         "runner_sha256": identity["runner_sha256"],
         "eligibility_sha256": identity["eligibility_sha256"],
         "solver_parameter_sha256": identity["solver_parameter_sha256"],
+        "instance_generator_sha256": identity["instance_generator_sha256"],
+        "scenario_generator_sha256": identity["scenario_generator_sha256"],
+        "strict_solver_environment_sha256": identity["strict_solver_environment_sha256"],
         "gamma": identity["gamma"],
         "rho_hex": identity["rho_hex"],
     }
@@ -448,6 +536,13 @@ def current_host_resources(root: Path = ROOT) -> dict[str, int | None]:
 def assert_formal_execution_gate(config_path: Path, root: Path = ROOT) -> dict[str, Any]:
     config = load_config(config_path)
     validate_execution_config(config)
+    assert_clean_execution_source(
+        root,
+        (
+            str(config["authorization_file"]),
+            str(config["execution_qualification_file"]),
+        ),
+    )
     authorization_path = root / str(config["authorization_file"])
     if not authorization_path.exists():
         raise FormalOptimizationProhibited("reviewed formal authorization file is absent")
@@ -463,42 +558,33 @@ def assert_formal_execution_gate(config_path: Path, root: Path = ROOT) -> dict[s
     qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
     if qualification.get("reviewed") is not True:
         raise FormalOptimizationProhibited("execution qualification is not reviewed")
-    if qualification.get("qualification_type") not in {
-        "high_memory_hardware", "eligibility_aware_certified_backend"
-    }:
-        raise FormalOptimizationProhibited("unsupported execution qualification type")
+    if qualification.get("qualification_type") != "high_memory_hardware":
+        raise FormalOptimizationProhibited(
+            "Route B backend qualification is disabled until a separate implementation PR"
+        )
     if qualification.get("identity") != execution_qualification_identity(config_path, root):
         raise FormalOptimizationProhibited("execution qualification identity drifted")
-    qualification_type = qualification["qualification_type"]
-    if qualification_type == "high_memory_hardware":
-        if qualification.get("qualification_status") != "pass":
-            raise FormalOptimizationProhibited("high-memory qualification did not pass")
-        if int(qualification.get("qualified_total_ram_bytes", 0)) < int(
-            config["fallback_rule"]["triggers"]["minimum_ram_bytes"]
-        ):
-            raise FormalOptimizationProhibited("qualified hardware RAM is below the frozen gate")
-        if int(qualification.get("qualified_free_disk_bytes", 0)) < int(
-            config["fallback_rule"]["triggers"]["minimum_free_disk_bytes"]
-        ):
-            raise FormalOptimizationProhibited("qualified hardware disk is below the frozen gate")
-        if any(qualification.get(flag) is not False for flag in (
-            "scientifically_usable", "paper_evidence", "formal_sample"
-        )):
-            raise FormalOptimizationProhibited("hardware qualification evidence boundary drifted")
-        resources = current_host_resources(root)
-        minimum_ram = int(config["fallback_rule"]["triggers"]["minimum_ram_bytes"])
-        minimum_disk = int(config["fallback_rule"]["triggers"]["minimum_free_disk_bytes"])
-        if resources["total_ram_bytes"] is None or int(resources["total_ram_bytes"]) < minimum_ram:
-            raise FormalOptimizationProhibited("current execution host RAM is below the frozen gate")
-        if int(resources["free_disk_bytes"]) < minimum_disk:
-            raise FormalOptimizationProhibited("current execution host disk is below the frozen gate")
-    else:
-        if (
-            qualification.get("qualification_status") != "pass"
-            or qualification.get("mathematical_model_equivalence_reviewed") is not True
-            or qualification.get("final_exact_certification_reviewed") is not True
-        ):
-            raise FormalOptimizationProhibited("certified-backend qualification is incomplete")
+    if qualification.get("qualification_status") != "pass":
+        raise FormalOptimizationProhibited("high-memory qualification did not pass")
+    if int(qualification.get("qualified_total_ram_bytes", 0)) < int(
+        config["fallback_rule"]["triggers"]["minimum_ram_bytes"]
+    ):
+        raise FormalOptimizationProhibited("qualified hardware RAM is below the frozen gate")
+    if int(qualification.get("qualified_free_disk_bytes", 0)) < int(
+        config["fallback_rule"]["triggers"]["minimum_free_disk_bytes"]
+    ):
+        raise FormalOptimizationProhibited("qualified hardware disk is below the frozen gate")
+    if any(qualification.get(flag) is not False for flag in (
+        "scientifically_usable", "paper_evidence", "formal_sample"
+    )):
+        raise FormalOptimizationProhibited("hardware qualification evidence boundary drifted")
+    resources = current_host_resources(root)
+    minimum_ram = int(config["fallback_rule"]["triggers"]["minimum_ram_bytes"])
+    minimum_disk = int(config["fallback_rule"]["triggers"]["minimum_free_disk_bytes"])
+    if resources["total_ram_bytes"] is None or int(resources["total_ram_bytes"]) < minimum_ram:
+        raise FormalOptimizationProhibited("current execution host RAM is below the frozen gate")
+    if int(resources["free_disk_bytes"]) < minimum_disk:
+        raise FormalOptimizationProhibited("current execution host disk is below the frozen gate")
     return expected
 
 
@@ -1154,7 +1240,7 @@ def _anchor_identity(result: dict[str, Any]) -> str:
 
 
 def _atomic_create_json(path: Path, payload: dict[str, Any]) -> None:
-    """Publish one immutable JSON checkpoint by write-then-rename."""
+    """Publish one immutable JSON checkpoint with create-once finalization."""
     if path.exists():
         raise FileExistsError(f"refusing to overwrite immutable checkpoint: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1165,9 +1251,12 @@ def _atomic_create_json(path: Path, payload: dict[str, Any]) -> None:
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-        if path.exists():
-            raise FileExistsError(f"immutable checkpoint appeared during write: {path}")
-        os.rename(temporary, path)
+        try:
+            os.link(temporary, path)
+        except FileExistsError as exc:
+            raise FileExistsError(
+                f"refusing to overwrite immutable checkpoint: {path}"
+            ) from exc
     finally:
         if temporary.exists():
             temporary.unlink()
@@ -1198,6 +1287,8 @@ def run_or_resume_certified_task(
             or result.get("status") != "optimal"
         ):
             raise FormalProtocolError(f"existing task is not certified: {checkpoint}")
+        if payload.get("result_sha256") != canonical_json_sha256(result):
+            raise FormalProtocolError(f"existing task result hash mismatch: {checkpoint}")
         return result, True
     result = solve()
     if (
@@ -1209,6 +1300,7 @@ def run_or_resume_certified_task(
     _atomic_create_json(checkpoint, {
         "schema": "fulfillment_flexibility_formal_task_checkpoint_v1",
         "identity": identity,
+        "result_sha256": canonical_json_sha256(result),
         "result": result,
     })
     return result, False
@@ -1221,6 +1313,7 @@ def _task_identity(
     seed: int,
     mode: Mode,
     task_type: str,
+    instance_sha256: str,
     scenario_sha256: str,
     first_stage_sha256: str | None = None,
     anchor_sha256: str | None = None,
@@ -1231,6 +1324,7 @@ def _task_identity(
         "seed": int(seed),
         "mode": mode,
         "task_type": task_type,
+        "instance_sha256": instance_sha256,
         "gamma": GAMMA,
         "rho_hex": float(RHO).hex(),
         "source_commit": protocol["source_commit"],
@@ -1239,6 +1333,9 @@ def _task_identity(
         "scientific_config_sha256": protocol["scientific_config_sha256"],
         "runner_sha256": protocol["runner_sha256"],
         "eligibility_sha256": protocol["eligibility_sha256"],
+        "instance_generator_sha256": protocol["instance_generator_sha256"],
+        "scenario_generator_sha256": protocol["scenario_generator_sha256"],
+        "strict_solver_environment_sha256": protocol["strict_solver_environment_sha256"],
         "scenario_sha256": scenario_sha256,
         "first_stage_sha256": first_stage_sha256,
         "anchor_sha256": anchor_sha256,
@@ -1266,6 +1363,7 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             "instance": file_sha256(root / "src/instance.py").upper(),
             "scenarios": file_sha256(root / "src/scenarios.py").upper(),
         },
+        "solver_environment": solver_environment_identity(),
         "solver_parameter_sha256": identity["solver_parameter_sha256"],
     }
     manifest_path = scale_output / "manifest.json"
@@ -1286,6 +1384,7 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
         if len(scenarios) != int(config["expected_scenario_count"]):
             raise FormalProtocolError("scenario count drifted")
         scenario_sha256 = _scenario_identity(scenarios)
+        instance_sha256 = canonical_json_sha256(instance.to_dict())
         checkpoint_root = scale_output / "checkpoints" / f"seed_{seed}"
         checkpoint_identities: dict[str, dict[str, Any]] = {}
         anchors: dict[str, dict[str, Any]] = {}
@@ -1293,7 +1392,8 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             task_name = f"reoptimized_cost_anchor_{mode}"
             task_identity = _task_identity(
                 identity, scale=scale, seed=int(seed), mode=mode,
-                task_type="reoptimized_cost_anchor", scenario_sha256=scenario_sha256,
+                task_type="reoptimized_cost_anchor", instance_sha256=instance_sha256,
+                scenario_sha256=scenario_sha256,
             )
             checkpoint_identities[task_name] = task_identity
             anchors[mode], _ = run_or_resume_certified_task(
@@ -1307,7 +1407,8 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             task_name = f"reoptimized_service_{mode}"
             task_identity = _task_identity(
                 identity, scale=scale, seed=int(seed), mode=mode,
-                task_type="reoptimized_service", scenario_sha256=scenario_sha256,
+                task_type="reoptimized_service", instance_sha256=instance_sha256,
+                scenario_sha256=scenario_sha256,
                 anchor_sha256=anchor_sha256,
             )
             checkpoint_identities[task_name] = task_identity
@@ -1327,7 +1428,8 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             task_name = f"fixed_first_stage_cost_anchor_{mode}"
             task_identity = _task_identity(
                 identity, scale=scale, seed=int(seed), mode=mode,
-                task_type="fixed_first_stage_cost_anchor", scenario_sha256=scenario_sha256,
+                task_type="fixed_first_stage_cost_anchor", instance_sha256=instance_sha256,
+                scenario_sha256=scenario_sha256,
                 first_stage_sha256=first_stage_sha256,
             )
             checkpoint_identities[task_name] = task_identity
@@ -1348,7 +1450,8 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             task_name = f"fixed_first_stage_service_{mode}"
             task_identity = _task_identity(
                 identity, scale=scale, seed=int(seed), mode=mode,
-                task_type="fixed_first_stage_service", scenario_sha256=scenario_sha256,
+                task_type="fixed_first_stage_service", instance_sha256=instance_sha256,
+                scenario_sha256=scenario_sha256,
                 first_stage_sha256=first_stage_sha256,
                 common_budget_sha256=common_budget_sha256,
             )
@@ -1367,7 +1470,7 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
                 **identity,
                 "scale": scale,
                 "seed": int(seed),
-                "instance_sha256": canonical_json_sha256(instance.to_dict()),
+                "instance_sha256": instance_sha256,
                 "scenario_sha256": scenario_sha256,
                 "first_stage_sha256": first_stage_sha256,
                 "common_budget_sha256": common_budget_sha256,

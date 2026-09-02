@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import copy
 import json
+import threading
 
 import pytest
 import yaml
@@ -12,14 +14,19 @@ from src.fulfillment_flexibility_formal_reporting import (
     exact_two_sided_sign_test,
     holm_adjust,
     _comparison_statistics,
+    _require_bound_result,
+    _validate_common_budget_chain,
     _validate_manifest_family,
+    _validate_task_source_identity,
     FormalReportingError,
 )
 from src.fulfillment_flexibility_formal_runner import (
     FALLBACK_SEEDS,
     FORMAL_SEEDS,
+    MODES,
     FormalOptimizationProhibited,
     FormalProtocolError,
+    _atomic_create_json,
     _add_recourse,
     _base_model,
     build_eligibility,
@@ -39,7 +46,9 @@ from src.fulfillment_flexibility_formal_runner import (
     validate_config,
     validate_execution_config,
     validate_protocol_config,
+    solver_environment_identity,
 )
+from src.experiment_protocol import canonical_json_sha256, file_sha256
 from src.instance import generate_instance
 from src.scenarios import enumerate_budget_scenarios
 
@@ -272,6 +281,9 @@ def test_authorization_state_transition_is_structurally_satisfiable(
         validate_execution_config(protocol)
 
     future = _future_authorized_config(tmp_path)
+    monkeypatch.setattr(
+        "src.fulfillment_flexibility_formal_runner.execution_source_status", lambda _root, _records: []
+    )
     validate_execution_config(load_config(future))
     authorization = {
         "formal_optimization_authorized": True,
@@ -304,8 +316,13 @@ def test_authorization_state_transition_is_structurally_satisfiable(
     assert_formal_execution_gate(future, ROOT)
 
 
-def test_authorization_and_qualification_identity_drift_fail_closed(tmp_path: Path) -> None:
+def test_authorization_and_qualification_identity_drift_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     future = _future_authorized_config(tmp_path)
+    monkeypatch.setattr(
+        "src.fulfillment_flexibility_formal_runner.execution_source_status", lambda _root, _records: []
+    )
     identity = protocol_identity(future, ROOT)
     authorization_path = Path(load_config(future)["authorization_file"])
     qualification_path = Path(load_config(future)["execution_qualification_file"])
@@ -324,8 +341,13 @@ def test_authorization_and_qualification_identity_drift_fail_closed(tmp_path: Pa
         assert_formal_execution_gate(future, ROOT)
 
 
-def test_current_host_cannot_pass_high_memory_execution_gate(tmp_path: Path) -> None:
+def test_current_host_cannot_pass_high_memory_execution_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     future = _future_authorized_config(tmp_path)
+    monkeypatch.setattr(
+        "src.fulfillment_flexibility_formal_runner.execution_source_status", lambda _root, _records: []
+    )
     config = load_config(future)
     Path(config["authorization_file"]).write_text(json.dumps({
         "formal_optimization_authorized": True,
@@ -371,19 +393,210 @@ def test_atomic_certified_task_resume_and_fail_closed(tmp_path: Path) -> None:
     assert resumed is False and incomplete.exists()
 
 
+def _valid_manifests() -> dict[str, dict]:
+    manifests = {}
+    for scale, path in zip(("medium_large", "large"), CONFIGS):
+        manifests[scale] = {
+            "identity": protocol_identity(path, ROOT),
+            "scale": scale,
+            "seeds": list(FORMAL_SEEDS),
+            "model_source_sha256": {
+                "runner": file_sha256(ROOT / "src/fulfillment_flexibility_formal_runner.py").upper(),
+                "instance": file_sha256(ROOT / "src/instance.py").upper(),
+                "scenarios": file_sha256(ROOT / "src/scenarios.py").upper(),
+            },
+            "solver_environment": solver_environment_identity(),
+        }
+    return manifests
+
+
 def test_mixed_manifest_identity_fails_closed() -> None:
-    common = {
-        "source_commit": "a", "protocol_sha256": "b", "runner_sha256": "c",
-        "reporting_sha256": "d", "eligibility_sha256": "e", "gamma": 2,
-        "rho_hex": float(0.025).hex(), "formal_seeds": list(FORMAL_SEEDS),
-    }
-    manifests = {
-        scale: {"identity": {**common}, "scale": scale, "seeds": list(FORMAL_SEEDS)}
-        for scale in ("medium_large", "large")
-    }
+    manifests = _valid_manifests()
     manifests["large"]["identity"]["runner_sha256"] = "different"
     with pytest.raises(FormalReportingError, match="mixed formal manifest identity"):
         _validate_manifest_family(manifests)
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    (
+        ("protocol_sha256", "formal current identity drifted: protocol_sha256"),
+        ("scientific_config_sha256", "formal current identity drifted: scientific_config_sha256"),
+    ),
+)
+def test_stale_current_manifest_identity_is_rejected(field: str, message: str) -> None:
+    manifests = _valid_manifests()
+    for manifest in manifests.values():
+        manifest["identity"][field] = "STALE"
+    with pytest.raises(FormalReportingError, match=message):
+        _validate_manifest_family(manifests)
+
+
+def test_cross_scale_solver_identity_mismatch_is_rejected() -> None:
+    manifests = _valid_manifests()
+    manifests["large"]["identity"]["solver_parameter_sha256"] = "STALE"
+    with pytest.raises(FormalReportingError, match="mixed formal manifest identity"):
+        _validate_manifest_family(manifests)
+
+
+def test_stale_model_source_identity_is_rejected() -> None:
+    manifests = _valid_manifests()
+    manifests["medium_large"]["model_source_sha256"]["instance"] = "STALE"
+    with pytest.raises(FormalReportingError, match="model-source identity drifted"):
+        _validate_manifest_family(manifests)
+
+
+def _checkpoint(result: dict) -> dict:
+    return {"result": copy.deepcopy(result), "result_sha256": canonical_json_sha256(result)}
+
+
+def test_altered_raw_result_and_anchor_are_rejected() -> None:
+    result = {"certified": True, "status": "optimal", "objective_t": 0.2}
+    checkpoint = _checkpoint(result)
+    altered_t = {**result, "objective_t": 0.3}
+    with pytest.raises(FormalReportingError, match="raw/checkpoint result mismatch"):
+        _require_bound_result(altered_t, checkpoint, "service")
+    anchor = {"certified": True, "status": "optimal", "objective": 10.0}
+    anchor_checkpoint = _checkpoint(anchor)
+    with pytest.raises(FormalReportingError, match="raw/checkpoint result mismatch"):
+        _require_bound_result({**anchor, "objective": 11.0}, anchor_checkpoint, "anchor")
+
+
+def test_checkpoint_certified_true_but_nonoptimal_is_rejected() -> None:
+    result = {"certified": True, "status": "time_limit", "objective_t": 0.2}
+    with pytest.raises(FormalReportingError, match="not certified optimal"):
+        _require_bound_result(result, _checkpoint(result), "service")
+
+
+def _common_budget_fixture():
+    anchors = {"k1": 12.0, "k2": 11.0, "full": 10.0}
+    common_anchor = max(anchors.values())
+    common_budget = 1.025 * common_anchor
+    common_hash = canonical_json_sha256({
+        "anchor": common_anchor, "rho_hex": float(0.025).hex()
+    })
+    identities = {
+        f"fixed_first_stage_service_{mode}": {"common_budget_sha256": common_hash}
+        for mode in MODES
+    }
+    checkpoints = {}
+    for mode in MODES:
+        checkpoints[f"fixed_first_stage_cost_anchor_{mode}"] = {
+            "result": {"certified": True, "status": "optimal", "objective": anchors[mode]}
+        }
+        checkpoints[f"fixed_first_stage_service_{mode}"] = {
+            "result": {"certified": True, "status": "optimal", "cost_budget": common_budget}
+        }
+    payload = {"fixed_first_stage_common_anchor": common_anchor}
+    return payload, identities, checkpoints, common_hash
+
+
+def test_tampered_common_anchor_and_budget_are_rejected() -> None:
+    payload, identities, checkpoints, common_hash = _common_budget_fixture()
+    _validate_common_budget_chain(payload, identities, checkpoints, common_hash)
+    with pytest.raises(FormalReportingError, match="common anchor mismatch"):
+        _validate_common_budget_chain(
+            {"fixed_first_stage_common_anchor": 99.0}, identities, checkpoints, common_hash
+        )
+    bad_budget = copy.deepcopy(checkpoints)
+    bad_budget["fixed_first_stage_service_k1"]["result"]["cost_budget"] += 1.0
+    with pytest.raises(FormalReportingError, match="common budget mismatch"):
+        _validate_common_budget_chain(payload, identities, bad_budget, common_hash)
+    bad_identity = copy.deepcopy(identities)
+    bad_identity["fixed_first_stage_service_k2"]["common_budget_sha256"] = "OTHER"
+    with pytest.raises(FormalReportingError, match="different common budget"):
+        _validate_common_budget_chain(payload, bad_identity, checkpoints, common_hash)
+
+
+def test_generator_source_drift_invalidates_task_identity(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "generator-bound.json"
+    identity = {
+        "seed": 0, "mode": "k1", "task_type": "test",
+        "instance_generator_sha256": "A", "scenario_generator_sha256": "B",
+    }
+    run_or_resume_certified_task(
+        checkpoint, identity, lambda: {"certified": True, "status": "optimal"}
+    )
+    with pytest.raises(FormalProtocolError, match="identity mismatch"):
+        run_or_resume_certified_task(
+            checkpoint,
+            {**identity, "instance_generator_sha256": "CHANGED"},
+            lambda: None,
+        )
+    manifest_identity = {
+        "solver_parameter_sha256": "S", "instance_generator_sha256": "A",
+        "scenario_generator_sha256": "B", "eligibility_sha256": "E",
+        "strict_solver_environment_sha256": "G",
+    }
+    task_identity = {
+        **manifest_identity, "instance_sha256": "I", "scenario_sha256": "D",
+        "scenario_generator_sha256": "CHANGED",
+    }
+    with pytest.raises(FormalReportingError, match="scenario_generator_sha256"):
+        _validate_task_source_identity(task_identity, manifest_identity, "I", "D")
+
+
+def test_backend_qualification_cannot_open_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    future = _future_authorized_config(tmp_path)
+    monkeypatch.setattr(
+        "src.fulfillment_flexibility_formal_runner.execution_source_status", lambda _root, _records: []
+    )
+    config = load_config(future)
+    Path(config["authorization_file"]).write_text(json.dumps({
+        "formal_optimization_authorized": True,
+        "identity": protocol_identity(future, ROOT),
+    }), encoding="utf-8")
+    Path(config["execution_qualification_file"]).write_text(json.dumps({
+        "reviewed": True,
+        "qualification_type": "eligibility_aware_certified_backend",
+        "qualification_status": "pass",
+        "mathematical_model_equivalence_reviewed": True,
+        "final_exact_certification_reviewed": True,
+        "identity": execution_qualification_identity(future, ROOT),
+    }), encoding="utf-8")
+    with pytest.raises(FormalOptimizationProhibited, match="Route B backend qualification is disabled"):
+        assert_formal_execution_gate(future, ROOT)
+
+
+def test_dirty_execution_source_fails_before_authorization_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    future = _future_authorized_config(tmp_path)
+    monkeypatch.setattr(
+        "src.fulfillment_flexibility_formal_runner.execution_source_status",
+        lambda _root, _records: [" M src/instance.py"],
+    )
+    with pytest.raises(FormalOptimizationProhibited, match="source tree is dirty"):
+        assert_formal_execution_gate(future, ROOT)
+
+
+def test_checkpoint_create_once_under_concurrent_writers(tmp_path: Path) -> None:
+    target = tmp_path / "immutable.json"
+    barrier = threading.Barrier(2)
+    outcomes = []
+
+    def writer(value: int) -> None:
+        barrier.wait()
+        try:
+            _atomic_create_json(target, {"writer": value})
+            outcomes.append(("success", value))
+        except FileExistsError:
+            outcomes.append(("blocked", value))
+
+    threads = [threading.Thread(target=writer, args=(value,)) for value in (1, 2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(status for status, _value in outcomes) == ["blocked", "success"]
+    winner = next(value for status, value in outcomes if status == "success")
+    original = target.read_bytes()
+    assert json.loads(original)["writer"] == winner
+    with pytest.raises(FileExistsError):
+        _atomic_create_json(target, {"writer": 3})
+    assert target.read_bytes() == original
 
 
 def test_pooled_statistics_use_ten_seed_clusters() -> None:
