@@ -11,6 +11,7 @@ import re
 import subprocess
 import time
 from typing import Any, Literal
+import uuid
 
 import yaml
 
@@ -28,6 +29,7 @@ MODES: tuple[Mode, ...] = ("k1", "k2", "full")
 GAMMA = 2
 RHO = 0.025
 RESULT_ROOT = Path("experiments/results_fulfillment_flexibility/formal")
+REPORTING_SOURCE = ROOT / "src/fulfillment_flexibility_formal_reporting.py"
 FORMAL_PATH_MARKERS = (
     "fulfillment_flexibility_formal",
     "results_fulfillment_flexibility/formal",
@@ -85,7 +87,7 @@ def eligibility_identity() -> str:
     return hashlib.sha256(inspect.getsource(build_eligibility).encode("utf-8")).hexdigest().upper()
 
 
-def validate_config(config: dict[str, Any], *, expected_scale: str | None = None) -> None:
+def _validate_frozen_config(config: dict[str, Any], *, expected_scale: str | None = None) -> None:
     scale = str(config.get("scale", ""))
     if expected_scale is not None and scale != expected_scale:
         raise FormalProtocolError("scale/config mismatch")
@@ -93,8 +95,6 @@ def validate_config(config: dict[str, Any], *, expected_scale: str | None = None
         raise FormalProtocolError("formal scale must be medium_large or large")
     if config.get("stage") != "FORMAL_PROTOCOL_ONLY":
         raise FormalProtocolError("formal stage drifted")
-    if config.get("formal_run_authorized") is not False:
-        raise FormalProtocolError("protocol PR must prohibit formal optimization")
     if tuple(config.get("seeds", ())) != FORMAL_SEEDS:
         raise FormalProtocolError("formal seed list drifted")
     if tuple(config.get("fallback_seeds", ())) != FALLBACK_SEEDS:
@@ -114,6 +114,59 @@ def validate_config(config: dict[str, Any], *, expected_scale: str | None = None
         raise FormalProtocolError("formal overwrite must remain disabled")
     if config.get("solver_backend") != "exact_finite_scenario_extensive_form":
         raise FormalProtocolError("unreviewed formal solver backend")
+    expected_scenarios = {"medium_large": 1831, "large": 4657}[scale]
+    if config.get("exact_scenarios") is not True:
+        raise FormalProtocolError("formal scenario enumeration must remain exact")
+    if int(config.get("expected_scenario_count", -1)) != expected_scenarios:
+        raise FormalProtocolError("expected formal scenario count drifted")
+    if int(config.get("max_scenarios", -1)) != 5000:
+        raise FormalProtocolError("formal maximum scenario count drifted")
+    solver = config.get("solver", {})
+    expected_solver = {
+        "time_limit_seconds": 1800,
+        "threads": 1,
+        "seed": 0,
+        "mip_gap": 0.0001,
+        "feasibility_tolerance": 1.0e-7,
+    }
+    if any(float(solver.get(key, math.nan)) != float(value) for key, value in expected_solver.items()):
+        raise FormalProtocolError("formal solver parameters drifted")
+    certification = config.get("certification", {})
+    if (
+        certification.get("require_optimal_status") is not True
+        or float(certification.get("objective_bound_tolerance", math.nan)) != 1.0e-4
+        or float(certification.get("objective_recomputation_tolerance", math.nan)) != 1.0e-7
+        or certification.get("require_complete_scenario_coverage") is not True
+    ):
+        raise FormalProtocolError("formal certification criteria drifted")
+    analysis = config.get("analysis", {})
+    if analysis.get("independent_unit") != "synthetic_seed_cluster":
+        raise FormalProtocolError("pooled independent unit must be the synthetic seed cluster")
+    if analysis.get("pooled_cluster_effect") != "arithmetic_mean_across_scales":
+        raise FormalProtocolError("pooled cluster effect aggregation drifted")
+    if not config.get("authorization_file") or not config.get("execution_qualification_file"):
+        raise FormalProtocolError("authorization or execution qualification path is missing")
+
+
+def validate_protocol_config(config: dict[str, Any], *, expected_scale: str | None = None) -> None:
+    """Validate the frozen, deliberately unauthorized protocol configuration."""
+    _validate_frozen_config(config, expected_scale=expected_scale)
+    if config.get("formal_run_authorized") is not False:
+        raise FormalProtocolError("protocol PR must prohibit formal optimization")
+
+
+def validate_execution_config(config: dict[str, Any], *, expected_scale: str | None = None) -> None:
+    """Validate a future, separately reviewed authorization amendment."""
+    _validate_frozen_config(config, expected_scale=expected_scale)
+    if config.get("formal_run_authorized") is not True:
+        raise FormalOptimizationProhibited(
+            "FORMAL OPTIMIZATION PROHIBITED UNTIL PROTOCOL REVIEW AND AUTHORIZATION"
+        )
+
+
+def validate_config(config: dict[str, Any], *, expected_scale: str | None = None) -> None:
+    """Backward-compatible protocol-stage validator used by audits and tests."""
+    validate_protocol_config(config, expected_scale=expected_scale)
 
 
 def _walk_seed_values(value: Any, path: tuple[str, ...] = ()) -> list[tuple[int, str]]:
@@ -331,26 +384,70 @@ def static_audit(config_paths: list[Path], root: Path = ROOT) -> dict[str, Any]:
     }
 
 
+def scientific_config_identity(config: dict[str, Any]) -> str:
+    """Hash only scientific choices, excluding authorization/environment state."""
+    keys = (
+        "scale", "instance", "seeds", "fallback_seeds", "modes", "gamma", "rho",
+        "exact_scenarios", "expected_scenario_count", "max_scenarios", "solver_backend",
+        "solver", "certification", "analysis", "fallback_rule", "overwrite_supported",
+    )
+    return canonical_json_sha256({key: config.get(key) for key in keys})
+
+
+def solver_parameter_identity(config: dict[str, Any]) -> str:
+    return canonical_json_sha256(config.get("solver", {}))
+
+
 def protocol_identity(config_path: Path, root: Path = ROOT) -> dict[str, Any]:
+    config = load_config(config_path)
+    _validate_frozen_config(config)
     return {
         "source_commit": _git_commit(root),
         "protocol_sha256": file_sha256(root / "docs/fulfillment_flexibility_formal_protocol.md").upper(),
         "config_sha256": file_sha256(config_path).upper(),
+        "scientific_config_sha256": scientific_config_identity(config),
         "runner_sha256": file_sha256(Path(__file__)).upper(),
+        "reporting_sha256": file_sha256(REPORTING_SOURCE).upper(),
         "eligibility_sha256": eligibility_identity(),
+        "solver_parameter_sha256": solver_parameter_identity(config),
         "gamma": GAMMA,
         "rho_hex": float(RHO).hex(),
         "formal_seeds": list(FORMAL_SEEDS),
     }
 
 
+def execution_qualification_identity(config_path: Path, root: Path = ROOT) -> dict[str, Any]:
+    identity = protocol_identity(config_path, root)
+    return {
+        "source_commit": identity["source_commit"],
+        "scientific_config_sha256": identity["scientific_config_sha256"],
+        "runner_sha256": identity["runner_sha256"],
+        "eligibility_sha256": identity["eligibility_sha256"],
+        "solver_parameter_sha256": identity["solver_parameter_sha256"],
+        "gamma": identity["gamma"],
+        "rho_hex": identity["rho_hex"],
+    }
+
+
+def current_host_resources(root: Path = ROOT) -> dict[str, int | None]:
+    ram: int | None = None
+    if os.name == "nt":
+        try:
+            completed = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory"],
+                check=True, capture_output=True, text=True, timeout=20,
+            )
+            ram = int(completed.stdout.strip())
+        except (OSError, ValueError, subprocess.SubprocessError):
+            ram = None
+    disk = __import__("shutil").disk_usage(root)
+    return {"total_ram_bytes": ram, "free_disk_bytes": int(disk.free)}
+
+
 def assert_formal_execution_gate(config_path: Path, root: Path = ROOT) -> dict[str, Any]:
     config = load_config(config_path)
-    validate_config(config)
-    if config.get("formal_run_authorized") is not True:
-        raise FormalOptimizationProhibited(
-            "FORMAL OPTIMIZATION PROHIBITED UNTIL PROTOCOL REVIEW AND AUTHORIZATION"
-        )
+    validate_execution_config(config)
     authorization_path = root / str(config["authorization_file"])
     if not authorization_path.exists():
         raise FormalOptimizationProhibited("reviewed formal authorization file is absent")
@@ -360,6 +457,48 @@ def assert_formal_execution_gate(config_path: Path, root: Path = ROOT) -> dict[s
         raise FormalOptimizationProhibited("formal authorization is false")
     if authorization.get("identity") != expected:
         raise FormalOptimizationProhibited("formal authorization identity drifted")
+    qualification_path = root / str(config["execution_qualification_file"])
+    if not qualification_path.exists():
+        raise FormalOptimizationProhibited("reviewed execution qualification file is absent")
+    qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
+    if qualification.get("reviewed") is not True:
+        raise FormalOptimizationProhibited("execution qualification is not reviewed")
+    if qualification.get("qualification_type") not in {
+        "high_memory_hardware", "eligibility_aware_certified_backend"
+    }:
+        raise FormalOptimizationProhibited("unsupported execution qualification type")
+    if qualification.get("identity") != execution_qualification_identity(config_path, root):
+        raise FormalOptimizationProhibited("execution qualification identity drifted")
+    qualification_type = qualification["qualification_type"]
+    if qualification_type == "high_memory_hardware":
+        if qualification.get("qualification_status") != "pass":
+            raise FormalOptimizationProhibited("high-memory qualification did not pass")
+        if int(qualification.get("qualified_total_ram_bytes", 0)) < int(
+            config["fallback_rule"]["triggers"]["minimum_ram_bytes"]
+        ):
+            raise FormalOptimizationProhibited("qualified hardware RAM is below the frozen gate")
+        if int(qualification.get("qualified_free_disk_bytes", 0)) < int(
+            config["fallback_rule"]["triggers"]["minimum_free_disk_bytes"]
+        ):
+            raise FormalOptimizationProhibited("qualified hardware disk is below the frozen gate")
+        if any(qualification.get(flag) is not False for flag in (
+            "scientifically_usable", "paper_evidence", "formal_sample"
+        )):
+            raise FormalOptimizationProhibited("hardware qualification evidence boundary drifted")
+        resources = current_host_resources(root)
+        minimum_ram = int(config["fallback_rule"]["triggers"]["minimum_ram_bytes"])
+        minimum_disk = int(config["fallback_rule"]["triggers"]["minimum_free_disk_bytes"])
+        if resources["total_ram_bytes"] is None or int(resources["total_ram_bytes"]) < minimum_ram:
+            raise FormalOptimizationProhibited("current execution host RAM is below the frozen gate")
+        if int(resources["free_disk_bytes"]) < minimum_disk:
+            raise FormalOptimizationProhibited("current execution host disk is below the frozen gate")
+    else:
+        if (
+            qualification.get("qualification_status") != "pass"
+            or qualification.get("mathematical_model_equivalence_reviewed") is not True
+            or qualification.get("final_exact_certification_reviewed") is not True
+        ):
+            raise FormalOptimizationProhibited("certified-backend qualification is incomplete")
     return expected
 
 
@@ -404,12 +543,16 @@ def dry_run(config_paths: list[Path], root: Path = ROOT) -> dict[str, Any]:
 
 def _solver_settings(config: dict[str, Any]) -> dict[str, Any]:
     solver = config["solver"]
+    certification = config["certification"]
     return {
         "time_limit": float(solver["time_limit_seconds"]),
         "mip_gap": float(solver["mip_gap"]),
         "feasibility_tolerance": float(solver["feasibility_tolerance"]),
         "threads": int(solver["threads"]),
         "solver_seed": int(solver["seed"]),
+        "absolute_certification_tolerance": float(
+            certification["objective_bound_tolerance"]
+        ),
     }
 
 
@@ -540,6 +683,7 @@ def solve_cost_anchor(
     model, y, x, first, gp = _base_model(
         instance, fixed_y=fixed_y, fixed_x=fixed_x, settings=settings
     )
+    model.Params.MIPGap = 0.0
     theta = model.addVar(lb=0.0, name="theta")
     for index, scenario in enumerate(scenarios):
         block = _add_recourse(model, instance, scenario, index, x, eligibility, gp)
@@ -548,7 +692,7 @@ def solve_cost_anchor(
     model.optimize()
     result: dict[str, Any] = {
         "status": gurobi_status_name(model.Status),
-        "certified": model.Status == GRB.OPTIMAL,
+        "certified": False,
         "runtime": time.perf_counter() - start,
         "objective": None,
         "bound": None,
@@ -559,10 +703,21 @@ def solve_cost_anchor(
     }
     if model.SolCount:
         y_values, x_values = _values(instance, y, x)
+        objective = float(model.ObjVal)
+        bound = float(model.ObjBound)
+        absolute_gap = abs(objective - bound)
         result.update({
-            "objective": float(model.ObjVal),
-            "bound": float(model.ObjBound),
-            "gap": abs(float(model.ObjVal) - float(model.ObjBound)),
+            "certified": (
+                model.Status == GRB.OPTIMAL
+                and absolute_gap <= float(settings.get("absolute_certification_tolerance", 1.0e-4))
+            ),
+            "objective": objective,
+            "bound": bound,
+            "gap": absolute_gap,
+            "formal_anchor_mip_gap": 0.0,
+            "absolute_certification_tolerance": float(
+                settings.get("absolute_certification_tolerance", 1.0e-4)
+            ),
             "y_values": y_values,
             "x_values": x_values,
         })
@@ -586,6 +741,14 @@ def _service_metrics(
     total_region_scenarios = 0
     multi_source_region_scenarios = 0
     concentration_values: list[float] = []
+    used_warehouse_counts: list[int] = []
+    active_warehouse_region_arcs: set[tuple[int, int]] = set()
+    maximum_unused_inventory = {
+        (i, j): 0.0 for i in instance.I for j in instance.J
+    }
+    maximum_shortage = {
+        (r, j): 0.0 for r in instance.R for j in instance.J
+    }
     coexisting_shortage_unused_count = 0
     inaccessible_inventory_diagnostic = 0.0
     def q_value(block: dict[str, Any], i: int, r: int, j: int) -> float:
@@ -605,6 +768,8 @@ def _service_metrics(
             )
             for i in instance.I for j in instance.J
         }
+        for key, value in unused.items():
+            maximum_unused_inventory[key] = max(maximum_unused_inventory[key], value)
         for r in instance.R:
             demand = math.fsum(float(scenario.demand[r][j]) for j in instance.J)
             shortage = math.fsum(float(block["u"][r, j].X) for j in instance.J)
@@ -617,6 +782,10 @@ def _service_metrics(
                 for i in instance.I
             ]
             used = sum(value > tol for value in inbound)
+            used_warehouse_counts.append(used)
+            for i, value in zip(instance.I, inbound):
+                if value > tol:
+                    active_warehouse_region_arcs.add((i, r))
             total_region_scenarios += 1
             multi_source_region_scenarios += int(used > 1)
             inbound_total = math.fsum(inbound)
@@ -629,6 +798,7 @@ def _service_metrics(
             eligible = set(eligibility[r])
             for j in instance.J:
                 shortage_rj = float(block["u"][r, j].X)
+                maximum_shortage[r, j] = max(maximum_shortage[r, j], shortage_rj)
                 if shortage_rj <= tol:
                     continue
                 unused_elsewhere = math.fsum(unused[i, j] for i in instance.I)
@@ -675,6 +845,26 @@ def _service_metrics(
         "multi_source_region_scenario_share": (
             multi_source_region_scenarios / total_region_scenarios if total_region_scenarios else 0.0
         ),
+        "mean_actually_used_warehouses_per_region_scenario": (
+            math.fsum(used_warehouse_counts) / len(used_warehouse_counts)
+            if used_warehouse_counts else 0.0
+        ),
+        "maximum_actually_used_warehouses_per_region_scenario": max(
+            used_warehouse_counts, default=0
+        ),
+        "active_warehouse_region_arc_count": len(active_warehouse_region_arcs),
+        "active_warehouse_region_arcs": [
+            {"warehouse": int(i), "region": int(r)}
+            for i, r in sorted(active_warehouse_region_arcs)
+        ],
+        "maximum_unused_inventory_by_warehouse_product": [
+            {"warehouse": int(i), "product": int(j), "maximum_unused_inventory": value}
+            for (i, j), value in sorted(maximum_unused_inventory.items())
+        ],
+        "maximum_shortage_by_region_product": [
+            {"region": int(r), "product": int(j), "maximum_shortage": value}
+            for (r, j), value in sorted(maximum_shortage.items())
+        ],
         "mean_shipment_concentration_hhi": (
             math.fsum(concentration_values) / len(concentration_values)
             if concentration_values else None
@@ -943,13 +1133,125 @@ def _formal_instance(config: dict[str, Any], seed: int) -> InventoryInstance:
     )
 
 
+def _scenario_identity(scenarios: list[Any]) -> str:
+    return canonical_json_sha256([
+        {
+            "name": scenario.name,
+            "active_units": [list(unit) for unit in scenario.active_units],
+            "demand": [list(row) for row in scenario.demand],
+        }
+        for scenario in scenarios
+    ])
+
+
+def _anchor_identity(result: dict[str, Any]) -> str:
+    return canonical_json_sha256({
+        "objective": result.get("objective"),
+        "bound": result.get("bound"),
+        "absolute_gap": result.get("gap"),
+        "certified": result.get("certified"),
+    })
+
+
+def _atomic_create_json(path: Path, payload: dict[str, Any]) -> None:
+    """Publish one immutable JSON checkpoint by write-then-rename."""
+    if path.exists():
+        raise FileExistsError(f"refusing to overwrite immutable checkpoint: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8", newline="\n") as stream:
+            json.dump(payload, stream, indent=2, ensure_ascii=False, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        if path.exists():
+            raise FileExistsError(f"immutable checkpoint appeared during write: {path}")
+        os.rename(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _load_identity_bound_json(path: Path, expected_identity: dict[str, Any]) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise FormalProtocolError(f"corrupted immutable checkpoint: {path}") from exc
+    if payload.get("identity") != expected_identity:
+        raise FormalProtocolError(f"checkpoint identity mismatch: {path}")
+    return payload
+
+
+def run_or_resume_certified_task(
+    checkpoint: Path,
+    identity: dict[str, Any],
+    solve: Any,
+) -> tuple[dict[str, Any], bool]:
+    """Return a certified task result; the boolean is True only on resume."""
+    if checkpoint.exists():
+        payload = _load_identity_bound_json(checkpoint, identity)
+        result = payload.get("result")
+        if (
+            not isinstance(result, dict)
+            or result.get("certified") is not True
+            or result.get("status") != "optimal"
+        ):
+            raise FormalProtocolError(f"existing task is not certified: {checkpoint}")
+        return result, True
+    result = solve()
+    if (
+        not isinstance(result, dict)
+        or result.get("certified") is not True
+        or result.get("status") != "optimal"
+    ):
+        raise FormalProtocolError("uncertified task result was not checkpointed")
+    _atomic_create_json(checkpoint, {
+        "schema": "fulfillment_flexibility_formal_task_checkpoint_v1",
+        "identity": identity,
+        "result": result,
+    })
+    return result, False
+
+
+def _task_identity(
+    protocol: dict[str, Any],
+    *,
+    scale: str,
+    seed: int,
+    mode: Mode,
+    task_type: str,
+    scenario_sha256: str,
+    first_stage_sha256: str | None = None,
+    anchor_sha256: str | None = None,
+    common_budget_sha256: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "scale": scale,
+        "seed": int(seed),
+        "mode": mode,
+        "task_type": task_type,
+        "gamma": GAMMA,
+        "rho_hex": float(RHO).hex(),
+        "source_commit": protocol["source_commit"],
+        "protocol_sha256": protocol["protocol_sha256"],
+        "config_sha256": protocol["config_sha256"],
+        "scientific_config_sha256": protocol["scientific_config_sha256"],
+        "runner_sha256": protocol["runner_sha256"],
+        "eligibility_sha256": protocol["eligibility_sha256"],
+        "scenario_sha256": scenario_sha256,
+        "first_stage_sha256": first_stage_sha256,
+        "anchor_sha256": anchor_sha256,
+        "common_budget_sha256": common_budget_sha256,
+        "solver_parameter_sha256": protocol["solver_parameter_sha256"],
+    }
+
+
 def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
     identity = assert_formal_execution_gate(config_path, root)
     config = load_config(config_path)
     scale = config["scale"]
     scale_output = root / RESULT_ROOT / scale
-    if scale_output.exists():
-        raise FileExistsError(f"refusing to overwrite existing formal output: {scale_output}")
     settings = _solver_settings(config)
     manifest = {
         "schema": "fulfillment_flexibility_formal_manifest_v1",
@@ -964,8 +1266,15 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             "instance": file_sha256(root / "src/instance.py").upper(),
             "scenarios": file_sha256(root / "src/scenarios.py").upper(),
         },
+        "solver_parameter_sha256": identity["solver_parameter_sha256"],
     }
-    atomic_write_json(scale_output / "manifest.json", manifest)
+    manifest_path = scale_output / "manifest.json"
+    if manifest_path.exists():
+        existing_manifest = _load_identity_bound_json(manifest_path, identity)
+        if existing_manifest != manifest:
+            raise FormalProtocolError("formal scale manifest drifted")
+    else:
+        _atomic_create_json(manifest_path, manifest)
     for seed in config["seeds"]:
         instance = _formal_instance(config, int(seed))
         scenarios = enumerate_budget_scenarios(
@@ -976,45 +1285,82 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
         )
         if len(scenarios) != int(config["expected_scenario_count"]):
             raise FormalProtocolError("scenario count drifted")
-        anchors = {mode: solve_cost_anchor(instance, scenarios, mode, settings) for mode in MODES}
-        if not all(result["certified"] for result in anchors.values()):
-            raise FormalProtocolError("uncertified re-optimized cost anchor")
-        reoptimized = {
-            mode: solve_service(
-                instance, scenarios, mode, anchors[mode]["objective"], RHO, settings
+        scenario_sha256 = _scenario_identity(scenarios)
+        checkpoint_root = scale_output / "checkpoints" / f"seed_{seed}"
+        checkpoint_identities: dict[str, dict[str, Any]] = {}
+        anchors: dict[str, dict[str, Any]] = {}
+        for mode in MODES:
+            task_name = f"reoptimized_cost_anchor_{mode}"
+            task_identity = _task_identity(
+                identity, scale=scale, seed=int(seed), mode=mode,
+                task_type="reoptimized_cost_anchor", scenario_sha256=scenario_sha256,
             )
-            for mode in MODES
-        }
+            checkpoint_identities[task_name] = task_identity
+            anchors[mode], _ = run_or_resume_certified_task(
+                checkpoint_root / f"{task_name}.json",
+                task_identity,
+                lambda mode=mode: solve_cost_anchor(instance, scenarios, mode, settings),
+            )
+        reoptimized: dict[str, dict[str, Any]] = {}
+        for mode in MODES:
+            anchor_sha256 = _anchor_identity(anchors[mode])
+            task_name = f"reoptimized_service_{mode}"
+            task_identity = _task_identity(
+                identity, scale=scale, seed=int(seed), mode=mode,
+                task_type="reoptimized_service", scenario_sha256=scenario_sha256,
+                anchor_sha256=anchor_sha256,
+            )
+            checkpoint_identities[task_name] = task_identity
+            reoptimized[mode], _ = run_or_resume_certified_task(
+                checkpoint_root / f"{task_name}.json",
+                task_identity,
+                lambda mode=mode: solve_service(
+                    instance, scenarios, mode, anchors[mode]["objective"], RHO, settings
+                ),
+            )
         full = reoptimized["full"]
-        if not all(result["certified"] for result in reoptimized.values()):
-            raise FormalProtocolError("uncertified re-optimized service result")
-        fixed_anchors = {
-            mode: solve_cost_anchor(
-                instance,
-                scenarios,
-                mode,
-                settings,
-                fixed_y=full["y_values"],
-                fixed_x=full["x_values"],
+        first_stage_sha256 = canonical_json_sha256({
+            "y": full["y_values"], "x": full["x_values"]
+        })
+        fixed_anchors: dict[str, dict[str, Any]] = {}
+        for mode in MODES:
+            task_name = f"fixed_first_stage_cost_anchor_{mode}"
+            task_identity = _task_identity(
+                identity, scale=scale, seed=int(seed), mode=mode,
+                task_type="fixed_first_stage_cost_anchor", scenario_sha256=scenario_sha256,
+                first_stage_sha256=first_stage_sha256,
             )
-            for mode in MODES
-        }
-        if not all(result["certified"] for result in fixed_anchors.values()):
-            raise FormalProtocolError("uncertified fixed-first-stage cost anchor")
+            checkpoint_identities[task_name] = task_identity
+            fixed_anchors[mode], _ = run_or_resume_certified_task(
+                checkpoint_root / f"{task_name}.json",
+                task_identity,
+                lambda mode=mode: solve_cost_anchor(
+                    instance, scenarios, mode, settings,
+                    fixed_y=full["y_values"], fixed_x=full["x_values"],
+                ),
+            )
         common_anchor = max(float(result["objective"]) for result in fixed_anchors.values())
-        fixed = {
-            mode: solve_service(
-                instance,
-                scenarios,
-                mode,
-                common_anchor,
-                RHO,
-                settings,
-                fixed_y=full["y_values"],
-                fixed_x=full["x_values"],
+        common_budget_sha256 = canonical_json_sha256({
+            "anchor": common_anchor, "rho_hex": float(RHO).hex()
+        })
+        fixed: dict[str, dict[str, Any]] = {}
+        for mode in MODES:
+            task_name = f"fixed_first_stage_service_{mode}"
+            task_identity = _task_identity(
+                identity, scale=scale, seed=int(seed), mode=mode,
+                task_type="fixed_first_stage_service", scenario_sha256=scenario_sha256,
+                first_stage_sha256=first_stage_sha256,
+                common_budget_sha256=common_budget_sha256,
             )
-            for mode in MODES
-        }
+            checkpoint_identities[task_name] = task_identity
+            fixed[mode], _ = run_or_resume_certified_task(
+                checkpoint_root / f"{task_name}.json",
+                task_identity,
+                lambda mode=mode: solve_service(
+                    instance, scenarios, mode, common_anchor, RHO, settings,
+                    fixed_y=full["y_values"], fixed_x=full["x_values"],
+                ),
+            )
         payload = {
             "schema": "fulfillment_flexibility_formal_instance_v1",
             "identity": {
@@ -1022,13 +1368,11 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
                 "scale": scale,
                 "seed": int(seed),
                 "instance_sha256": canonical_json_sha256(instance.to_dict()),
-                "first_stage_identity": canonical_json_sha256({
-                    "y": full["y_values"], "x": full["x_values"]
-                }),
-                "common_budget_identity": canonical_json_sha256({
-                    "anchor": common_anchor, "rho": RHO
-                }),
+                "scenario_sha256": scenario_sha256,
+                "first_stage_sha256": first_stage_sha256,
+                "common_budget_sha256": common_budget_sha256,
             },
+            "task_checkpoint_identities": checkpoint_identities,
             "scenario_count": len(scenarios),
             "anchors": anchors,
             "reoptimized": reoptimized,
@@ -1036,9 +1380,13 @@ def execute_formal_config(config_path: Path, root: Path = ROOT) -> None:
             "fixed_first_stage_common_anchor": common_anchor,
             "fixed_first_stage": fixed,
         }
-        atomic_write_json(scale_output / "raw" / f"seed_{seed}.json", payload)
-        if not all(result["certified"] for result in fixed.values()):
-            raise FormalProtocolError("uncertified fixed-first-stage result; formal run stopped")
+        raw_path = scale_output / "raw" / f"seed_{seed}.json"
+        if raw_path.exists():
+            existing = _load_identity_bound_json(raw_path, payload["identity"])
+            if existing != payload:
+                raise FormalProtocolError("completed seed payload drifted")
+        else:
+            _atomic_create_json(raw_path, payload)
 
 
 def main() -> None:

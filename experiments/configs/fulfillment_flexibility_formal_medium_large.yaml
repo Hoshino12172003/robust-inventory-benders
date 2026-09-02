@@ -3,6 +3,7 @@ experiment_name: fulfillment_flexibility_formal_medium_large
 stage: FORMAL_PROTOCOL_ONLY
 formal_run_authorized: false
 authorization_file: experiments/configs/fulfillment_flexibility_formal_authorization.json
+execution_qualification_file: experiments/configs/fulfillment_flexibility_formal_execution_qualification.json
 protocol_document: docs/fulfillment_flexibility_formal_protocol.md
 seed_audit_document: docs/fulfillment_flexibility_formal_seed_audit.md
 static_audit_document: docs/fulfillment_flexibility_formal_static_audit.md
@@ -43,7 +44,8 @@ analysis:
   bootstrap_resamples: 10000
   bootstrap_seed: 20260901
   secondary_p_value_adjustment: Holm
-  independent_unit: scale_seed_instance
+  independent_unit: synthetic_seed_cluster
+  pooled_cluster_effect: arithmetic_mean_across_scales
 fallback_rule:
   frozen_before_optimization: true
   sample: five_seeds_per_scale

@@ -93,8 +93,13 @@ The primary sample contains twenty formal synthetic instances:
 | medium_large | `(6,6,10)` | 230--239 | 10 | 1,831 |
 | large | `(8,8,12)` | 230--239 | 10 | 4,657 |
 
-The same seed labels across scales permit scale-specific and pooled reporting;
-each scale-seed instance remains the paired experimental unit. Seeds were
+The same seed labels across scales permit scale-specific and pooled reporting.
+Within each scale, the scale-seed instance is paired. For pooled inference, the
+independent statistical cluster is the synthetic seed because both scales use
+the same seeded random stream. For seed `s`, the frozen pooled cluster effect is
+the arithmetic mean of its medium_large and large effects. Pooled sign tests
+and bootstrap intervals therefore use ten seed clusters, not twenty independent
+scale-seed observations. Seeds were
 frozen after the repository and archived-metadata audit and before generation
 of any formal instance or result.
 
@@ -169,6 +174,11 @@ The three service models therefore share openings, inventory, scenarios,
 Gamma, and cost allowance. Only shipment eligibility changes. This identifies
 the incremental value of the size of the second-stage recourse set; it is not a
 test of whether two-stage optimization works.
+
+This construction supplies the same **absolute** allowance to k1, k2, and full.
+It must not be described as giving every mode exactly 2.5% above that mode's own
+fixed-configuration minimum; the common anchor is the maximum of the three
+fixed-mode anchors.
 
 ## 7. Primary outcome and marginal flexibility
 
@@ -259,6 +269,14 @@ distance, inventory concentration, and active warehouse-region arcs. These
 separate network adaptation, inventory adaptation, and fixed-first-stage
 recourse effects.
 
+Because the service model minimizes only `T`, opening, inventory, shipment, and
+realized-cost solutions need not be unique. Cost decompositions, source-use and
+concentration measures, active arcs, unused inventory, region-product shortage,
+and first-stage vector differences are labelled exploratory diagnostics of one
+certified `T`-optimal solution. They never determine the formal classification.
+Confirmatory conclusions use only `Delta_12`, `Delta_2F`, `Delta_1F`, `R_12`,
+`R_1F`, `Capture_k2`, and their frozen paired inference.
+
 ## 9. Frozen hypotheses and paired statistics
 
 Primary hypothesis:
@@ -274,7 +292,9 @@ Secondary hypotheses:
   pass/fail threshold;
 - H5: the direction remains consistent across medium_large and large.
 
-Every comparison is paired by scale-seed instance. Reports include wins,
+Every within-scale comparison is paired by scale-seed instance. Pooled reports
+first average the two scale effects within seed and then treat the ten seeds as
+independent clusters. Reports include wins,
 losses, ties, mean, median, mean and median relative effect, exact two-sided
 sign test, deterministic 10,000-resample paired bootstrap confidence interval,
 scale-specific results, and pooled results. Holm adjustment applies if the H2
@@ -288,18 +308,20 @@ solutions certify. Otherwise reporting fails closed and no decision is issued.
 
 - `confirm_strong_fulfillment_flexibility_mechanism`: primary sign-test
   `p < 0.05`, lower 95% bootstrap bound above zero, positive median in both
-  scales, at least 15/20 wins, and pooled median relative reduction at least
+  scales, at least 8/10 pooled cluster wins, and pooled median relative reduction at least
   10%. The 10% formal magnitude criterion is distinct from the 5% development
   screening rule.
 - `confirm_moderate_fulfillment_flexibility_mechanism`: lower confidence bound
-  above zero, positive scale medians, at least 12/20 wins, and positive pooled
+  above zero, positive scale medians, at least 6/10 pooled cluster wins, and positive pooled
   median relative reduction, without satisfying the strong rule.
 - `do_not_confirm_fulfillment_flexibility_mechanism`: upper confidence bound at
   or below zero, or nonpositive pooled median absolute effect.
 - otherwise: `mixed_or_scale_dependent_fulfillment_flexibility`.
 
-The decision also reports secondary effects, Holm-adjusted p-values, k2 capture,
-diminishing-return count, re-optimized system effects, and certification.
+The decision separately reports fixed-first-stage/common-budget and re-optimized
+system effects, including their secondary Holm-adjusted p-values, k2 capture,
+diminishing-return count, and certification. Only fixed-first-stage `k1` versus
+`full` determines the primary classification.
 
 ## 11. Certification and immutable identity
 
@@ -311,10 +333,17 @@ scale-seed cells, seed/config/source/hash drift, nonfinite values, objective
 inconsistency, cost-cap violation, incomplete scenarios, output overwrite, or
 an uncertified result.
 
-The later formal manifest and raw outputs bind source commit, protocol and
+Every formal cost-anchor solve uses `MIPGap = 0` independently of the service-
+model working gap. An anchor certifies only with optimal status and an absolute
+incumbent-bound gap no greater than `1e-4`. The objective, best bound, absolute
+gap, and status are recorded without rounding; an uncertified anchor blocks all
+dependent service tasks.
+
+The later formal manifest, immutable task checkpoints, and raw outputs bind source commit, protocol and
 config hashes, runner and model-source hashes, seed list, eligibility source
 hash, Gamma, rho, scale, mode, instance hash, full first-stage identity, and
-common-budget identity. Existing formal output is never overwritten.
+common-budget identity. Reporting validates both manifests, every checkpoint,
+and the full identity chain before pooling. Existing certified evidence is never overwritten.
 
 ## 12. Full-mode regression
 
@@ -338,15 +367,26 @@ The preferred 20-instance design therefore has 240 tasks. With the frozen
 The exact large formulation has approximately 4.06 million columns before
 mode-specific row differences. Static audit therefore requires at least 64 GiB
 RAM and 250 GiB free disk or a separately reviewed eligibility-aware scalable
-exact backend. Current-host inadequacy is a pre-result operational issue, not a
+exact backend. The 64 GiB value is only a minimum gate, not proof of sufficiency.
+An identity-bound reviewed high-memory hardware qualification or certified-
+backend qualification is mandatory. Current-host inadequacy is a pre-result operational issue, not a
 reason to inspect results and then alter the sample.
 
 ## 14. Execution gate and output isolation
 
-The two configs set `formal_run_authorized: false`. The runner checks this gate
-before importing the solver, generating a formal instance, enumerating its
-scenarios, or creating the formal output directory. A later authorization must
-be a reviewed identity-bound file and requires a protocol/config change.
+The two configs set `formal_run_authorized: false`, which protocol-stage
+validation requires. A separately reviewed amendment may transition the config
+to `true`; execution-stage validation then requires both an exact identity-bound
+authorization and a separate identity-bound execution qualification. This gate
+runs before solver import, instance generation, scenario enumeration, or output
+creation.
+
+After the gate passes, each of the twelve optimization tasks per instance is
+published as an immutable atomic write-then-rename checkpoint. Resume skips only
+a certified, identity-valid checkpoint. Temporary, corrupt, uncertified, or
+identity-incompatible files fail closed. Task identity binds scale, seed, mode,
+task type, Gamma, rho, source, protocol/config/runner/eligibility/scenario/solver
+identities and, where applicable, first-stage, anchor, and common-budget identities.
 
 Formal output is isolated at
 `experiments/results_fulfillment_flexibility/formal`. Development outputs,

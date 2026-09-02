@@ -1,32 +1,44 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pytest
+import yaml
 
 from src.experiment_suite import INSTANCE_SIZES
 from src.fulfillment_flexibility_formal_reporting import (
     bootstrap_mean_ci,
     exact_two_sided_sign_test,
     holm_adjust,
+    _comparison_statistics,
+    _validate_manifest_family,
+    FormalReportingError,
 )
 from src.fulfillment_flexibility_formal_runner import (
     FALLBACK_SEEDS,
     FORMAL_SEEDS,
     FormalOptimizationProhibited,
+    FormalProtocolError,
     _add_recourse,
     _base_model,
     build_eligibility,
     dry_run,
+    assert_formal_execution_gate,
+    execution_qualification_identity,
     execute_formal_config,
     full_mode_regression,
     load_config,
     model_size_estimate,
+    protocol_identity,
+    run_or_resume_certified_task,
     seed_nonreuse_audit,
     solve_cost_anchor,
     solve_service,
     task_matrix,
     validate_config,
+    validate_execution_config,
+    validate_protocol_config,
 )
 from src.instance import generate_instance
 from src.scenarios import enumerate_budget_scenarios
@@ -73,6 +85,8 @@ def test_configs_freeze_matrix_parameters_and_gate() -> None:
         assert config["fallback_seeds"] == list(FALLBACK_SEEDS)
         assert config["gamma"] == 2
         assert config["rho"] == 0.025
+        assert config["analysis"]["independent_unit"] == "synthetic_seed_cluster"
+        assert config["analysis"]["pooled_cluster_effect"] == "arithmetic_mean_across_scales"
     tasks = task_matrix(configs)
     assert len(tasks) == 240
     assert sum(task["scale"] == "medium_large" for task in tasks) == 120
@@ -235,3 +249,242 @@ def test_protocol_uses_correct_managerial_boundary() -> None:
     assert "not the number of open warehouses" in protocol
     assert "nearest warehouse" in protocol
     assert "must never be rewritten" in protocol
+    assert "ten seed clusters" in protocol
+    assert "exploratory diagnostics" in protocol
+
+
+def _future_authorized_config(tmp_path: Path) -> Path:
+    config = load_config(CONFIGS[0])
+    config["formal_run_authorized"] = True
+    config["authorization_file"] = str(tmp_path / "authorization.json")
+    config["execution_qualification_file"] = str(tmp_path / "qualification.json")
+    path = tmp_path / "future_authorized.yaml"
+    path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def test_authorization_state_transition_is_structurally_satisfiable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol = load_config(CONFIGS[0])
+    validate_protocol_config(protocol)
+    with pytest.raises(FormalOptimizationProhibited):
+        validate_execution_config(protocol)
+
+    future = _future_authorized_config(tmp_path)
+    validate_execution_config(load_config(future))
+    authorization = {
+        "formal_optimization_authorized": True,
+        "identity": protocol_identity(future, ROOT),
+    }
+    qualification = {
+        "reviewed": True,
+        "qualification_type": "high_memory_hardware",
+        "identity": execution_qualification_identity(future, ROOT),
+        "qualification_status": "pass",
+        "qualified_total_ram_bytes": 128 * 1024 ** 3,
+        "qualified_free_disk_bytes": 300 * 1024 ** 3,
+        "scientifically_usable": False,
+        "paper_evidence": False,
+        "formal_sample": False,
+    }
+    Path(load_config(future)["authorization_file"]).write_text(
+        json.dumps(authorization), encoding="utf-8"
+    )
+    Path(load_config(future)["execution_qualification_file"]).write_text(
+        json.dumps(qualification), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "src.fulfillment_flexibility_formal_runner.current_host_resources",
+        lambda _root: {
+            "total_ram_bytes": 128 * 1024 ** 3,
+            "free_disk_bytes": 300 * 1024 ** 3,
+        },
+    )
+    assert_formal_execution_gate(future, ROOT)
+
+
+def test_authorization_and_qualification_identity_drift_fail_closed(tmp_path: Path) -> None:
+    future = _future_authorized_config(tmp_path)
+    identity = protocol_identity(future, ROOT)
+    authorization_path = Path(load_config(future)["authorization_file"])
+    qualification_path = Path(load_config(future)["execution_qualification_file"])
+    authorization_path.write_text(json.dumps({
+        "formal_optimization_authorized": True, "identity": {**identity, "gamma": 99}
+    }), encoding="utf-8")
+    qualification_path.write_text(json.dumps({
+        "reviewed": True, "qualification_type": "high_memory_hardware",
+        "identity": execution_qualification_identity(future, ROOT),
+        "qualification_status": "pass",
+        "qualified_total_ram_bytes": 128 * 1024 ** 3,
+        "qualified_free_disk_bytes": 300 * 1024 ** 3,
+        "scientifically_usable": False, "paper_evidence": False, "formal_sample": False,
+    }), encoding="utf-8")
+    with pytest.raises(FormalOptimizationProhibited, match="authorization identity drifted"):
+        assert_formal_execution_gate(future, ROOT)
+
+
+def test_current_host_cannot_pass_high_memory_execution_gate(tmp_path: Path) -> None:
+    future = _future_authorized_config(tmp_path)
+    config = load_config(future)
+    Path(config["authorization_file"]).write_text(json.dumps({
+        "formal_optimization_authorized": True,
+        "identity": protocol_identity(future, ROOT),
+    }), encoding="utf-8")
+    Path(config["execution_qualification_file"]).write_text(json.dumps({
+        "reviewed": True, "qualification_type": "high_memory_hardware",
+        "identity": execution_qualification_identity(future, ROOT),
+        "qualification_status": "pass",
+        "qualified_total_ram_bytes": 128 * 1024 ** 3,
+        "qualified_free_disk_bytes": 300 * 1024 ** 3,
+        "scientifically_usable": False, "paper_evidence": False, "formal_sample": False,
+    }), encoding="utf-8")
+    with pytest.raises(FormalOptimizationProhibited, match="current execution host"):
+        assert_formal_execution_gate(future, ROOT)
+
+
+def test_atomic_certified_task_resume_and_fail_closed(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "checkpoint.json"
+    identity = {"seed": 0, "mode": "k1", "task_type": "test"}
+    calls = []
+    result, resumed = run_or_resume_certified_task(
+        checkpoint, identity, lambda: calls.append(1) or {"certified": True, "status": "optimal"}
+    )
+    assert result["certified"] is True and resumed is False and calls == [1]
+    result, resumed = run_or_resume_certified_task(
+        checkpoint, identity, lambda: calls.append(2) or {"certified": True}
+    )
+    assert result["certified"] is True and resumed is True and calls == [1]
+    with pytest.raises(FormalProtocolError, match="identity mismatch"):
+        run_or_resume_certified_task(checkpoint, {**identity, "mode": "full"}, lambda: None)
+
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("{", encoding="utf-8")
+    with pytest.raises(FormalProtocolError, match="corrupted"):
+        run_or_resume_certified_task(corrupt, identity, lambda: None)
+    incomplete = tmp_path / ".interrupted.tmp"
+    incomplete.write_text("partial", encoding="utf-8")
+    fresh = tmp_path / "fresh.json"
+    _, resumed = run_or_resume_certified_task(
+        fresh, identity, lambda: {"certified": True, "status": "optimal"}
+    )
+    assert resumed is False and incomplete.exists()
+
+
+def test_mixed_manifest_identity_fails_closed() -> None:
+    common = {
+        "source_commit": "a", "protocol_sha256": "b", "runner_sha256": "c",
+        "reporting_sha256": "d", "eligibility_sha256": "e", "gamma": 2,
+        "rho_hex": float(0.025).hex(), "formal_seeds": list(FORMAL_SEEDS),
+    }
+    manifests = {
+        scale: {"identity": {**common}, "scale": scale, "seeds": list(FORMAL_SEEDS)}
+        for scale in ("medium_large", "large")
+    }
+    manifests["large"]["identity"]["runner_sha256"] = "different"
+    with pytest.raises(FormalReportingError, match="mixed formal manifest identity"):
+        _validate_manifest_family(manifests)
+
+
+def test_pooled_statistics_use_ten_seed_clusters() -> None:
+    rows = []
+    for seed in FORMAL_SEEDS:
+        for scale, effect in (("medium_large", 0.1), ("large", 0.3)):
+            rows.append({
+                "seed": seed, "scale": scale, "comparison": "k1_vs_full",
+                "absolute_T_reduction": effect,
+                "relative_T_reduction": effect,
+            })
+    statistics = _comparison_statistics(rows, "k1_vs_full")
+    assert statistics["pooled_independent_cluster_count"] == 10
+    assert statistics["wins"] == 10
+    assert statistics["mean_effect"] == pytest.approx(0.2)
+    assert set(statistics["cluster_effects_by_seed"]) == {str(seed) for seed in FORMAL_SEEDS}
+
+
+def test_eligibility_matches_frozen_development_reference_semantics() -> None:
+    instance = _instance(seed=4)
+    for mode, count in (("k1", 1), ("k2", 2), ("full", instance.num_warehouses)):
+        reference = {}
+        for region in instance.R:
+            reference[region] = (
+                tuple(instance.I)
+                if mode == "full"
+                else tuple(sorted(
+                    instance.I,
+                    key=lambda warehouse: (
+                        sum(instance.transport_cost[warehouse][region][product] for product in instance.J)
+                        / instance.num_products,
+                        warehouse,
+                    ),
+                )[:count])
+            )
+        assert build_eligibility(instance, mode) == reference
+
+
+def _all_arc_fixed_zero_oracle(instance, scenarios, mode: str, anchor: float | None = None):
+    from gurobipy import GRB
+
+    model, _y, x, first, gp = _base_model(
+        instance, fixed_y=None, fixed_x=None, settings=_settings()
+    )
+    eligibility = build_eligibility(instance, mode)
+    theta = None if anchor is not None else model.addVar(lb=0.0, name="theta")
+    t = model.addVar(lb=0.0, ub=1.0, name="T") if anchor is not None else None
+    for index, scenario in enumerate(scenarios):
+        q = model.addVars(instance.I, instance.R, instance.J, lb=0.0, name=f"q_{index}")
+        u = model.addVars(instance.R, instance.J, lb=0.0, name=f"u_{index}")
+        e = model.addVars(instance.J, lb=0.0, name=f"e_{index}")
+        for i in instance.I:
+            for r in instance.R:
+                if i not in eligibility[r]:
+                    for j in instance.J:
+                        q[i, r, j].UB = 0.0
+        for r in instance.R:
+            for j in instance.J:
+                model.addConstr(gp.quicksum(q[i, r, j] for i in instance.I) + u[r, j]
+                                >= scenario.demand[r][j])
+        for i in instance.I:
+            for j in instance.J:
+                model.addConstr(gp.quicksum(q[i, r, j] for r in instance.R) <= x[i, j])
+        for j in instance.J:
+            model.addConstr(
+                gp.quicksum(u[r, j] for r in instance.R) - e[j]
+                <= (1.0 - instance.service_level[j])
+                * sum(scenario.demand[r][j] for r in instance.R)
+            )
+        cost = (
+            gp.quicksum(instance.transport_cost[i][r][j] * q[i, r, j]
+                        for i in instance.I for r in instance.R for j in instance.J)
+            + gp.quicksum(instance.shortage_penalty[r][j] * u[r, j]
+                          for r in instance.R for j in instance.J)
+            + gp.quicksum(instance.service_penalty[j] * e[j] for j in instance.J)
+        )
+        if anchor is None:
+            model.addConstr(theta >= cost)
+        else:
+            model.addConstr(first + cost <= (1.0 + 0.025) * anchor)
+            for r in instance.R:
+                demand = sum(scenario.demand[r][j] for j in instance.J)
+                model.addConstr(gp.quicksum(u[r, j] for j in instance.J) <= t * demand)
+    model.Params.MIPGap = 0.0
+    model.setObjective(first + theta if anchor is None else t, GRB.MINIMIZE)
+    model.optimize()
+    value = float(model.ObjVal)
+    model.dispose()
+    return value
+
+
+def test_k1_k2_arc_omission_matches_all_arc_fixed_zero_oracle() -> None:
+    instance = _instance(seed=5)
+    scenarios = enumerate_budget_scenarios(instance, 1, max_scenarios=5000, exact_scenarios=True)
+    for mode in ("k1", "k2"):
+        anchor = solve_cost_anchor(instance, scenarios, mode, _settings())
+        assert anchor["certified"] is True
+        oracle_anchor = _all_arc_fixed_zero_oracle(instance, scenarios, mode)
+        assert anchor["objective"] == pytest.approx(oracle_anchor, abs=1.0e-7)
+        service = solve_service(
+            instance, scenarios, mode, anchor["objective"], 0.025, _settings()
+        )
+        oracle_t = _all_arc_fixed_zero_oracle(instance, scenarios, mode, anchor["objective"])
+        assert service["objective_t"] == pytest.approx(oracle_t, abs=1.0e-7)
