@@ -1,0 +1,30 @@
+{
+  "cases": [
+    {
+      "case_id": "210202",
+      "config_sha256": "25a68b5450f8a92990beb694bb0fc751eac757e45d94f80aa0a6e31a37d3355b",
+      "git_commit": "308adcb65957ec472646a83b02ba7ddd6fa89225",
+      "input_sha256": "6792234516446485b95f4111f3826eb5d0cc03b440890a98b71207f50eb5524a",
+      "max_absolute_violations": {
+        "budget": 4.3655745685100555e-11,
+        "capacity": 1.0186340659856796e-10,
+        "logic": 0.0,
+        "nonnegativity": 0.0,
+        "primal_dual_objective": 5.4569682106375694e-11,
+        "recourse_demand": 1.4210854715202004e-14,
+        "recourse_service": 1.4210854715202004e-14,
+        "recourse_supply": 2.842170943040401e-14
+      },
+      "provenance_validation": "PASS",
+      "readback_revalidation": "PASS",
+      "scaled_primal_dual_tolerance": 0.03222636038509872,
+      "solver_version": "13.0.1",
+      "status": "PASS",
+      "timestamp": "2026-09-04T16:27:33+00:00",
+      "tolerance": 1e-06
+    }
+  ],
+  "overall": "PASS",
+  "schema": "renault_result_integrity_audit_v1",
+  "written_results_reloaded": true
+}

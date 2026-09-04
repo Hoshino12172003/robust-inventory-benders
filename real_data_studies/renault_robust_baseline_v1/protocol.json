@@ -1,0 +1,30 @@
+{
+  "case_order": [
+    "210202",
+    "210628"
+  ],
+  "completed_cases": [
+    "210202"
+  ],
+  "configs": [
+    {
+      "path": "experiments/configs/renault_robust_baseline_210202.yaml",
+      "sha256": "25a68b5450f8a92990beb694bb0fc751eac757e45d94f80aa0a6e31a37d3355b"
+    },
+    {
+      "path": "experiments/configs/renault_robust_baseline_210628.yaml",
+      "sha256": "ba4e7fe061ed4f71525b62954b24faf66ad1a9ef38a4d86f25b1a2e3cfd41536"
+    }
+  ],
+  "constraints": {
+    "algorithm_comparison": false,
+    "budget": "B_ref_only",
+    "core_model_change": false,
+    "eligibility": "Full",
+    "gamma": 2,
+    "k_experiments": false,
+    "tuning_after_results": false
+  },
+  "git_commit": "308adcb65957ec472646a83b02ba7ddd6fa89225",
+  "schema": "renault_robust_baseline_protocol_v1"
+}

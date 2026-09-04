@@ -1,0 +1,57 @@
+{
+  "created_at": "2026-09-04T16:27:33+00:00",
+  "files": [
+    {
+      "bytes": 1070,
+      "path": "audit/result_integrity_audit.json",
+      "sha256": "81708a6694ae70f64db227907faaabfb7b584c23a7cac1338b7d776cc64b0070"
+    },
+    {
+      "bytes": 786,
+      "path": "protocol.json",
+      "sha256": "d578c8c7082be1e0d0d02c90b7e496390ca045ffa80f8688c55ef63ed5a6e9c6"
+    },
+    {
+      "bytes": 48389,
+      "path": "results/210202_B1.00_result.json",
+      "sha256": "3e4881aff091414876f5e930180dc7b26e781b76258aeaf1cfa245ede5a6e34e"
+    },
+    {
+      "bytes": 4472,
+      "path": "results/depot_summary.csv",
+      "sha256": "c00a05e520100172a5f657622e48e273a4e28041cd401079515d541a587cc1fa"
+    },
+    {
+      "bytes": 33985,
+      "path": "results/first_stage_allocation.csv",
+      "sha256": "285ba8c9495df578f1b2cf34ccfc14e55fc1367380209cdbaac3d0bd74ff28ac"
+    },
+    {
+      "bytes": 3012535,
+      "path": "results/iteration_logs/210202_B1.00_iterations.csv",
+      "sha256": "da5e73ab6bad9afe91f6dfc790468607f8d8766349ae0fb4ba7f9bd1a5e161e9"
+    },
+    {
+      "bytes": 344316,
+      "path": "results/recourse_flows.csv",
+      "sha256": "af2a5430e873acf04068b58c92a5c38ada1be176b870fe076c411f5fdae8f0f4"
+    },
+    {
+      "bytes": 3086,
+      "path": "results/regional_service.csv",
+      "sha256": "fcba836ef5284a4b8a3855f40c8e249d9bc74cfb8d1cb56b67995217cf7705df"
+    },
+    {
+      "bytes": 1070,
+      "path": "results/summary.csv",
+      "sha256": "f7af653aab7728b43829caa815682d47432ca07241ed11fbb6b11da90cb4ed1d"
+    },
+    {
+      "bytes": 948,
+      "path": "results/worst_case_patterns.csv",
+      "sha256": "f262702df9734cc232ef9af747cfd110ba8aeb738c13378296de7f81b62644e8"
+    }
+  ],
+  "git_commit": "308adcb65957ec472646a83b02ba7ddd6fa89225",
+  "schema": "renault_robust_baseline_manifest_v1"
+}
