@@ -1,0 +1,25 @@
+protocol: renault_robust_baseline_v1
+case_id: "210202"
+instance_path: real_data_studies/renault_formal_instances_v6/instances/210202_B1.00.json
+instance_sha256: 6792234516446485b95f4111f3826eb5d0cc03b440890a98b71207f50eb5524a
+index_metadata_path: real_data_studies/renault_formal_instances_v6/instances/210202_index_metadata.json
+index_metadata_sha256: 60f3d2d59242d75604d04f1cc340185e598c012af1a5eaed20e066fbc98ade53
+eligibility_path: real_data_studies/renault_formal_instances_v6/eligibility/210202_eligibility.json
+eligibility_sha256: 391280114feb100778d45ca9911b07693e981cbe0f8cd06016744cb18cddca9f
+eligibility_mode: Full
+expected_dimensions: {I: 15, J: 8, R: 12}
+expected_budget: 84614.30513135396
+gamma: 2
+expected_complete_scenarios: 4657
+frozen_solver:
+  protocol_path: experiments/configs/cut_strengthened_joint_v3_final_large.yaml
+  protocol_sha256: 60fdf4a9a642485a46e473a25ddb7502198a84eea927d9a60e670b764f8542f3
+  selected_parameters_path: experiments/configs/selected_algorithm_parameters.yaml
+  selected_parameters_sha256: 50b275578a127b349bdda47ff161680048cd1c0c8845ea85e707949bdfa29d25
+  selected_candidate_path: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+  selected_candidate_sha256: 7e8aaf39de8c100b4ce9b46256a074fbd324b07ddc347d256494ed070d4e0eb6
+  method: proposed_adaptive_benders
+  variant: joint_v1_core_point_strengthened
+result_root: real_data_studies/renault_robust_baseline_v1
+integrity_tolerance: 1.0e-6
+worst_case_tie_rule: exact-zero-gap robust dual MILP; retain the solver-selected maximizer; alternative ties are not enumerated
