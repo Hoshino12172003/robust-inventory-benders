@@ -1,0 +1,9 @@
+﻿instance,budget_ratio,shape_ok,nonnegative_ok,ub_consistency_ok,ub_max_abs_error,k_nesting_ok,k_cardinality_ok,budget_positive,scenario_count_ok,overall_pass
+210202,0.8,True,True,True,0.0,True,True,True,True,True
+210202,0.9,True,True,True,0.0,True,True,True,True,True
+210202,1.0,True,True,True,0.0,True,True,True,True,True
+210202,1.05,True,True,True,0.0,True,True,True,True,True
+210628,0.8,True,True,True,0.0,True,True,True,True,True
+210628,0.9,True,True,True,0.0,True,True,True,True,True
+210628,1.0,True,True,True,0.0,True,True,True,True,True
+210628,1.05,True,True,True,0.0,True,True,True,True,True
