@@ -1,0 +1,1480 @@
+{
+  "step": "4A",
+  "overall": "PASS",
+  "package_hashes": "PASS",
+  "inventory_instance_code_changed": false,
+  "core_mathematical_model_changed": false,
+  "formal_gamma2_optimization_executed": false,
+  "paper_result_produced": false,
+  "robust_dual_optimization_executed": false,
+  "nominal_subproblems_solved": [
+    "210202_B1.00",
+    "210628_B1.00"
+  ],
+  "instances": [
+    {
+      "instance_name": "210202_B0.80",
+      "sha256": "a7ea8ab382e3a09db5e809d85a85313a9ecb739a2a7d6e3f013637b9962f615c",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 67691.44410508317,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 0.0
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 1105998.0332142857
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210202_B0.90",
+      "sha256": "97d5720ccb9352e6d4ff189b17027b58d375f0183744863dc4cc4608e6ddcf85",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 76152.87461821857,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 0.0
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 1105998.0332142857
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210202_B1.00",
+      "sha256": "6792234516446485b95f4111f3826eb5d0cc03b440890a98b71207f50eb5524a",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 84614.30513135396,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 0.0
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 1105998.0332142857
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210202_B1.05",
+      "sha256": "87ecd5fcf57119539d53fdde5a1e7580c7aae12135edbef18e49fdfb2b10cbad",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 88845.02038792166,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 0.0
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 1105998.0332142857
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210628_B0.80",
+      "sha256": "54faa55f43608b3a0be94324315e41ed103557118bee9c37b0000a41f4c16139",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 40446.55016970468,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 5.684341886080802e-14
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 674280.6699999999
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210628_B0.90",
+      "sha256": "63e2386d25ca12b1ddfda75904f9ca70df991df296c94507c58342400a9a4ec6",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 45502.36894091776,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 5.684341886080802e-14
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 674280.6699999999
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210628_B1.00",
+      "sha256": "8d54c122d38eb2fe6e0a18de26c22de201ce80dd61a01ad47ca03f17f2b6c50c",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 50558.18771213084,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 5.684341886080802e-14
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 674280.6699999999
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    },
+    {
+      "instance_name": "210628_B1.05",
+      "sha256": "1e29ee7e4287be36c96a2a0de7eede6b0f8c930048838095811f2ceb389c91a4",
+      "num_warehouses": 15,
+      "num_products": 8,
+      "num_regions": 12,
+      "budget": 53086.09709773739,
+      "scenario_count": 4657,
+      "master_build": "PASS",
+      "nominal_subproblem_build": "PASS",
+      "robust_dual_build": "PASS",
+      "ub_audit": "PASS",
+      "eligibility_audit": "PASS",
+      "overall": "PASS",
+      "contract": {
+        "dimensions_pass": true,
+        "array_shapes": {
+          "fixed_cost": [
+            15
+          ],
+          "inventory_cost": [
+            15,
+            8
+          ],
+          "capacity": [
+            15
+          ],
+          "volume": [
+            8
+          ],
+          "transport_cost": [
+            15,
+            12,
+            8
+          ],
+          "shortage_penalty": [
+            12,
+            8
+          ],
+          "service_penalty": [
+            8
+          ],
+          "service_level": [
+            8
+          ],
+          "base_demand": [
+            12,
+            8
+          ],
+          "demand_deviation": [
+            12,
+            8
+          ],
+          "inventory_ub": [
+            15,
+            8
+          ]
+        },
+        "numeric_domain_pass": true,
+        "budget_positive": true,
+        "ub_audit": "PASS",
+        "ub_max_abs_error": 5.684341886080802e-14
+      },
+      "scenarios": {
+        "scenario_count": 4657,
+        "gamma_counts": {
+          "0": 1,
+          "1": 96,
+          "2": 4560
+        },
+        "unique_patterns": 4657,
+        "scenario_enumeration": "PASS"
+      },
+      "master": {
+        "master_build": "PASS",
+        "variables": {
+          "y": 15,
+          "x": 120,
+          "theta": 1
+        },
+        "constraints": {
+          "capacity": 15,
+          "logic": 120,
+          "budget": 1
+        },
+        "budget_formula_pass": true,
+        "capacity_formula_pass": true
+      },
+      "nominal": {
+        "nominal_subproblem_build": "PASS",
+        "variables": {
+          "q": 1440,
+          "u": 96,
+          "e": 8,
+          "total": 1544
+        },
+        "constraints": {
+          "demand": 96,
+          "supply": 120,
+          "service": 8,
+          "total": 224
+        },
+        "solve_status": "OPTIMAL",
+        "objective": 674280.6699999999
+      },
+      "robust_dual": {
+        "robust_dual_build": "PASS",
+        "gamma": 2,
+        "demand_shape": [
+          12,
+          8
+        ],
+        "variables": 512,
+        "constraints": 2121,
+        "data_derived_bounds_and_coefficients_finite": true,
+        "intentional_solver_default_unbounded_variables": 192,
+        "unexpected_nan_or_inf": false,
+        "optimization_executed": false
+      },
+      "eligibility": {
+        "eligibility_audit": "PASS",
+        "shapes": {
+          "K1": [
+            15,
+            12
+          ],
+          "K2": [
+            15,
+            12
+          ],
+          "Full": [
+            15,
+            12
+          ]
+        },
+        "eligible_depots_per_region": {
+          "K1": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "K2": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "Full": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "nesting_pass": true,
+        "cardinality_pass": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+[
+  {
+    "path": "audit/instance_contract_audit.csv",
+    "sha256": "a03fabbe954a08dab8f07135df91318dd8e41920b8d56f095fe831cd35351e7d",
+    "bytes": 612
+  },
+  {
+    "path": "audit/step3_summary.json",
+    "sha256": "7d73101bef62cf61fe3041bbeed08be7d227ae2ff37cf86314ca10e626b38b32",
+    "bytes": 461
+  },
+  {
+    "path": "eligibility/210202_eligibility.json",
+    "sha256": "391280114feb100778d45ca9911b07693e981cbe0f8cd06016744cb18cddca9f",
+    "bytes": 5964
+  },
+  {
+    "path": "eligibility/210628_eligibility.json",
+    "sha256": "6427ca9bd5317db38caf8780aae32d25c1d3fd92a9e0c00feaf1f0455a23e3d7",
+    "bytes": 5964
+  },
+  {
+    "path": "instances/210202_B0.80.json",
+    "sha256": "a7ea8ab382e3a09db5e809d85a85313a9ecb739a2a7d6e3f013637b9962f615c",
+    "bytes": 56384
+  },
+  {
+    "path": "instances/210202_B0.90.json",
+    "sha256": "97d5720ccb9352e6d4ff189b17027b58d375f0183744863dc4cc4608e6ddcf85",
+    "bytes": 56384
+  },
+  {
+    "path": "instances/210202_B1.00.json",
+    "sha256": "6792234516446485b95f4111f3826eb5d0cc03b440890a98b71207f50eb5524a",
+    "bytes": 56384
+  },
+  {
+    "path": "instances/210202_B1.05.json",
+    "sha256": "87ecd5fcf57119539d53fdde5a1e7580c7aae12135edbef18e49fdfb2b10cbad",
+    "bytes": 56384
+  },
+  {
+    "path": "instances/210202_index_metadata.json",
+    "sha256": "60f3d2d59242d75604d04f1cc340185e598c012af1a5eaed20e066fbc98ade53",
+    "bytes": 1231
+  },
+  {
+    "path": "instances/210628_B0.80.json",
+    "sha256": "54faa55f43608b3a0be94324315e41ed103557118bee9c37b0000a41f4c16139",
+    "bytes": 56531
+  },
+  {
+    "path": "instances/210628_B0.90.json",
+    "sha256": "63e2386d25ca12b1ddfda75904f9ca70df991df296c94507c58342400a9a4ec6",
+    "bytes": 56531
+  },
+  {
+    "path": "instances/210628_B1.00.json",
+    "sha256": "8d54c122d38eb2fe6e0a18de26c22de201ce80dd61a01ad47ca03f17f2b6c50c",
+    "bytes": 56531
+  },
+  {
+    "path": "instances/210628_B1.05.json",
+    "sha256": "1e29ee7e4287be36c96a2a0de7eede6b0f8c930048838095811f2ceb389c91a4",
+    "bytes": 56531
+  },
+  {
+    "path": "instances/210628_index_metadata.json",
+    "sha256": "acadb17ac01c1013dbab4362aebde53a75ab87c81f88bb0999ffe8c37b623696",
+    "bytes": 1231
+  },
+  {
+    "path": "manifest.csv",
+    "sha256": "4a5921b5bf71ef5037cd0f726ec3527aa0d80d712f45ecaf227a9e45acc8296b",
+    "bytes": 1083
+  }
+]
