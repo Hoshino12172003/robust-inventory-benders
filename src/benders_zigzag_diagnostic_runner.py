@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import csv
 import json
 import math
 from pathlib import Path
@@ -114,6 +115,65 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         atomic_write_csv(path, rows, list(rows[0]))
 
 
+def reanalyze_existing(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
+    protocol = load_config(config_path)
+    output_root = _path(protocol["output_root"])
+
+    def read_rows(filename: str) -> list[dict[str, str]]:
+        with (output_root / filename).open(newline="", encoding="utf-8") as source:
+            return list(csv.DictReader(source))
+
+    raw_metrics = read_rows("zigzag_trajectory_metrics.csv")
+    raw_y = read_rows("zigzag_trajectory_y.csv")
+    raw_x = read_rows("zigzag_trajectory_x.csv")
+    _require(len(raw_metrics) == len(raw_y) == len(raw_x), "Saved trajectory lengths differ")
+    metrics = [
+        {
+            "iteration": int(row["iteration"]),
+            "elapsed_time": float(row["elapsed_time"]),
+            "LB": float(row["LB"]),
+            "UB": float(row["UB"]),
+            "gap": float(row["gap"]),
+            "master_time": float(row["master_time"]),
+            "cuts_added_total": int(row["cuts_added_total"]),
+        }
+        for row in raw_metrics
+    ]
+    y_fields = [field for field in raw_y[0] if field != "iteration"]
+    x_fields = [field for field in raw_x[0] if field != "iteration"]
+    _require(len(y_fields) == 15 and len(x_fields) == 120, "Saved trajectory dimensions changed")
+    y_trajectory = [[float(row[field]) for field in y_fields] for row in raw_y]
+    x_trajectory = [
+        np.asarray([float(row[field]) for field in x_fields], dtype=float).reshape(15, 8).tolist()
+        for row in raw_x
+    ]
+    diagnostic = analyze_trajectory(metrics, y_trajectory, x_trajectory)
+    summary_path = output_root / "zigzag_diagnostic_summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    segment_by_name = {row["segment"]: row for row in diagnostic["segments"]}
+    summary.update(
+        {
+            "analysis_git_commit": _git_commit(),
+            "final_100": segment_by_name["final_100"],
+            "final_250": segment_by_name["final_250"],
+            "classification": diagnostic["classification"],
+            "classification_evidence": diagnostic["classification_evidence"],
+            "unique_y_patterns": diagnostic["unique_y_patterns"],
+            "y_pattern_switches": diagnostic["y_pattern_switches"],
+            "short_cycles": diagnostic["short_cycles"],
+            "movement_relationships": diagnostic["relationships"],
+            "tail_movement_relationships": diagnostic["tail_relationships"],
+            "enough_to_explain_tail_stagnation": diagnostic["enough_to_explain_tail_stagnation"],
+            "stabilization_recommendation": diagnostic["stabilization_recommendation"],
+        }
+    )
+    _write_csv(output_root / "zigzag_diagnostic_movements.csv", diagnostic["movements"])
+    _write_csv(output_root / "zigzag_diagnostic_segments.csv", diagnostic["segments"])
+    _write_csv(output_root / "zigzag_diagnostic_patterns.csv", diagnostic["patterns"])
+    atomic_write_json(summary_path, summary)
+    return summary
+
+
 def run(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     context = preflight(config_path)
     protocol = context["protocol"]
@@ -222,6 +282,7 @@ def run(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
         "y_pattern_switches": diagnostic["y_pattern_switches"],
         "short_cycles": diagnostic["short_cycles"],
         "movement_relationships": diagnostic["relationships"],
+        "tail_movement_relationships": diagnostic["tail_relationships"],
         "enough_to_explain_tail_stagnation": diagnostic["enough_to_explain_tail_stagnation"],
         "stabilization_recommendation": diagnostic["stabilization_recommendation"],
         "interpretation_policy": "Classification uses only predeclared thresholds in src/benders_zigzag_diagnostic.py; it is diagnostic evidence, not a causal guarantee.",
@@ -245,8 +306,17 @@ def run(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the one-shot Renault Benders trajectory diagnostic")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--analyze-existing",
+        action="store_true",
+        help="Recompute diagnostic reports from saved trajectory CSVs without solving.",
+    )
     args = parser.parse_args()
-    summary = run(args.config.resolve())
+    summary = (
+        reanalyze_existing(args.config.resolve())
+        if args.analyze_existing
+        else run(args.config.resolve())
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
 

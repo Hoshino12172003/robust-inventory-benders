@@ -236,18 +236,23 @@ def pattern_concentration(y_trajectory: list[list[float]]) -> list[dict[str, Any
 
 
 def movement_relationships(movements: list[dict[str, Any]]) -> dict[str, Any]:
-    movement = [float(row["x_normalized_l1"]) for row in movements]
     outcomes = {
         "lb_improvement": [float(row["lb_improvement"]) for row in movements],
         "master_runtime": [float(row["master_runtime"]) for row in movements],
         "gap_reduction": [float(row["gap_reduction"]) for row in movements],
     }
     correlations = {
-        outcome: {
-            "pearson": _correlation(movement, values),
-            "spearman": _correlation(movement, values, ranks=True),
+        movement_name: {
+            outcome: {
+                "pearson": _correlation(movement_values, outcome_values),
+                "spearman": _correlation(movement_values, outcome_values, ranks=True),
+            }
+            for outcome, outcome_values in outcomes.items()
         }
-        for outcome, values in outcomes.items()
+        for movement_name, movement_values in {
+            "x_normalized_l1": [float(row["x_normalized_l1"]) for row in movements],
+            "y_hamming": [float(row["y_hamming"]) for row in movements],
+        }.items()
     }
     bins = (("small", -float("inf"), 0.01), ("medium", 0.01, 0.05), ("large", 0.05, float("inf")))
     binned: list[dict[str, Any]] = []
@@ -319,14 +324,22 @@ def analyze_trajectory(
     by_name = {row["segment"]: row for row in segments}
     classification, evidence = classify_zigzag(by_name["final_100"], by_name["final_250"])
     relationships = movement_relationships(movements)
+    tail_relationships = {
+        "final_250": movement_relationships(movements[-250:]),
+        "final_100": movement_relationships(movements[-100:]),
+    }
     patterns = pattern_concentration(y_trajectory)
     tail = by_name["final_250"]
-    enough_to_explain_tail = classification in {"STRONG_ZIGZAG", "MODERATE_ZIGZAG"}
+    enough_to_explain_tail = bool(
+        evidence["signals"]["significant_short_cycles"]
+        or evidence["signals"]["large_movement_with_flat_lb"]
+    )
     return {
         "movements": movements,
         "segments": segments,
         "patterns": patterns,
         "relationships": relationships,
+        "tail_relationships": tail_relationships,
         "classification": classification,
         "classification_evidence": evidence,
         "unique_y_patterns": len({_y_signature(np.asarray(row)) for row in y_trajectory}),

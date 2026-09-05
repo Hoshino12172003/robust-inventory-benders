@@ -118,8 +118,9 @@ def test_analysis_reports_unique_patterns_and_finite_correlations() -> None:
         "NO_MEANINGFUL_ZIGZAG",
         "INCONCLUSIVE",
     }
-    pearson = report["relationships"]["correlations"]["master_runtime"]["pearson"]
+    pearson = report["relationships"]["correlations"]["x_normalized_l1"]["master_runtime"]["pearson"]
     assert pearson is None or math.isfinite(pearson)
+    assert "y_hamming" in report["tail_relationships"]["final_100"]["correlations"]
 
 
 def test_mismatched_or_nonfinite_trajectories_are_rejected() -> None:
