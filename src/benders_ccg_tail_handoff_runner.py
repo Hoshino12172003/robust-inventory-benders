@@ -408,7 +408,12 @@ def aggregate(context: dict[str, Any]) -> dict[str, Any]:
         "methods": rows,
         "best_method": best["method"],
         "outcome": outcome,
-        "freeze_review_recommended": outcome in {"STRONG_SUCCESS", "SUBSTANTIAL_IMPROVEMENT"},
+        "freeze_review_recommended": (
+            best["method"].startswith("handoff_")
+            and outcome in {"STRONG_SUCCESS", "SUBSTANTIAL_IMPROVEMENT"}
+        ),
+        "freeze_review_scope": "benders_to_ccg_workflow",
+        "pure_ccg_followup_review_recommended": best["method"] == "pure_ccg",
         "integrity_audit": integrity_audit,
         "correctness_argument": {
             "restricted_master": "Each active scenario uses the original first-stage feasible region, recourse variables, service constraints, and robust objective epigraph; a subset is therefore a valid relaxation and its bound is a valid LB.",
