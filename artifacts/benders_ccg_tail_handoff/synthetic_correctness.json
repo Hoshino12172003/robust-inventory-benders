@@ -1,0 +1,51 @@
+{
+  "cases": [
+    {
+      "benders_iterations": 5,
+      "hybrid_ccg_iterations": 3,
+      "hybrid_inherited_scenarios": 1,
+      "objectives": {
+        "benders": 7613.196617497477,
+        "exact": 7613.196617497478,
+        "hybrid": 7613.196617497477,
+        "pure_ccg": 7613.196617497477
+      },
+      "pure_ccg_iterations": 3,
+      "seed": 31,
+      "status": "PASS"
+    },
+    {
+      "benders_iterations": 5,
+      "hybrid_ccg_iterations": 2,
+      "hybrid_inherited_scenarios": 1,
+      "objectives": {
+        "benders": 8078.395504651303,
+        "exact": 8078.395504651303,
+        "hybrid": 8078.395504651303,
+        "pure_ccg": 8078.395504651303
+      },
+      "pure_ccg_iterations": 3,
+      "seed": 32,
+      "status": "PASS"
+    },
+    {
+      "benders_iterations": 10,
+      "hybrid_ccg_iterations": 2,
+      "hybrid_inherited_scenarios": 1,
+      "objectives": {
+        "benders": 4985.060870111165,
+        "exact": 4985.060870111161,
+        "hybrid": 4985.060870111163,
+        "pure_ccg": 4985.060870111163
+      },
+      "pure_ccg_iterations": 3,
+      "seed": 33,
+      "status": "PASS"
+    }
+  ],
+  "git_commit": "fb14c749dac8c1458ff66e5df64232cf91567e5c",
+  "objective_absolute_tolerance": 1e-06,
+  "schema": "benders_ccg_synthetic_correctness_v1",
+  "status": "PASS",
+  "timestamp": "2026-09-05T10:23:22+00:00"
+}

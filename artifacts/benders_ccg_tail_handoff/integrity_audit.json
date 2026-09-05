@@ -1,0 +1,18 @@
+{
+  "certified_objective_range": [
+    116815.11494450645,
+    116815.1149445065
+  ],
+  "checks": {
+    "all_certified_objectives_inside_pr82_valid_bounds": true,
+    "all_final_bounds_finite_and_ordered": true,
+    "all_final_certifications_use_exact_adversarial_separation": true,
+    "all_methods_certified": true,
+    "all_scenario_patterns_respect_gamma_2": true,
+    "all_total_runtimes_within_1800s_policy": true,
+    "certified_objectives_agree_within_1e_6": true,
+    "no_cross_phase_lower_bound_splicing": true,
+    "synthetic_correctness_pass": true
+  },
+  "status": "PASS"
+}
