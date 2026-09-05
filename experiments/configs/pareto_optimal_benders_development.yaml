@@ -1,0 +1,43 @@
+experiment_name: pareto_optimal_benders_development
+protocol_phase: development
+formal_inference_allowed: false
+retuning_allowed: false
+
+frozen_solver:
+  protocol_path: experiments/configs/cut_strengthened_joint_v3_final_large.yaml
+  protocol_sha256: 60fdf4a9a642485a46e473a25ddb7502198a84eea927d9a60e670b764f8542f3
+  selected_parameters_path: experiments/configs/selected_algorithm_parameters.yaml
+  selected_parameters_sha256: 50b275578a127b349bdda47ff161680048cd1c0c8845ea85e707949bdfa29d25
+  selected_candidate_path: experiments/configs/selected_cut_strengthened_joint_v3_candidate.yaml
+  selected_candidate_sha256: 7e8aaf39de8c100b4ce9b46256a074fbd324b07ddc347d256494ed070d4e0eb6
+  method: proposed_adaptive_benders
+  current_variant: joint_v1_core_point_strengthened
+
+synthetic:
+  instance_size: small
+  seeds: [0, 1, 2, 3]
+  time_limit: 120.0
+  objective_tolerance: 1.0e-6
+  variants: [core_point, pareto_optimal_mw]
+
+pareto_mode:
+  cut_strengthening_policy: pareto_optimal_mw
+  reuse_frozen_core_point_parameters: true
+  current_point_constraint: equality
+  coefficient_perturbation: false
+  stabilization: false
+  multi_cut: false
+  cut_deletion: false
+  solver_parameter_retuning: false
+
+renault_diagnostic:
+  enabled_after_synthetic_pass_only: true
+  case: 210202_B1.00
+  time_limit: 300.0
+  gamma: 2
+  eligibility: Full
+  formal_result: false
+  repeat_allowed: false
+  instance_path: real_data_studies/renault_formal_instances_v6/instances/210202_B1.00.json
+  instance_sha256: 6792234516446485b95f4111f3826eb5d0cc03b440890a98b71207f50eb5524a
+  eligibility_path: real_data_studies/renault_formal_instances_v6/eligibility/210202_eligibility.json

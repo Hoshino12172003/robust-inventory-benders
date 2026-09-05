@@ -178,6 +178,7 @@ def solve_fixed_pattern_dual_lp(
     output_flag: bool = False,
     current_x_values: dict[tuple[int, int], float] | None = None,
     current_value_floor: float | None = None,
+    current_value_target: float | None = None,
 ) -> FixedPatternDualLPResult:
     """Solve a continuous fixed-pattern dual LP used only for cut strengthening."""
     start = time.perf_counter()
@@ -242,12 +243,24 @@ def solve_fixed_pattern_dual_lp(
             )
         )
 
-    if current_x_values is not None or current_value_floor is not None:
-        if current_x_values is None or current_value_floor is None:
-            raise ValueError("current_x_values and current_value_floor must be supplied together")
+    if current_value_floor is not None and current_value_target is not None:
+        raise ValueError("Use either current_value_floor or current_value_target, not both")
+    if current_x_values is not None or current_value_floor is not None or current_value_target is not None:
+        if current_x_values is None or (
+            current_value_floor is None and current_value_target is None
+        ):
+            raise ValueError("A current point and one current-value constraint are required")
+    if current_value_floor is not None:
         model.addConstr(
             affine_objective(current_x_values) >= float(current_value_floor),
             name="current_point_value_floor",
+        )
+    if current_value_target is not None:
+        # Magnanti-Wong face constraint: the selected dual remains optimal at
+        # x^k while the auxiliary objective selects its value at the core point.
+        model.addConstr(
+            affine_objective(current_x_values) == float(current_value_target),
+            name="current_point_optimal_face",
         )
     model.setObjective(affine_objective(objective_x_values), GRB.MAXIMIZE)
     model.optimize()
@@ -390,6 +403,101 @@ def solve_core_point_strengthened_dual_cut(
         strengthened_cut, stage1.status, stage1.runtime, stage1.objective,
         stage2.status, stage2.runtime, original_current, strengthened_current,
         original_core, strengthened_core, stage1.objective - delta,
+        stage2.dual_feasible, False, None,
+    )
+
+
+def solve_pareto_optimal_mw_cut(
+    instance: InventoryInstance,
+    current_x_values: dict[tuple[int, int], float],
+    core_x_values: dict[tuple[int, int], float],
+    original_cut: RobustDualSubproblemResult,
+    *,
+    stage1_time_limit: float,
+    stage2_time_limit: float,
+    remaining_global_time: float,
+    output_flag: bool = False,
+) -> CorePointStrengtheningSolveResult:
+    """Return a globally valid fixed-pattern MW cut tight at ``current_x_values``.
+
+    For the active robust pattern z^k, every feasible fixed-pattern dual point
+    defines a global lower supporting plane for Q_z(x), hence also for
+    Q(x)=max_z Q_z(x).  Stage 1 obtains q_k=Q_z(x^k).  Stage 2 maximizes that
+    plane at the core point subject to the exact optimal-face equality
+    alpha + beta^T x^k = q_k.  The resulting cut is therefore globally valid
+    and tight at x^k whenever z^k is an active worst-case pattern.
+    """
+    stage1_limit = min(float(stage1_time_limit), max(0.0, float(remaining_global_time)))
+    original_current = original_cut.cut_value(current_x_values)
+    original_core = original_cut.cut_value(core_x_values)
+    if stage1_limit <= 0.0:
+        return CorePointStrengtheningSolveResult(
+            None, "not_run", 0.0, None, "not_run", 0.0,
+            original_current, None, original_core, None, None, False, False,
+            "stage1_time_unavailable",
+        )
+    stage1 = solve_fixed_pattern_dual_lp(
+        instance,
+        current_x_values,
+        original_cut.z_values,
+        time_limit=stage1_limit,
+        output_flag=output_flag,
+    )
+    if stage1.status != "optimal" or not stage1.has_solution or stage1.objective is None:
+        return CorePointStrengtheningSolveResult(
+            None, stage1.status, stage1.runtime, stage1.objective, "not_run", 0.0,
+            original_current, None, original_core, None, None, False, False,
+            "stage1_not_optimal",
+        )
+    remaining_after_stage1 = max(0.0, float(remaining_global_time) - stage1.runtime)
+    actual_stage2_limit = min(float(stage2_time_limit), remaining_after_stage1)
+    if actual_stage2_limit <= 0.0:
+        return CorePointStrengtheningSolveResult(
+            None, stage1.status, stage1.runtime, stage1.objective, "not_run", 0.0,
+            original_current, None, original_core, None, stage1.objective,
+            False, False, "stage2_time_unavailable",
+        )
+    stage2 = solve_fixed_pattern_dual_lp(
+        instance,
+        core_x_values,
+        original_cut.z_values,
+        time_limit=actual_stage2_limit,
+        output_flag=output_flag,
+        current_x_values=current_x_values,
+        current_value_target=stage1.objective,
+    )
+    if stage2.status != "optimal" or not stage2.has_solution:
+        return CorePointStrengtheningSolveResult(
+            None, stage1.status, stage1.runtime, stage1.objective,
+            stage2.status, stage2.runtime, original_current, None, original_core,
+            None, stage1.objective, stage2.dual_feasible, False,
+            "stage2_not_optimal",
+        )
+    pareto_current = stage2.cut_value(current_x_values)
+    pareto_core = stage2.cut_value(core_x_values)
+    pattern = discretize_robust_pattern(instance, original_cut.z_values)
+    if pattern is None:
+        raise RuntimeError("MW stage 2 used a pattern that could no longer be discretized")
+    pareto_cut = RobustDualSubproblemResult(
+        objective=pareto_current,
+        z_values={key: float(value) for key, value in pattern.items()},
+        lambda_values=stage2.lambda_values,
+        mu_values=stage2.mu_values,
+        nu_values=stage2.nu_values,
+        demand_values=stage2.demand_values,
+        constant=stage2.constant,
+        x_coefficients=stage2.x_coefficients,
+        runtime=stage1.runtime + stage2.runtime,
+        status="optimal",
+        objective_bound=None,
+        mip_gap=None,
+        has_incumbent=True,
+        requested_mip_gap=None,
+    )
+    return CorePointStrengtheningSolveResult(
+        pareto_cut, stage1.status, stage1.runtime, stage1.objective,
+        stage2.status, stage2.runtime, original_current, pareto_current,
+        original_core, pareto_core, stage1.objective,
         stage2.dual_feasible, False, None,
     )
 

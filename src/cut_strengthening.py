@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .instance import InventoryInstance
 
 
 CUT_STRENGTHENING_POLICIES = {
     "none",
     "core_point",
+    "pareto_optimal_mw",
     "stall_secondary",
     "core_point_stall_secondary",
 }
@@ -37,7 +41,15 @@ class CutStrengtheningConfig:
 
     @property
     def core_point_enabled(self) -> bool:
-        return self.policy in {"core_point", "core_point_stall_secondary"}
+        return self.policy in {
+            "core_point",
+            "pareto_optimal_mw",
+            "core_point_stall_secondary",
+        }
+
+    @property
+    def pareto_optimal_enabled(self) -> bool:
+        return self.policy == "pareto_optimal_mw"
 
     @property
     def secondary_enabled(self) -> bool:
@@ -145,7 +157,7 @@ def cut_strengthening_config(algorithm_cfg: dict[str, Any]) -> CutStrengtheningC
     if policy not in CUT_STRENGTHENING_POLICIES:
         options = ", ".join(sorted(CUT_STRENGTHENING_POLICIES))
         raise ValueError(f"cut_strengthening_policy must be one of: {options}")
-    return CutStrengtheningConfig(
+    config = CutStrengtheningConfig(
         policy=policy,
         core_point_update_weight=_unit_interval(
             "core_point_update_weight",
@@ -220,10 +232,103 @@ def cut_strengthening_config(algorithm_cfg: dict[str, Any]) -> CutStrengtheningC
             algorithm_cfg.get("v3_secondary_pattern_memory", 10),
         ),
     )
+    if config.pareto_optimal_enabled and config.core_point_update_weight <= 0.0:
+        raise ValueError("pareto_optimal_mw requires a positive core-point update weight")
+    return config
 
 
-def initialize_core_point_state() -> CorePointState:
-    return CorePointState()
+def initialize_core_point_state(
+    core_x: dict[tuple[int, int], float] | None = None,
+) -> CorePointState:
+    return CorePointState(
+        core_x=None if core_x is None else {key: float(value) for key, value in core_x.items()},
+        observations=0 if core_x is None else 1,
+    )
+
+
+def relative_interior_core_point(
+    instance: "InventoryInstance",
+) -> dict[tuple[int, int], float]:
+    """Construct a strict-feasible point of the projected master LP.
+
+    Set every relaxed opening variable to the same level epsilon in (0, 1).
+    Inventory is positive and strictly below both its logic and capacity bounds;
+    epsilon is then reduced, if needed, so the budget is also strict.  The
+    returned x projection is therefore in the relative interior whenever the
+    instance has positive capacities, volumes, upper bounds, and budget.
+    """
+    if instance.budget <= 0.0:
+        raise ValueError("A relative-interior core point requires positive budget")
+    base: dict[tuple[int, int], float] = {}
+    for i in instance.I:
+        if instance.capacity[i] <= 0.0:
+            raise ValueError("A relative-interior core point requires positive capacity")
+        for j in instance.J:
+            if instance.volume[j] <= 0.0 or instance.inventory_ub[i][j] <= 0.0:
+                raise ValueError("A relative-interior core point requires positive bounds")
+            base[i, j] = min(
+                0.5 * instance.inventory_ub[i][j],
+                0.5 * instance.capacity[i] / (instance.num_products * instance.volume[j]),
+            )
+    unit_cost = sum(instance.fixed_cost[i] for i in instance.I) + sum(
+        instance.inventory_cost[i][j] * base[i, j]
+        for i in instance.I
+        for j in instance.J
+    )
+    if unit_cost <= 0.0:
+        raise ValueError("A relative-interior core point requires positive first-stage cost")
+    epsilon = min(0.5, 0.5 * instance.budget / unit_cost)
+    return {key: epsilon * value for key, value in base.items()}
+
+
+def pareto_cut_acceptance(
+    *,
+    stage1_optimal: bool,
+    stage2_optimal: bool,
+    dual_feasible: bool,
+    pareto_value_at_current: float | None,
+    current_optimal_value: float | None,
+    pareto_value_at_core: float | None,
+    ordinary_value_at_core: float | None,
+    tightness_tolerance: float,
+    minimum_normalized_improvement: float,
+    duplicate: bool,
+    original_primary_violated: bool,
+    certification_active: bool,
+) -> CorePointCutAcceptance:
+    if not stage1_optimal:
+        return CorePointCutAcceptance(False, "stage1_not_optimal", None)
+    if not stage2_optimal:
+        return CorePointCutAcceptance(False, "stage2_not_optimal", None)
+    if not dual_feasible:
+        return CorePointCutAcceptance(False, "dual_infeasible", None)
+    values = (
+        pareto_value_at_current,
+        current_optimal_value,
+        pareto_value_at_core,
+        ordinary_value_at_core,
+    )
+    if any(value is None or not math.isfinite(float(value)) for value in values):
+        return CorePointCutAcceptance(False, "missing_strengthening_value", None)
+    tolerance = _nonnegative("tightness_tolerance", tightness_tolerance)
+    if abs(float(pareto_value_at_current) - float(current_optimal_value)) > tolerance:
+        return CorePointCutAcceptance(False, "current_point_not_tight", None)
+    improvement = normalized_core_improvement(
+        float(pareto_value_at_core),
+        float(ordinary_value_at_core),
+    )
+    if improvement <= _nonnegative(
+        "minimum_normalized_improvement",
+        minimum_normalized_improvement,
+    ):
+        return CorePointCutAcceptance(False, "no_material_core_point_improvement", improvement)
+    if duplicate:
+        return CorePointCutAcceptance(False, "duplicate_strengthened_cut", improvement)
+    if not original_primary_violated:
+        return CorePointCutAcceptance(False, "original_primary_not_violated", improvement)
+    if certification_active:
+        return CorePointCutAcceptance(False, "final_certification", improvement)
+    return CorePointCutAcceptance(True, None, improvement)
 
 
 def core_point_distance(

@@ -1,0 +1,545 @@
+{
+  "generated_at": "2026-09-05T08:39:16+00:00",
+  "git_commit": "49888d5c7fa829faac24d1ab53dd8793d0dd63b6",
+  "guardrails": {
+    "certification_tolerance_changed": false,
+    "formal_result_replaced": false,
+    "mathematical_model_changed": false,
+    "parameter_retuning": false,
+    "renault_210628_executed": false,
+    "termination_logic_changed": false,
+    "uncertainty_set_changed": false
+  },
+  "integrity_audit": "PASS",
+  "mathematical_audit": {
+    "coefficient_perturbation": false,
+    "current_point_tightness": "stage 2 enforces alpha + beta^T x_k = Q_z(x_k)",
+    "difference": "existing stage 2 uses current value >= q_k - delta rather than equality",
+    "existing_core_point_is_strict_magnanti_wong": false,
+    "global_validity": "dual feasible fixed-pattern cut <= Q_z(x) <= robust Q(x)",
+    "new_mode": "pareto_optimal_mw"
+  },
+  "protocol_path": "experiments/configs/pareto_optimal_benders_development.yaml",
+  "protocol_sha256": "1aa4b3701a8a6483b648692f09c0a783b566fd72213bd3e675fb65d7673c6ad3",
+  "renault_300s_diagnostic": {
+    "not_a_formal_result": true,
+    "pareto_optimal_mw": {
+      "accepted_pareto_cuts": 833,
+      "auxiliary_runtime": 17.613080103881657,
+      "case": "renault_210202_300s",
+      "certified": false,
+      "certified_objective": null,
+      "cuts": 860,
+      "gap": 0.0005850134278742427,
+      "iterations": 860,
+      "lb_gain_per_cut": 0.6675040643913671,
+      "lower_bound": 116792.68793882779,
+      "master_runtime": 191.9214111000765,
+      "objective": 116861.05322415945,
+      "status": "time_limit",
+      "strengthening_gain_distribution": {
+        "count": 834,
+        "max": 1036822.2237854835,
+        "mean": 194615.54051227818,
+        "median": 137736.74433457086,
+        "min": 49.394758546957746,
+        "p25": 51122.05890169757,
+        "p75": 288143.7895818987,
+        "p90": 455716.808441608,
+        "p95": 576685.1554375561
+      },
+      "subproblem_runtime": 87.18731640116312,
+      "tail_500_equivalent_progress": {
+        "accepted_cuts": 500,
+        "lb_gain_per_cut": 0.6675040643913671,
+        "lb_progress": 333.75203219568357,
+        "window": 500
+      },
+      "total_runtime": 300.1422826999333,
+      "true_objective": null,
+      "upper_bound": 116861.05322415945,
+      "valid_bounds": true,
+      "variant": "pareto_optimal_mw"
+    },
+    "pr82_core_point": {
+      "accepted_cuts": 843,
+      "auxiliary_runtime": 16.529342701425776,
+      "elapsed_time": 299.8274488998577,
+      "gap": 0.00047560980128298635,
+      "iterations": 843,
+      "lower_bound": 116799.22154734991,
+      "master_runtime": 189.8297123007942,
+      "source": "origin/codex/run-renault-certified-robust-baselines:real_data_studies/renault_robust_baseline_v1/results/iteration_logs/210202_B1.00_iterations.csv",
+      "subproblem_runtime": 90.18833600054495,
+      "upper_bound": 116854.79883500279
+    },
+    "pr83_low_risk": {
+      "accepted_cuts": 840,
+      "core_point_runtime": 16.378334797453135,
+      "duplicate_cuts_rejected": 0,
+      "elapsed_time": 300.15052239992656,
+      "gap": 0.0004756252587956587,
+      "iteration": 840,
+      "last_master_status": "time_limit",
+      "lower_bound": 116799.21974106538,
+      "master_runtime": 193.65606539999135,
+      "master_runtime_by_cut_quartile": [
+        {
+          "first_cut_count": 1,
+          "last_cut_count": 210,
+          "mean_master_runtime": 0.03291885428840206,
+          "quartile": 1
+        },
+        {
+          "first_cut_count": 211,
+          "last_cut_count": 420,
+          "mean_master_runtime": 0.1679610047633538,
+          "quartile": 2
+        },
+        {
+          "first_cut_count": 421,
+          "last_cut_count": 630,
+          "mean_master_runtime": 0.29002270524146123,
+          "quartile": 3
+        },
+        {
+          "first_cut_count": 631,
+          "last_cut_count": 840,
+          "mean_master_runtime": 0.4312691757067417,
+          "quartile": 4
+        }
+      ],
+      "proposed_cuts": 840,
+      "similarity_last_500": {
+        "count": 500,
+        "count_ge_0_999": 237,
+        "max": 0.9999959023605121,
+        "mean": 0.9875166414417442,
+        "median": 0.9988848293716652,
+        "p90": 0.9999521449154691,
+        "p95": 0.999970559762012,
+        "p99": 0.9999875199053965
+      },
+      "source": "origin/codex/master-efficiency-low-risk:artifacts/master_efficiency_low_risk_report.json",
+      "subproblem_runtime": 86.51060429820791,
+      "upper_bound": 116854.79883500279,
+      "valid_bounds": true
+    }
+  },
+  "schema_version": 1,
+  "synthetic_correctness": {
+    "aggregate": {
+      "auxiliary_runtime": {
+        "core_point": 0.083057199139148,
+        "pareto_optimal_mw": 0.07789880060590804
+      },
+      "cuts": {
+        "core_point": 65,
+        "pareto_optimal_mw": 54
+      },
+      "iterations": {
+        "core_point": 65,
+        "pareto_optimal_mw": 59
+      },
+      "master_runtime": {
+        "core_point": 0.16722720116376877,
+        "pareto_optimal_mw": 0.09216830017976463
+      },
+      "strengthening_gain_distribution": {
+        "accepted_pareto_cuts": {
+          "count": 49,
+          "max": 7697.1175997020455,
+          "mean": 1151.3437689971674,
+          "median": 502.49201642475236,
+          "min": 0.0017090423971239943,
+          "p25": 66.2895672645609,
+          "p75": 1356.8274164209615,
+          "p90": 3429.659074196199,
+          "p95": 5218.205665683164
+        },
+        "all_attempted": {
+          "count": 51,
+          "max": 7697.1175997020455,
+          "mean": 1106.1930390407888,
+          "median": 433.34011268627364,
+          "min": 0.00010681515050237067,
+          "p25": 44.36768831189329,
+          "p75": 1356.8274164209615,
+          "p90": 3429.659074196199,
+          "p95": 5218.205665683164
+        }
+      },
+      "total_runtime": {
+        "core_point": 0.7961248003412038,
+        "pareto_optimal_mw": 0.6565880998969078
+      }
+    },
+    "cases": [
+      {
+        "auxiliary_runtime_change": 0.008049099240452051,
+        "both_certified": true,
+        "both_final_intervals_contain_certified_objective": true,
+        "case": "small_seed_0",
+        "certified_objective": 8677.526082030938,
+        "certified_objective_match": true,
+        "cuts_change": 0,
+        "iterations_change": 2,
+        "master_runtime_change": -0.04507540143094957,
+        "raw_incumbent_ub_difference": 0.16017477438799688,
+        "raw_incumbent_ub_match_at_1e-6": false,
+        "total_runtime_change": -0.0024404001887887716
+      },
+      {
+        "auxiliary_runtime_change": -0.004542200127616525,
+        "both_certified": true,
+        "both_final_intervals_contain_certified_objective": true,
+        "case": "small_seed_1",
+        "certified_objective": 8609.572714095615,
+        "certified_objective_match": true,
+        "cuts_change": -4,
+        "iterations_change": -2,
+        "master_runtime_change": -0.006759499665349722,
+        "raw_incumbent_ub_difference": 4.840654582949355e-05,
+        "raw_incumbent_ub_match_at_1e-6": false,
+        "total_runtime_change": -0.015561200212687254
+      },
+      {
+        "auxiliary_runtime_change": -0.005083997966721654,
+        "both_certified": true,
+        "both_final_intervals_contain_certified_objective": true,
+        "case": "small_seed_2",
+        "certified_objective": 4942.82499495753,
+        "certified_objective_match": true,
+        "cuts_change": -5,
+        "iterations_change": -4,
+        "master_runtime_change": -0.009385500568896532,
+        "raw_incumbent_ub_difference": 3.09745482809376e-05,
+        "raw_incumbent_ub_match_at_1e-6": false,
+        "total_runtime_change": -0.08345569996163249
+      },
+      {
+        "auxiliary_runtime_change": -0.003581299679353833,
+        "both_certified": true,
+        "both_final_intervals_contain_certified_objective": true,
+        "case": "small_seed_3",
+        "certified_objective": 5043.658106390344,
+        "certified_objective_match": true,
+        "cuts_change": -2,
+        "iterations_change": -2,
+        "master_runtime_change": -0.013838499318808317,
+        "raw_incumbent_ub_difference": 0.016708018361896393,
+        "raw_incumbent_ub_match_at_1e-6": false,
+        "total_runtime_change": -0.03807940008118749
+      }
+    ],
+    "certified_objective_definition": "independent exact monolithic optimum",
+    "raw_incumbent_ub_is_not_the_certified_objective": true,
+    "rows": [
+      {
+        "accepted_pareto_cuts": 0,
+        "auxiliary_runtime": 0.029168300097808242,
+        "case": "small_seed_0",
+        "certified": true,
+        "certified_objective": 8677.526082030938,
+        "cuts": 23,
+        "gap": 2.2232133459158136e-05,
+        "iterations": 23,
+        "lb_gain_per_cut": 377.2823223418179,
+        "lower_bound": 8677.493413861812,
+        "master_runtime": 0.08952270052395761,
+        "objective": 8677.68633734258,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 19,
+          "max": 8483.005780693107,
+          "mean": 750.0487611457219,
+          "median": 19.65511352316753,
+          "min": -3.637978807091713e-12,
+          "p25": 0.0004522474409895949,
+          "p75": 317.7172056782547,
+          "p90": 1035.8764495587493,
+          "p95": 3348.591701204532
+        },
+        "subproblem_runtime": 0.1272640998940915,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 23,
+          "lb_gain_per_cut": 377.2823223418179,
+          "lb_progress": 8677.493413861812,
+          "window": 23
+        },
+        "total_runtime": 0.26642130012623966,
+        "true_objective": 8677.526082030938,
+        "upper_bound": 8677.68633734258,
+        "valid_bounds": true,
+        "variant": "core_point"
+      },
+      {
+        "accepted_pareto_cuts": 19,
+        "auxiliary_runtime": 0.03721739933826029,
+        "case": "small_seed_0",
+        "certified": true,
+        "certified_objective": 8677.526082030938,
+        "cuts": 23,
+        "gap": 9.258969358340102e-05,
+        "iterations": 25,
+        "lb_gain_per_cut": 377.2488136121625,
+        "lower_bound": 8676.722713079738,
+        "master_runtime": 0.04444729909300804,
+        "objective": 8677.526162568192,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 21,
+          "max": 7697.1175997020455,
+          "mean": 1000.1913680244404,
+          "median": 66.2895672645609,
+          "min": 0.00010681515050237067,
+          "p25": 0.19908844763267552,
+          "p75": 1039.5596990882768,
+          "p90": 3568.540632082193,
+          "p95": 4064.718812016239
+        },
+        "subproblem_runtime": 0.15901629999279976,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 23,
+          "lb_gain_per_cut": 377.2488136121625,
+          "lb_progress": 8676.722713079738,
+          "window": 25
+        },
+        "total_runtime": 0.2639808999374509,
+        "true_objective": 8677.526082030938,
+        "upper_bound": 8677.526162568192,
+        "valid_bounds": true,
+        "variant": "pareto_optimal_mw"
+      },
+      {
+        "accepted_pareto_cuts": 0,
+        "auxiliary_runtime": 0.014484100043773651,
+        "case": "small_seed_1",
+        "certified": true,
+        "certified_objective": 8609.572714095615,
+        "cuts": 11,
+        "gap": 8.84614343927432e-09,
+        "iterations": 11,
+        "lb_gain_per_cut": 782.6884260309766,
+        "lower_bound": 8609.572686340744,
+        "master_runtime": 0.026575200259685516,
+        "objective": 8609.57276250226,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 10,
+          "max": 2525.671091314078,
+          "mean": 820.3924757969422,
+          "median": 375.7090231282473,
+          "min": 0.0005255433788988739,
+          "p25": 56.97141689781711,
+          "p75": 1235.2454116634362,
+          "p90": 2487.4746604148877,
+          "p95": 2525.671091314078
+        },
+        "subproblem_runtime": 0.04718800028786063,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 11,
+          "lb_gain_per_cut": 782.6884260309766,
+          "lb_progress": 8609.572686340744,
+          "window": 11
+        },
+        "total_runtime": 0.09639010019600391,
+        "true_objective": 8609.572714095615,
+        "upper_bound": 8609.57276250226,
+        "valid_bounds": true,
+        "variant": "core_point"
+      },
+      {
+        "accepted_pareto_cuts": 7,
+        "auxiliary_runtime": 0.009941899916157126,
+        "case": "small_seed_1",
+        "certified": true,
+        "certified_objective": 8609.572714095615,
+        "cuts": 7,
+        "gap": 2.5353026877644438e-14,
+        "iterations": 9,
+        "lb_gain_per_cut": 1229.9389591564993,
+        "lower_bound": 8609.572714095495,
+        "master_runtime": 0.019815700594335794,
+        "objective": 8609.572714095713,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 7,
+          "max": 1151.861766038035,
+          "mean": 644.8544003640854,
+          "median": 756.2715388508477,
+          "min": 239.41240487403775,
+          "p25": 426.0821502376348,
+          "p75": 801.7164040878615,
+          "p90": 879.9336374850936,
+          "p95": 1151.861766038035
+        },
+        "subproblem_runtime": 0.04509109980426729,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 7,
+          "lb_gain_per_cut": 1229.9389591564993,
+          "lb_progress": 8609.572714095495,
+          "window": 9
+        },
+        "total_runtime": 0.08082889998331666,
+        "true_objective": 8609.572714095615,
+        "upper_bound": 8609.572714095713,
+        "valid_bounds": true,
+        "variant": "pareto_optimal_mw"
+      },
+      {
+        "accepted_pareto_cuts": 0,
+        "auxiliary_runtime": 0.022818898782134056,
+        "case": "small_seed_2",
+        "certified": true,
+        "certified_objective": 4942.82499495753,
+        "cuts": 18,
+        "gap": 7.674363477670838e-09,
+        "iterations": 18,
+        "lb_gain_per_cut": 274.6013882221705,
+        "lower_bound": 4942.824987999069,
+        "master_runtime": 0.024102800525724888,
+        "objective": 4942.825025932105,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 16,
+          "max": 5221.144095357386,
+          "mean": 1590.648055602245,
+          "median": 1263.6613809813607,
+          "min": 0.08937871902162442,
+          "p25": 732.2894146933941,
+          "p75": 1976.5214040649262,
+          "p90": 3182.78103607465,
+          "p95": 3182.78103607465
+        },
+        "subproblem_runtime": 0.177448800066486,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 18,
+          "lb_gain_per_cut": 274.6013882221705,
+          "lb_progress": 4942.824987999069,
+          "window": 18
+        },
+        "total_runtime": 0.23799609998241067,
+        "true_objective": 4942.82499495753,
+        "upper_bound": 4942.825025932105,
+        "valid_bounds": true,
+        "variant": "core_point"
+      },
+      {
+        "accepted_pareto_cuts": 13,
+        "auxiliary_runtime": 0.017734900815412402,
+        "case": "small_seed_2",
+        "certified": true,
+        "certified_objective": 4942.82499495753,
+        "cuts": 13,
+        "gap": 0.0,
+        "iterations": 14,
+        "lb_gain_per_cut": 380.2173073044275,
+        "lower_bound": 4942.8249949575575,
+        "master_runtime": 0.014717299956828356,
+        "objective": 4942.824994957557,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 13,
+          "max": 5224.633556977036,
+          "mean": 2018.4588025593316,
+          "median": 1221.628558832419,
+          "min": 286.4240419122889,
+          "p25": 934.6343390906695,
+          "p75": 2670.949824929756,
+          "p90": 5218.205665683164,
+          "p95": 5218.205665683164
+        },
+        "subproblem_runtime": 0.11277399980463088,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 13,
+          "lb_gain_per_cut": 380.2173073044275,
+          "lb_progress": 4942.8249949575575,
+          "window": 14
+        },
+        "total_runtime": 0.15454040002077818,
+        "true_objective": 4942.82499495753,
+        "upper_bound": 4942.824994957557,
+        "valid_bounds": true,
+        "variant": "pareto_optimal_mw"
+      },
+      {
+        "accepted_pareto_cuts": 0,
+        "auxiliary_runtime": 0.016585900215432048,
+        "case": "small_seed_3",
+        "certified": true,
+        "certified_objective": 5043.658106390344,
+        "cuts": 13,
+        "gap": 8.008595924827116e-05,
+        "iterations": 13,
+        "lb_gain_per_cut": 387.9452801687222,
+        "lower_bound": 5043.288642193389,
+        "master_runtime": 0.027026499854400754,
+        "objective": 5043.692571151103,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 11,
+          "max": 6676.7662744638155,
+          "mean": 1155.5129400161438,
+          "median": 309.1107861858727,
+          "min": 0.0007367014968622243,
+          "p25": 154.5556876667688,
+          "p75": 1626.769044552897,
+          "p90": 1753.8146846415166,
+          "p95": 6676.7662744638155
+        },
+        "subproblem_runtime": 0.14076500036753714,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 13,
+          "lb_gain_per_cut": 387.9452801687222,
+          "lb_progress": 5043.288642193389,
+          "window": 13
+        },
+        "total_runtime": 0.19531730003654957,
+        "true_objective": 5043.658106390344,
+        "upper_bound": 5043.692571151103,
+        "valid_bounds": true,
+        "variant": "core_point"
+      },
+      {
+        "accepted_pareto_cuts": 10,
+        "auxiliary_runtime": 0.013004600536078215,
+        "case": "small_seed_3",
+        "certified": true,
+        "certified_objective": 5043.658106390344,
+        "cuts": 11,
+        "gap": 5.726583945406044e-05,
+        "iterations": 11,
+        "lb_gain_per_cut": 458.4927679021483,
+        "lower_bound": 5043.420446923631,
+        "master_runtime": 0.013188000535592437,
+        "objective": 5043.709279169465,
+        "status": "optimal",
+        "strengthening_gain_distribution": {
+          "count": 10,
+          "max": 1868.7377043057768,
+          "mean": 465.7881026747077,
+          "median": 107.71102919546138,
+          "min": 2.845859830687914,
+          "p25": 30.436677894657805,
+          "p75": 502.49201642475236,
+          "p90": 1696.9263381909823,
+          "p95": 1868.7377043057768
+        },
+        "subproblem_runtime": 0.12326009990647435,
+        "tail_500_equivalent_progress": {
+          "accepted_cuts": 11,
+          "lb_gain_per_cut": 458.4927679021483,
+          "lb_progress": 5043.420446923631,
+          "window": 11
+        },
+        "total_runtime": 0.15723789995536208,
+        "true_objective": 5043.658106390344,
+        "upper_bound": 5043.709279169465,
+        "valid_bounds": true,
+        "variant": "pareto_optimal_mw"
+      }
+    ],
+    "status": "PASS"
+  }
+}
