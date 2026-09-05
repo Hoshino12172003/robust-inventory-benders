@@ -1,0 +1,173 @@
+{
+  "benders_only_pr82": {
+    "certified": false,
+    "cuts": 2154,
+    "gap": 0.00032730204868543407,
+    "iterations": 2154,
+    "lower_bound": 116802.42332725937,
+    "master_runtime_share": 0.8453,
+    "runtime": 1800.1849,
+    "source_commit": "b78f6c976984ba22602902ed325eb1442d572ba4",
+    "source_pr": 82,
+    "status": "time_limit",
+    "upper_bound": 116840.66551645267
+  },
+  "best_method": "pure_ccg",
+  "correctness_argument": {
+    "handoff": "Inherited scenarios and a partial MIP start affect initialization only; they add no new feasible solution and remove no original constraint. Benders and CCG lower bounds are never combined.",
+    "restricted_master": "Each active scenario uses the original first-stage feasible region, recourse variables, service constraints, and robust objective epigraph; a subset is therefore a valid relaxation and its bound is a valid LB.",
+    "scenario_addition": "Only patterns returned by the original Gamma=2 robust-dual separator are added; adding a complete block enforces a constraint already present in the full robust equivalent.",
+    "separation": "Final certification requires zero-gap exact adversarial separation over the original uncertainty set and the original 1e-4 global-gap rule."
+  },
+  "diagnostic_only": true,
+  "freeze_review_recommended": false,
+  "freeze_review_scope": "benders_to_ccg_workflow",
+  "git_commit": "0a783c6ae33c48218d348ebab7615a014d03e8de",
+  "integrity_audit": {
+    "certified_objective_range": [
+      116815.11494450645,
+      116815.1149445065
+    ],
+    "checks": {
+      "all_certified_objectives_inside_pr82_valid_bounds": true,
+      "all_final_bounds_finite_and_ordered": true,
+      "all_final_certifications_use_exact_adversarial_separation": true,
+      "all_methods_certified": true,
+      "all_scenario_patterns_respect_gamma_2": true,
+      "all_total_runtimes_within_1800s_policy": true,
+      "certified_objectives_agree_within_1e_6": true,
+      "no_cross_phase_lower_bound_splicing": true,
+      "synthetic_correctness_pass": true
+    },
+    "status": "PASS"
+  },
+  "methods": [
+    {
+      "adversarial_runtime": 0.8297147997654974,
+      "benders_runtime": 0.0,
+      "ccg_iterations": 6,
+      "ccg_master_runtime": 0.8956965997349471,
+      "ccg_runtime": 1.7698351999279112,
+      "ccg_scenarios_added": 5,
+      "certified": true,
+      "final_LB": 116815.11494450644,
+      "final_UB": 116815.1149445065,
+      "final_active_scenarios": 6,
+      "final_gap": 4.982887783068073e-16,
+      "gap_reduction_vs_benders_only": 0.9999999999984776,
+      "inherited_scenarios": 0,
+      "master_dominated_ccg_tail": true,
+      "method": "pure_ccg",
+      "total_runtime": 1.7698351999279112
+    },
+    {
+      "adversarial_runtime": 0.11688870005309582,
+      "benders_runtime": 300.09999450016767,
+      "ccg_iterations": 1,
+      "ccg_master_runtime": 2.9197397001553327,
+      "ccg_runtime": 3.205084800021723,
+      "ccg_scenarios_added": 0,
+      "certified": true,
+      "final_LB": 116815.11494450644,
+      "final_UB": 116815.11494450647,
+      "final_active_scenarios": 26,
+      "final_gap": 2.491443891534037e-16,
+      "gap_reduction_vs_benders_only": 0.9999999999992388,
+      "inherited_scenarios": 25,
+      "master_dominated_ccg_tail": true,
+      "method": "handoff_300",
+      "total_runtime": 303.3050793001894
+    },
+    {
+      "adversarial_runtime": 0.09911139984615147,
+      "benders_runtime": 600.0074902998749,
+      "ccg_iterations": 1,
+      "ccg_master_runtime": 3.5420315999072045,
+      "ccg_runtime": 3.811051999917254,
+      "ccg_scenarios_added": 0,
+      "certified": true,
+      "final_LB": 116815.11494450644,
+      "final_UB": 116815.11494450645,
+      "final_active_scenarios": 26,
+      "final_gap": 1.2457219457670187e-16,
+      "gap_reduction_vs_benders_only": 0.9999999999996194,
+      "inherited_scenarios": 25,
+      "master_dominated_ccg_tail": true,
+      "method": "handoff_600",
+      "total_runtime": 603.8185422997922
+    },
+    {
+      "adversarial_runtime": 0.1012941999360919,
+      "benders_runtime": 900.0120109000709,
+      "ccg_iterations": 1,
+      "ccg_master_runtime": 3.5316856999415904,
+      "ccg_runtime": 3.809760499978438,
+      "ccg_scenarios_added": 0,
+      "certified": true,
+      "final_LB": 116815.11494450644,
+      "final_UB": 116815.11494450645,
+      "final_active_scenarios": 26,
+      "final_gap": 1.2457219457670187e-16,
+      "gap_reduction_vs_benders_only": 0.9999999999996194,
+      "inherited_scenarios": 25,
+      "master_dominated_ccg_tail": true,
+      "method": "handoff_900",
+      "total_runtime": 903.8217714000493
+    }
+  ],
+  "outcome": "STRONG_SUCCESS",
+  "pure_ccg_followup_review_recommended": true,
+  "schema": "benders_ccg_tail_handoff_summary_v1",
+  "synthetic_correctness": {
+    "cases": [
+      {
+        "benders_iterations": 5,
+        "hybrid_ccg_iterations": 3,
+        "hybrid_inherited_scenarios": 1,
+        "objectives": {
+          "benders": 7613.196617497477,
+          "exact": 7613.196617497478,
+          "hybrid": 7613.196617497477,
+          "pure_ccg": 7613.196617497477
+        },
+        "pure_ccg_iterations": 3,
+        "seed": 31,
+        "status": "PASS"
+      },
+      {
+        "benders_iterations": 5,
+        "hybrid_ccg_iterations": 2,
+        "hybrid_inherited_scenarios": 1,
+        "objectives": {
+          "benders": 8078.395504651303,
+          "exact": 8078.395504651303,
+          "hybrid": 8078.395504651303,
+          "pure_ccg": 8078.395504651303
+        },
+        "pure_ccg_iterations": 3,
+        "seed": 32,
+        "status": "PASS"
+      },
+      {
+        "benders_iterations": 10,
+        "hybrid_ccg_iterations": 2,
+        "hybrid_inherited_scenarios": 1,
+        "objectives": {
+          "benders": 4985.060870111165,
+          "exact": 4985.060870111161,
+          "hybrid": 4985.060870111163,
+          "pure_ccg": 4985.060870111163
+        },
+        "pure_ccg_iterations": 3,
+        "seed": 33,
+        "status": "PASS"
+      }
+    ],
+    "git_commit": "fb14c749dac8c1458ff66e5df64232cf91567e5c",
+    "objective_absolute_tolerance": 1e-06,
+    "schema": "benders_ccg_synthetic_correctness_v1",
+    "status": "PASS",
+    "timestamp": "2026-09-05T10:23:22+00:00"
+  },
+  "timestamp": "2026-09-05T10:59:23+00:00"
+}
