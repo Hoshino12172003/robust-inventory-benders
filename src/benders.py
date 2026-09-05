@@ -764,6 +764,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         raise ValueError(f"Unknown Benders method: {method}")
 
     settings = _settings(config, method)
+    record_first_stage_trajectory = bool(
+        config.get("diagnostics", {}).get("record_first_stage_trajectory", False)
+    )
     target_enum: ScenarioEnumerationResult | None = None
     target_scenarios: list[DemandScenario] = []
     scenario_cache: dict[int, ScenarioEnumerationResult] = {}
@@ -1827,6 +1830,12 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "cuts": cuts,
             }
         )
+        if record_first_stage_trajectory:
+            log[-1]["trajectory_y"] = [float(y_values[i]) for i in instance.I]
+            log[-1]["trajectory_x"] = [
+                [float(x_values[i, j]) for j in instance.J] for i in instance.I
+            ]
+            log[-1]["open_depots"] = sum(y_values[i] >= 0.5 for i in instance.I)
 
         if should_terminate_benders(
             active_gamma,
