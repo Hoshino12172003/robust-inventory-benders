@@ -341,6 +341,56 @@ def aggregate(context: dict[str, Any]) -> dict[str, Any]:
         outcome = "NO_MATERIAL_BENEFIT"
     else:
         outcome = "MARGINAL"
+    certified_objectives = [
+        float(row["final_UB"]) for row in rows if row["certified"]
+    ]
+    audit_checks = {
+        "synthetic_correctness_pass": json.loads(
+            (root / "synthetic_correctness.json").read_text(encoding="utf-8")
+        )["status"] == "PASS",
+        "all_methods_certified": all(row["certified"] for row in rows),
+        "certified_objectives_agree_within_1e_6": (
+            max(certified_objectives) - min(certified_objectives) <= 1e-6
+        ),
+        "all_certified_objectives_inside_pr82_valid_bounds": all(
+            float(baseline["lower_bound"]) - 1e-6
+            <= value
+            <= float(baseline["upper_bound"]) + 1e-6
+            for value in certified_objectives
+        ),
+        "all_total_runtimes_within_1800s_policy": all(
+            float(row["total_runtime"])
+            <= float(context["protocol"]["total_wall_clock_limit_seconds"]) + 1.0
+            for row in rows
+        ),
+        "all_final_bounds_finite_and_ordered": all(
+            math.isfinite(float(row["final_LB"]))
+            and math.isfinite(float(row["final_UB"]))
+            and float(row["final_LB"]) <= float(row["final_UB"]) + 1e-6
+            for row in rows
+        ),
+        "all_final_certifications_use_exact_adversarial_separation": all(
+            bool(payload["ccg"]["iteration_log"])
+            and payload["ccg"]["iteration_log"][-1]["exact_adversarial_separation"] is True
+            for payload in methods.values()
+        ),
+        "all_scenario_patterns_respect_gamma_2": all(
+            len(pattern) <= 2
+            for payload in methods.values()
+            for pattern in payload["ccg"]["scenario_patterns"]
+        ),
+        "no_cross_phase_lower_bound_splicing": all(
+            payload["bound_validity"]["benders_and_ccg_lower_bounds_combined"] is False
+            for payload in methods.values()
+        ),
+    }
+    integrity_audit = {
+        "status": "PASS" if all(audit_checks.values()) else "FAIL",
+        "checks": audit_checks,
+        "certified_objective_range": [
+            min(certified_objectives), max(certified_objectives)
+        ],
+    }
     report = {
         "schema": "benders_ccg_tail_handoff_summary_v1",
         "diagnostic_only": True,
@@ -350,10 +400,18 @@ def aggregate(context: dict[str, Any]) -> dict[str, Any]:
         "best_method": best["method"],
         "outcome": outcome,
         "freeze_review_recommended": outcome in {"STRONG_SUCCESS", "SUBSTANTIAL_IMPROVEMENT"},
+        "integrity_audit": integrity_audit,
+        "correctness_argument": {
+            "restricted_master": "Each active scenario uses the original first-stage feasible region, recourse variables, service constraints, and robust objective epigraph; a subset is therefore a valid relaxation and its bound is a valid LB.",
+            "scenario_addition": "Only patterns returned by the original Gamma=2 robust-dual separator are added; adding a complete block enforces a constraint already present in the full robust equivalent.",
+            "separation": "Final certification requires zero-gap exact adversarial separation over the original uncertainty set and the original 1e-4 global-gap rule.",
+            "handoff": "Inherited scenarios and a partial MIP start affect initialization only; they add no new feasible solution and remove no original constraint. Benders and CCG lower bounds are never combined.",
+        },
         "git_commit": _git_commit(),
         "timestamp": utc_now_iso(),
     }
     atomic_write_json(root / "summary.json", report)
+    atomic_write_json(root / "integrity_audit.json", integrity_audit)
     atomic_write_csv(root / "summary.csv", rows, list(rows[0]))
     return report
 
