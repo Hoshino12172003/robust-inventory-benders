@@ -119,7 +119,8 @@ def run(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     protocol = context["protocol"]
     output_root = _path(protocol["output_root"])
     existing = [output_root / name for name in OUTPUT_FILES if (output_root / name).exists()]
-    _require(not existing, f"Refusing to repeat the one-shot replay; output exists: {existing[0]}")
+    if existing:
+        raise RuntimeError(f"Refusing to repeat the one-shot replay; output exists: {existing[0]}")
 
     solver = deepcopy(context["solver"])
     solver["benders"]["time_limit"] = 300
