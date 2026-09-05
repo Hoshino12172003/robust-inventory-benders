@@ -1,0 +1,267 @@
+{
+  "generated_at": "2026-09-05T05:00:21+00:00",
+  "git_commit": "d84212229ab5826ce1e4e2059ed0bc313d387a3c",
+  "integrity_audit": "PASS",
+  "paired_correctness": {
+    "aggregate": {
+      "duplicate_cuts_rejected": 0,
+      "iteration_reduction": 0,
+      "master_runtime_reduction": {
+        "absolute": 0.025449499487876892,
+        "percent": 5.084036998284398
+      },
+      "total_runtime_reduction": {
+        "absolute": 0.08433550014160573,
+        "percent": 1.276841814122465
+      }
+    },
+    "cases": [
+      {
+        "both_certified": true,
+        "case": "small_seed_0",
+        "duplicate_cuts_rejected": 0,
+        "iteration_reduction": 0,
+        "master_runtime_reduction": {
+          "absolute": 0.02930149994790554,
+          "percent": 28.97564002306392
+        },
+        "objective_match": true,
+        "total_runtime_reduction": {
+          "absolute": 0.09671310009434819,
+          "percent": 30.31077342949743
+        },
+        "valid_bounds": true
+      },
+      {
+        "both_certified": true,
+        "case": "small_seed_1",
+        "duplicate_cuts_rejected": 0,
+        "iteration_reduction": 0,
+        "master_runtime_reduction": {
+          "absolute": 0.0010989995207637548,
+          "percent": 4.975392547481933
+        },
+        "objective_match": true,
+        "total_runtime_reduction": {
+          "absolute": 0.0018241999205201864,
+          "percent": 2.1740010339414475
+        },
+        "valid_bounds": true
+      },
+      {
+        "both_certified": true,
+        "case": "medium_seed_0",
+        "duplicate_cuts_rejected": 0,
+        "iteration_reduction": 0,
+        "master_runtime_reduction": {
+          "absolute": -0.004950999980792403,
+          "percent": -1.311998275281489
+        },
+        "objective_match": true,
+        "total_runtime_reduction": {
+          "absolute": -0.014201799873262644,
+          "percent": -0.22898645402736403
+        },
+        "valid_bounds": true
+      }
+    ],
+    "rows": [
+      {
+        "accepted_cuts": 23,
+        "case": "small_seed_0",
+        "certified": true,
+        "duplicate_cuts_rejected": 0,
+        "gap": 2.2232133459158136e-05,
+        "iterations": 23,
+        "lower_bound": 8677.493413861812,
+        "master_runtime": 0.1011245995759964,
+        "objective": 8677.68633734258,
+        "proposed_cuts": 23,
+        "status": "optimal",
+        "total_runtime": 0.319071700097993,
+        "upper_bound": 8677.68633734258,
+        "valid_bounds": true,
+        "variant": "legacy"
+      },
+      {
+        "accepted_cuts": 23,
+        "case": "small_seed_0",
+        "certified": true,
+        "duplicate_cuts_rejected": 0,
+        "gap": 2.2232133459158136e-05,
+        "iterations": 23,
+        "lower_bound": 8677.493413861812,
+        "master_runtime": 0.07182309962809086,
+        "objective": 8677.68633734258,
+        "proposed_cuts": 23,
+        "status": "optimal",
+        "total_runtime": 0.22235860000364482,
+        "upper_bound": 8677.68633734258,
+        "valid_bounds": true,
+        "variant": "low_risk"
+      },
+      {
+        "accepted_cuts": 11,
+        "case": "small_seed_1",
+        "certified": true,
+        "duplicate_cuts_rejected": 0,
+        "gap": 8.84614343927432e-09,
+        "iterations": 11,
+        "lower_bound": 8609.572686340744,
+        "master_runtime": 0.02208869974128902,
+        "objective": 8609.57276250226,
+        "proposed_cuts": 11,
+        "status": "optimal",
+        "total_runtime": 0.0839098000433296,
+        "upper_bound": 8609.57276250226,
+        "valid_bounds": true,
+        "variant": "legacy"
+      },
+      {
+        "accepted_cuts": 11,
+        "case": "small_seed_1",
+        "certified": true,
+        "duplicate_cuts_rejected": 0,
+        "gap": 8.84614343927432e-09,
+        "iterations": 11,
+        "lower_bound": 8609.572686340744,
+        "master_runtime": 0.020989700220525265,
+        "objective": 8609.57276250226,
+        "proposed_cuts": 11,
+        "status": "optimal",
+        "total_runtime": 0.08208560012280941,
+        "upper_bound": 8609.57276250226,
+        "valid_bounds": true,
+        "variant": "low_risk"
+      },
+      {
+        "accepted_cuts": 118,
+        "case": "medium_seed_0",
+        "certified": true,
+        "duplicate_cuts_rejected": 0,
+        "gap": 8.465431872297845e-05,
+        "iterations": 118,
+        "lower_bound": 14042.097668171959,
+        "master_runtime": 0.377363299485296,
+        "objective": 14043.286493022657,
+        "proposed_cuts": 118,
+        "status": "optimal",
+        "total_runtime": 6.202026200015098,
+        "upper_bound": 14043.286493022657,
+        "valid_bounds": true,
+        "variant": "legacy"
+      },
+      {
+        "accepted_cuts": 118,
+        "case": "medium_seed_0",
+        "certified": true,
+        "duplicate_cuts_rejected": 0,
+        "gap": 8.465431872297845e-05,
+        "iterations": 118,
+        "lower_bound": 14042.097668171959,
+        "master_runtime": 0.3823142994660884,
+        "objective": 14043.286493022657,
+        "proposed_cuts": 118,
+        "status": "optimal",
+        "total_runtime": 6.2162279998883605,
+        "upper_bound": 14043.286493022657,
+        "valid_bounds": true,
+        "variant": "low_risk"
+      }
+    ],
+    "status": "PASS"
+  },
+  "renault_300s_diagnostic_replay": {
+    "baseline": {
+      "accepted_cuts": 843,
+      "core_point_runtime": 16.529342701425776,
+      "elapsed_time": 299.8274488998577,
+      "gap": 0.00047560980128298635,
+      "iteration": 843,
+      "lower_bound": 116799.22154734991,
+      "master_runtime": 189.8297123007942,
+      "subproblem_runtime": 90.18833600054495,
+      "upper_bound": 116854.79883500279
+    },
+    "baseline_source": "origin/codex/run-renault-certified-robust-baselines:real_data_studies/renault_robust_baseline_v1/results/iteration_logs/210202_B1.00_iterations.csv",
+    "comparison": {
+      "accepted_cut_change": -3,
+      "gap_change": 1.5457512672352024e-08,
+      "iteration_change": -3,
+      "master_runtime_reduction": {
+        "absolute": -3.8263530991971493,
+        "percent": -2.01567660447913
+      },
+      "total_runtime_reduction": {
+        "absolute": -0.32307350006885827,
+        "percent": -0.1077531431009056
+      }
+    },
+    "low_risk": {
+      "accepted_cuts": 840,
+      "core_point_runtime": 16.378334797453135,
+      "duplicate_cuts_rejected": 0,
+      "elapsed_time": 300.15052239992656,
+      "gap": 0.0004756252587956587,
+      "iteration": 840,
+      "last_master_status": "time_limit",
+      "lower_bound": 116799.21974106538,
+      "master_runtime": 193.65606539999135,
+      "master_runtime_by_cut_quartile": [
+        {
+          "first_cut_count": 1,
+          "last_cut_count": 210,
+          "mean_master_runtime": 0.03291885428840206,
+          "quartile": 1
+        },
+        {
+          "first_cut_count": 211,
+          "last_cut_count": 420,
+          "mean_master_runtime": 0.1679610047633538,
+          "quartile": 2
+        },
+        {
+          "first_cut_count": 421,
+          "last_cut_count": 630,
+          "mean_master_runtime": 0.29002270524146123,
+          "quartile": 3
+        },
+        {
+          "first_cut_count": 631,
+          "last_cut_count": 840,
+          "mean_master_runtime": 0.4312691757067417,
+          "quartile": 4
+        }
+      ],
+      "proposed_cuts": 840,
+      "similarity_last_500": {
+        "count": 500,
+        "count_ge_0_999": 237,
+        "max": 0.9999959023605121,
+        "mean": 0.9875166414417442,
+        "median": 0.9988848293716652,
+        "p90": 0.9999521449154691,
+        "p95": 0.999970559762012,
+        "p99": 0.9999875199053965
+      },
+      "subproblem_runtime": 86.51060429820791,
+      "upper_bound": 116854.79883500279,
+      "valid_bounds": true
+    },
+    "not_a_formal_result": true,
+    "status": "time_limit",
+    "time_cap_seconds": 300.0
+  },
+  "schema_version": 1,
+  "scope": {
+    "certification_tolerance_changed": false,
+    "exact_duplicate_filter_added": true,
+    "formal_renault_result_replaced": false,
+    "mathematical_model_changed": false,
+    "near_duplicate_used_for_filtering": false,
+    "persistent_master_preexisting": true,
+    "renault_210628_executed": false,
+    "uncertainty_set_changed": false,
+    "warm_start_preexisting": false
+  }
+}

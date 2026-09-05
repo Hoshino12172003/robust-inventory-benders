@@ -25,6 +25,7 @@ from .cut_strengthening import (
     v3_secondary_cut_acceptance,
 )
 from .instance import InventoryInstance
+from .master_efficiency import CanonicalCut, ExactCutRegistry, cuts_equal
 from .policies import ExactGapPolicy, FixedGapPolicy, GapPolicy, GapPolicyState, RLInspiredGapPolicy
 from .precision_policy import (
     PrecisionPolicyConfig,
@@ -87,6 +88,8 @@ class BendersSettings:
     final_mip_gap: float
     time_limit: float
     output_flag: bool
+    master_efficiency_low_risk: bool
+    duplicate_cut_tolerance: float
 
 
 @dataclass(frozen=True)
@@ -158,6 +161,11 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         fixed_subproblem_gap=float(benders_cfg.get("final_mip_gap", 1e-4)),
         legacy_subproblem_gaps=[item["mip_gap"] for item in subproblem_schedule],
     )
+    cut_violation_tol = float(algorithm_cfg.get("cut_violation_tol", 1e-8))
+    duplicate_cut_tolerance = min(
+        cut_violation_tol,
+        float(algorithm_cfg.get("duplicate_cut_tolerance", 1e-10)),
+    )
     return BendersSettings(
         method=method,
         gamma_target=gamma_target,
@@ -169,7 +177,7 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         delta_cut=float(algorithm_cfg.get("delta_cut", 0.0)),
         cut_selection_mode=cut_selection_mode,
         relative_cut_threshold=float(algorithm_cfg.get("relative_cut_threshold", 1e-4)),
-        cut_violation_tol=float(algorithm_cfg.get("cut_violation_tol", 1e-8)),
+        cut_violation_tol=cut_violation_tol,
         final_exact_gap=float(algorithm_cfg.get("final_exact_gap", 1e-2)),
         cut_stall_patience=max(1, int(algorithm_cfg.get("cut_stall_patience", 5))),
         adaptive_secondary_cut_selection_enabled=bool(
@@ -241,6 +249,10 @@ def _settings(config: dict[str, Any], method: str) -> BendersSettings:
         final_mip_gap=float(benders_cfg.get("final_mip_gap", 1e-4)),
         time_limit=float(benders_cfg.get("time_limit", 120)),
         output_flag=bool(benders_cfg.get("output_flag", False)),
+        master_efficiency_low_risk=bool(
+            algorithm_cfg.get("master_efficiency_low_risk", False)
+        ),
+        duplicate_cut_tolerance=duplicate_cut_tolerance,
     )
 
 
@@ -567,6 +579,15 @@ def _pattern_key(cut: RobustDualSubproblemResult) -> tuple[int, ...]:
     return tuple(int(round(cut.z_values[key])) for key in sorted(cut.z_values))
 
 
+def _worst_case_pattern_id(
+    cut: SubproblemResult | RobustDualSubproblemResult,
+) -> str:
+    if isinstance(cut, RobustDualSubproblemResult):
+        shocked = [f"{r}:{j}" for r, j in sorted(cut.z_values) if cut.z_values[r, j] >= 0.5]
+        return "|".join(shocked) if shocked else "nominal"
+    return cut.scenario_name
+
+
 def _pattern_dict_from_key(
     pattern_key: tuple[int, ...],
     ordered_keys: list[tuple[int, int]],
@@ -818,6 +839,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     secondary_solves_attempted = 0
     secondary_solves_avoided = 0
     duplicate_cuts_rejected = 0
+    exact_duplicate_cuts_rejected = 0
     duplicate_patterns_rejected = 0
     additional_subproblem_time = 0.0
     subproblem_nonoptimal = 0
@@ -825,6 +847,29 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     requested_subproblem_gaps: list[float] = []
     cuts_generated_counts: list[int] = []
     known_cut_keys: set[tuple[float, ...]] = set()
+    exact_cut_registry = ExactCutRegistry(
+        tuple((i, j) for i in instance.I for j in instance.J),
+        settings.duplicate_cut_tolerance,
+    )
+
+    def known_duplicate(candidate: SubproblemResult | RobustDualSubproblemResult) -> bool:
+        if settings.master_efficiency_low_risk:
+            return exact_cut_registry.is_duplicate(exact_cut_registry.canonicalize(candidate))
+        return _cut_key(candidate) in known_cut_keys
+
+    def cuts_are_duplicates(
+        left: SubproblemResult | RobustDualSubproblemResult,
+        right: SubproblemResult | RobustDualSubproblemResult,
+    ) -> bool:
+        if settings.master_efficiency_low_risk:
+            return cuts_equal(
+                exact_cut_registry.canonicalize(left),
+                exact_cut_registry.canonicalize(right),
+                settings.duplicate_cut_tolerance,
+            )
+        return _cut_key(left) == _cut_key(right)
+
+    proposed_cuts = 0
     iterations_without_useful_cut = 0
     iterations_without_secondary_cut = 0
     last_secondary_solve_iteration: int | None = None
@@ -854,6 +899,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     v3_secondary_duplicate_count = 0
     v3_secondary_total_runtime = 0.0
     v3_primary_cuts_added = 0
+    previous_y_values: dict[int, float] | None = None
+    previous_x_values: dict[tuple[int, int], float] | None = None
 
     for iteration in range(settings.max_iterations):
         remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
@@ -918,6 +965,17 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         model.Params.MIPGap = selected_mip_gap
         model.Params.TimeLimit = remaining
 
+        warm_start_attempted = bool(
+            settings.master_efficiency_low_risk
+            and previous_y_values is not None
+            and previous_x_values is not None
+        )
+        if warm_start_attempted:
+            for i in instance.I:
+                y[i].Start = previous_y_values[i]
+                for j in instance.J:
+                    x[i, j].Start = previous_x_values[i, j]
+
         master_start = time.perf_counter()
         model.optimize()
         master_elapsed = time.perf_counter() - master_start
@@ -932,6 +990,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
 
         x_values = {(i, j): float(x[i, j].X) for i in instance.I for j in instance.J}
         y_values = {i: float(y[i].X) for i in instance.I}
+        previous_x_values = x_values
+        previous_y_values = y_values
         first_stage = _first_stage_value(instance, y_values, x_values)
         additional_batch = AdditionalCutBatch([], 0.0, 0, 0, 0)
         secondary_generation = SecondaryGenerationDecision(
@@ -1163,7 +1223,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     )
                     strengthened_duplicate = bool(
                         core_result.strengthened_cut is not None
-                        and _cut_key(core_result.strengthened_cut) in known_cut_keys
+                        and known_duplicate(core_result.strengthened_cut)
                     )
                     acceptance = core_point_cut_acceptance(
                         stage1_optimal=core_result.stage1_status == "optimal",
@@ -1287,7 +1347,6 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                                 v3_secondary_cut.cut_value(x_values),
                                 float(theta.X),
                             )[0]
-                            secondary_cut_key = _cut_key(v3_secondary_cut)
                             secondary_acceptance = v3_secondary_cut_acceptance(
                                 has_incumbent=True,
                                 pattern_differs_from_primary=(
@@ -1295,8 +1354,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                                 ),
                                 pattern_in_memory=pattern_was_in_memory,
                                 duplicate_cut=(
-                                    secondary_cut_key in known_cut_keys
-                                    or secondary_cut_key == _cut_key(active_candidates[0])
+                                    known_duplicate(v3_secondary_cut)
+                                    or cuts_are_duplicates(
+                                        v3_secondary_cut,
+                                        active_candidates[0],
+                                    )
                                 ),
                                 absolute_violation=v3_secondary_cut_violation,
                                 violation_tolerance=settings.cut_violation_tol,
@@ -1382,6 +1444,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             else settings.relative_cut_threshold
         )
         cut_decisions: list[dict[str, Any]] = []
+        proposed_cuts += len(active_candidates)
+        pending_signatures: list[CanonicalCut] = []
+        exact_duplicates_rejected_this_iteration = 0
         for candidate_index, candidate_cut in enumerate(active_candidates):
             cut_role = "primary" if candidate_index == 0 else "secondary"
             cut_rhs = candidate_cut.cut_value(x_values)
@@ -1396,7 +1461,30 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     theta_current,
                 )
             )
-            duplicate = settings.max_cuts_per_iteration > 1 and _cut_key(candidate_cut) in known_cut_keys
+            candidate_signature = (
+                exact_cut_registry.canonicalize(candidate_cut)
+                if settings.master_efficiency_low_risk
+                else None
+            )
+            nearest_cut_similarity = (
+                exact_cut_registry.nearest_cosine_similarity(candidate_signature)
+                if candidate_signature is not None
+                else None
+            )
+            if settings.master_efficiency_low_risk:
+                duplicate = exact_cut_registry.is_duplicate(candidate_signature) or any(
+                    cuts_equal(
+                        candidate_signature,
+                        pending,
+                        settings.duplicate_cut_tolerance,
+                    )
+                    for pending in pending_signatures
+                )
+            else:
+                duplicate = (
+                    settings.max_cuts_per_iteration > 1
+                    and _cut_key(candidate_cut) in known_cut_keys
+                )
             add_cut = False
             skip_reason = None
             add_reason = None
@@ -1441,6 +1529,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     )
             if duplicate:
                 duplicate_cuts_rejected += 1
+                if settings.master_efficiency_low_risk:
+                    exact_duplicate_cuts_rejected += 1
+                    exact_duplicates_rejected_this_iteration += 1
+            elif add_cut and candidate_signature is not None:
+                pending_signatures.append(candidate_signature)
             cut_decisions.append(
                 {
                     "cut": candidate_cut,
@@ -1454,6 +1547,8 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     "add": add_cut,
                     "skip_reason": skip_reason,
                     "add_reason": add_reason,
+                    "canonical_signature": candidate_signature,
+                    "nearest_cut_similarity": nearest_cut_similarity,
                 }
             )
 
@@ -1490,6 +1585,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 cuts += 1
                 cuts_added_this_iteration += 1
                 known_cut_keys.add(_cut_key(candidate_cut))
+                if settings.master_efficiency_low_risk:
+                    signature = decision["canonical_signature"]
+                    if signature is None:
+                        raise RuntimeError("Accepted cut lacks a canonical signature")
+                    exact_cut_registry.add(signature)
                 if decision["cut_role"] == "secondary":
                     secondary_cuts_added += 1
             else:
@@ -1520,6 +1620,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         cut_added = bool(primary_decision and primary_decision["add"])
         cut_skip_reason = primary_decision["skip_reason"] if primary_decision else "no_incumbent"
         cut_add_reason = primary_decision["add_reason"] if primary_decision else None
+        nearest_cut_similarity = (
+            primary_decision["nearest_cut_similarity"] if primary_decision else None
+        )
         secondary_cut_decisions = [
             {
                 "index": index,
@@ -1672,6 +1775,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     core_point_normalized_improvement
                 ),
                 "core_point_cut_accepted": core_point_cut_accepted,
+                "strengthened_cut_attempted": core_point_attempted,
+                "strengthened_cut_accepted": core_point_cut_accepted,
+                "core_point_gain": core_point_normalized_improvement,
                 "core_point_cut_fallback_reason": (
                     core_point_cut_fallback_reason
                 ),
@@ -1722,8 +1828,17 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "realized_master_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "achieved_master_mip_gap": float(model.MIPGap) if model.IsMIP else 0.0,
                 "master_status": int(model.Status),
+                "master_status_name": master_status,
+                "master_node_count": float(model.NodeCount),
                 "master_best_bound": float(model.ObjBound),
                 "master_time": master_elapsed,
+                "accumulated_cut_count": cuts,
+                "warm_start_attempted": warm_start_attempted,
+                "warm_start_acceptance": (
+                    "not_observable_via_gurobi_api"
+                    if warm_start_attempted
+                    else "not_attempted"
+                ),
                 "lower_bound": lower_bound,
                 "LB": lower_bound,
                 "upper_bound": upper_bound,
@@ -1766,12 +1881,14 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "target_scenario": target_scenario_name,
                 "active_scenario_mode": active_scenario_mode,
                 "target_scenario_mode": target_scenario_mode,
+                "worst_case_pattern_id": _worst_case_pattern_id(active_cut),
                 "cut_selection_enabled": settings.cut_selection_enabled,
                 "delta_cut": settings.delta_cut,
                 "cut_rhs_current": cut_rhs_current,
                 "cut_violation": cut_violation,
                 "absolute_cut_violation": absolute_cut_violation,
                 "normalized_cut_violation": normalized_cut_violation,
+                "nearest_cut_similarity": nearest_cut_similarity,
                 "secondary_cut_decisions": secondary_cut_decisions,
                 "secondary_active_threshold": secondary_selection_threshold,
                 "secondary_cuts_added_total": secondary_cuts_added,
@@ -1820,6 +1937,18 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "cuts_added_total": cuts,
                 "cuts_skipped_total": cuts_skipped,
                 "cuts_generated_this_iteration": cuts_generated_this_iteration,
+                "proposed_cuts_this_iteration": cuts_generated_this_iteration,
+                "proposed_cuts_total": proposed_cuts,
+                "accepted_cuts_total": cuts,
+                "exact_duplicates_rejected_this_iteration": (
+                    exact_duplicates_rejected_this_iteration
+                ),
+                "exact_duplicates_rejected_total": exact_duplicate_cuts_rejected,
+                "duplicate_rejection_rate": (
+                    exact_duplicate_cuts_rejected / proposed_cuts
+                    if proposed_cuts
+                    else 0.0
+                ),
                 "cuts_added_this_iteration": cuts_added_this_iteration,
                 "cuts_skipped_this_iteration": cuts_skipped_this_iteration,
                 "forced_cut_added": forced_cut_added,
@@ -1899,6 +2028,13 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
             "cut_selection_mode": settings.cut_selection_mode,
             "relative_cut_threshold": settings.relative_cut_threshold,
             "cut_violation_tol": settings.cut_violation_tol,
+            "persistent_master": True,
+            "master_efficiency_low_risk": settings.master_efficiency_low_risk,
+            "mip_warm_start_enabled": settings.master_efficiency_low_risk,
+            "duplicate_cut_filtering": (
+                "strict_tolerance" if settings.master_efficiency_low_risk else "legacy"
+            ),
+            "duplicate_cut_tolerance": settings.duplicate_cut_tolerance,
             "final_exact_gap": settings.final_exact_gap,
             "cut_stall_patience": settings.cut_stall_patience,
             "adaptive_secondary_cut_selection_enabled": (
@@ -2051,6 +2187,12 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 sum(cuts_generated_counts) / len(cuts_generated_counts) if cuts_generated_counts else None
             ),
             "duplicate_cuts_rejected": duplicate_cuts_rejected,
+            "proposed_cuts_total": proposed_cuts,
+            "accepted_cuts_total": cuts,
+            "exact_duplicates_rejected": exact_duplicate_cuts_rejected,
+            "duplicate_rejection_rate": (
+                exact_duplicate_cuts_rejected / proposed_cuts if proposed_cuts else 0.0
+            ),
             "duplicate_patterns_rejected": duplicate_patterns_rejected,
             "additional_subproblem_time": additional_subproblem_time,
             "best_y_values": best_y_values,
