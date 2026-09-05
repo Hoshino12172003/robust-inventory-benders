@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import csv
 import json
 import math
 from pathlib import Path
@@ -198,13 +199,20 @@ def _compact_benders_log(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _write_method(root: Path, name: str, payload: dict[str, Any]) -> None:
     target = root / "methods" / f"{name}.json"
     _require(not target.exists(), f"Refusing to repeat completed method: {name}")
-    atomic_write_json(target, payload)
     rows = payload["ccg"]["iteration_log"]
     if rows:
         atomic_write_csv(root / "iteration_logs" / f"{name}_ccg.csv", rows, list(rows[0]))
     benders_rows = payload.get("benders", {}).get("iteration_log", [])
     if benders_rows:
         atomic_write_csv(root / "iteration_logs" / f"{name}_benders.csv", benders_rows, list(benders_rows[0]))
+    persisted = deepcopy(payload)
+    if rows:
+        persisted["ccg"]["iteration_log_path"] = f"iteration_logs/{name}_ccg.csv"
+        persisted["ccg"].pop("iteration_log")
+    if benders_rows:
+        persisted["benders"]["iteration_log_path"] = f"iteration_logs/{name}_benders.csv"
+        persisted["benders"].pop("iteration_log")
+    atomic_write_json(target, persisted)
 
 
 def run_method(context: dict[str, Any], method_name: str) -> dict[str, Any]:
@@ -370,9 +378,10 @@ def aggregate(context: dict[str, Any]) -> dict[str, Any]:
             for row in rows
         ),
         "all_final_certifications_use_exact_adversarial_separation": all(
-            bool(payload["ccg"]["iteration_log"])
-            and payload["ccg"]["iteration_log"][-1]["exact_adversarial_separation"] is True
-            for payload in methods.values()
+            bool(rows)
+            and rows[-1]["exact_adversarial_separation"] == "True"
+            for name in METHODS
+            for rows in [list(csv.DictReader((root / "iteration_logs" / f"{name}_ccg.csv").open(encoding="utf-8")))]
         ),
         "all_scenario_patterns_respect_gamma_2": all(
             len(pattern) <= 2
