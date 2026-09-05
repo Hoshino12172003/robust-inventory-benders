@@ -1,0 +1,403 @@
+{
+  "benders": {},
+  "bound_validity": {
+    "benders_and_ccg_lower_bounds_combined": false,
+    "benders_bounds_are_phase_local": true,
+    "ccg_lower_bound_from_restricted_scenario_master_only": true,
+    "upper_bound_from_exact_adversarial_bound": true
+  },
+  "ccg": {
+    "adversarial_runtime": 0.8297147997654974,
+    "best_x_values": [
+      [
+        0.0,
+        78.85714285714286,
+        49.142857142857146,
+        134.21428571428572,
+        3.3420528889568635,
+        0.0,
+        46.42857142857143,
+        6.214285714285714
+      ],
+      [
+        0.0,
+        75.54285714285714,
+        66.28571428571429,
+        0.0,
+        371.52366006870636,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        46.57142857142857,
+        30.347741266326427,
+        83.07142857142857,
+        115.3686094236733,
+        402.42857142857144,
+        83.35714285714286,
+        173.5,
+        12.285714285714286
+      ],
+      [
+        0.0,
+        0.0,
+        26.642857142857142,
+        0.0,
+        0.0,
+        0.0,
+        8.613503011927214,
+        0.0
+      ],
+      [
+        199.39026313522672,
+        0.0,
+        0.0,
+        0.0,
+        287.6434249161849,
+        163.64285714285714,
+        0.0,
+        59.221007344467566
+      ],
+      [
+        39.785714285714285,
+        0.0,
+        146.57142857142858,
+        207.58770640937368,
+        218.32086079810088,
+        31.642857142857142,
+        191.0,
+        38.714285714285715
+      ],
+      [
+        15.142857142857142,
+        37.21814321886852,
+        114.28571428571429,
+        179.64656774397912,
+        105.51413902605351,
+        229.71428571428572,
+        143.19139082666064,
+        74.54388052777
+      ],
+      [
+        15.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        13.577126816697573
+      ],
+      [
+        0.0,
+        8.424713923988623,
+        0.0,
+        21.12939845266729,
+        0.0,
+        0.0,
+        24.928571428571427,
+        12.92184979838957
+      ],
+      [
+        11.285714285714286,
+        39.785714285714285,
+        52.07142857142857,
+        138.92486082744946,
+        125.42857142857143,
+        89.78571428571429,
+        141.73846986249518,
+        37.5
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        2.7857142857142856,
+        5.785714285714286,
+        13.357142857142858,
+        55.99809485290168,
+        5.428571428571429,
+        8.928571428571429,
+        2.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        47.5,
+        6.285714285714286,
+        26.0,
+        76.14285714285714,
+        214.216190861384,
+        23.785714285714285,
+        88.71945569700618,
+        156.64285714285714
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.763005159140402,
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "best_y_values": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      1.0,
+      0.0,
+      1.0,
+      1.0
+    ],
+    "certified": true,
+    "duplicate_scenarios_removed": 0,
+    "final_active_scenario_count": 6,
+    "first_iteration_lower_bound": 108999.1357327597,
+    "first_iteration_upper_bound": 117798.78717660817,
+    "gap": 4.982887783068073e-16,
+    "incumbent_reused": false,
+    "inherited_scenario_count": 0,
+    "initial_scenario_count": 1,
+    "iteration_log": [
+      {
+        "active_scenario_count": 2,
+        "adversarial_mip_gap": 0.0,
+        "adversarial_objective": 33184.48204525415,
+        "adversarial_objective_bound": 33184.48204525422,
+        "adversarial_runtime": 0.16465929988771677,
+        "adversarial_status": "optimal",
+        "elapsed_time": 0.2201090999878943,
+        "exact_adversarial_separation": true,
+        "gap": 0.0747006964567106,
+        "iteration": 1,
+        "lower_bound": 108999.1357327597,
+        "master_incumbent_objective": 108999.1357327597,
+        "master_lower_bound": 108999.1357327597,
+        "master_runtime": 0.03391849994659424,
+        "master_status": "optimal",
+        "scenario_added": true,
+        "scenario_violation": 8799.65144384838,
+        "theta": 24384.830601405774,
+        "upper_bound": 117798.78717660817
+      },
+      {
+        "active_scenario_count": 3,
+        "adversarial_mip_gap": 0.0,
+        "adversarial_objective": 35694.93221959839,
+        "adversarial_objective_bound": 35694.93221959839,
+        "adversarial_runtime": 0.18381029996089637,
+        "adversarial_status": "optimal",
+        "elapsed_time": 0.4856672000605613,
+        "exact_adversarial_separation": true,
+        "gap": 0.03927468162557244,
+        "iteration": 2,
+        "lower_bound": 113172.27731436832,
+        "master_incumbent_objective": 113172.27731436832,
+        "master_lower_bound": 113172.27731436832,
+        "master_runtime": 0.07613860000856221,
+        "master_status": "optimal",
+        "scenario_added": true,
+        "scenario_violation": 7136.9600365840415,
+        "theta": 28557.97218301435,
+        "upper_bound": 117798.78717660817
+      },
+      {
+        "active_scenario_count": 4,
+        "adversarial_mip_gap": 0.0,
+        "adversarial_objective": 33951.36700949423,
+        "adversarial_objective_bound": 33951.36700949423,
+        "adversarial_runtime": 0.16376170003786683,
+        "adversarial_status": "optimal",
+        "elapsed_time": 0.7614124999381602,
+        "exact_adversarial_separation": true,
+        "gap": 0.017912089865361525,
+        "iteration": 3,
+        "lower_bound": 115688.76471467016,
+        "master_incumbent_objective": 115688.76471467016,
+        "master_lower_bound": 115688.76471467016,
+        "master_runtime": 0.10644989996217191,
+        "master_status": "optimal",
+        "scenario_added": true,
+        "scenario_violation": 2876.907426178008,
+        "theta": 31074.45958331622,
+        "upper_bound": 117798.78717660817
+      },
+      {
+        "active_scenario_count": 5,
+        "adversarial_mip_gap": 0.0,
+        "adversarial_objective": 34471.131755421535,
+        "adversarial_objective_bound": 34471.13175542157,
+        "adversarial_runtime": 0.08911500009708107,
+        "adversarial_status": "optimal",
+        "elapsed_time": 1.0072755999863148,
+        "exact_adversarial_separation": true,
+        "gap": 0.013208297455033274,
+        "iteration": 4,
+        "lower_bound": 116242.86575573737,
+        "master_incumbent_objective": 116242.86575573737,
+        "master_lower_bound": 116242.86575573737,
+        "master_runtime": 0.15127229993231595,
+        "master_status": "optimal",
+        "scenario_added": true,
+        "scenario_violation": 2842.5711310381084,
+        "theta": 31628.560624383426,
+        "upper_bound": 117798.78717660817
+      },
+      {
+        "active_scenario_count": 6,
+        "adversarial_mip_gap": 0.0,
+        "adversarial_objective": 32335.603341967722,
+        "adversarial_objective_bound": 32335.603341967722,
+        "adversarial_runtime": 0.12962509994395077,
+        "adversarial_status": "optimal",
+        "elapsed_time": 1.3306418000720441,
+        "exact_adversarial_separation": true,
+        "gap": 0.0015148704190945052,
+        "iteration": 5,
+        "lower_bound": 116772.74451645966,
+        "master_incumbent_objective": 116772.74451645966,
+        "master_lower_bound": 116772.74451645966,
+        "master_runtime": 0.18802989996038377,
+        "master_status": "optimal",
+        "scenario_added": true,
+        "scenario_violation": 177.16395686201213,
+        "theta": 32158.43938510571,
+        "upper_bound": 116949.9084733217
+      },
+      {
+        "active_scenario_count": 6,
+        "adversarial_mip_gap": 0.0,
+        "adversarial_objective": 32200.809813152497,
+        "adversarial_objective_bound": 32200.809813152497,
+        "adversarial_runtime": 0.09874339983798563,
+        "adversarial_status": "optimal",
+        "elapsed_time": 1.7698214000556618,
+        "exact_adversarial_separation": true,
+        "gap": 4.982887783068073e-16,
+        "iteration": 6,
+        "lower_bound": 116815.11494450644,
+        "master_incumbent_objective": 116815.11494450644,
+        "master_lower_bound": 116815.11494450644,
+        "master_runtime": 0.339887399924919,
+        "master_status": "optimal",
+        "scenario_added": false,
+        "scenario_violation": 4.001776687800884e-11,
+        "theta": 32200.809813152457,
+        "upper_bound": 116815.1149445065
+      }
+    ],
+    "iterations": 6,
+    "lower_bound": 116815.11494450644,
+    "master_initialization_runtime": 0.015408700099214911,
+    "master_runtime": 0.8956965997349471,
+    "runtime": 1.7698351999279112,
+    "scenario_patterns": [
+      [],
+      [
+        [
+          0,
+          6
+        ],
+        [
+          7,
+          1
+        ]
+      ],
+      [
+        [
+          2,
+          7
+        ],
+        [
+          11,
+          0
+        ]
+      ],
+      [
+        [
+          11,
+          0
+        ],
+        [
+          11,
+          5
+        ]
+      ],
+      [
+        [
+          0,
+          6
+        ],
+        [
+          11,
+          0
+        ]
+      ],
+      [
+        [
+          7,
+          1
+        ],
+        [
+          11,
+          0
+        ]
+      ]
+    ],
+    "scenarios_added": 5,
+    "status": "optimal",
+    "time_to_best_incumbent": 1.7696565000806004,
+    "time_to_certification": 1.7698214000556618,
+    "upper_bound": 116815.1149445065
+  },
+  "combined": {
+    "certified": true,
+    "final_gap": 4.982887783068073e-16,
+    "final_lower_bound": 116815.11494450644,
+    "final_upper_bound": 116815.1149445065,
+    "master_dominated_ccg_tail": true,
+    "status": "optimal",
+    "time_to_best_incumbent": 1.7696565000806004,
+    "time_to_certification": 1.7698214000556618,
+    "total_runtime": 1.7698351999279112
+  },
+  "diagnostic_only": true,
+  "method": "pure_ccg",
+  "provenance": {
+    "completed_at": "2026-09-05T10:23:45+00:00",
+    "config_sha256": "306021ba1cd3041b4bdbdccb31ae7b9246ffad3d760d7ead64cac20f1eb1b1ce",
+    "git_commit": "f58d9996a5f38525582f2cb2468c68eacdcf34b4",
+    "input_sha256": "6792234516446485b95f4111f3826eb5d0cc03b440890a98b71207f50eb5524a",
+    "solver_version": "13.0.1",
+    "started_at": "2026-09-05T10:23:43+00:00"
+  },
+  "schema": "benders_ccg_tail_handoff_method_v1"
+}
