@@ -17,7 +17,9 @@ from .cut_strengthening import (
     cut_strengthening_config,
     initialize_core_point_state,
     normalized_core_improvement,
+    pareto_cut_acceptance,
     pattern_distance,
+    relative_interior_core_point,
     should_attempt_core_point_strengthening,
     should_attempt_v3_secondary_cut,
     update_core_point_state,
@@ -40,6 +42,7 @@ from .robust_dual_subproblem import (
     RobustDualSubproblemResult,
     discretize_robust_pattern,
     solve_core_point_strengthened_dual_cut,
+    solve_pareto_optimal_mw_cut,
     solve_robust_dual_subproblem,
 )
 from .scenarios import DemandScenario, ScenarioEnumerationResult, enumerate_budget_scenarios_with_metadata
@@ -838,7 +841,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     gap_policy = _make_gap_policy(settings)
     certification_state = FinalCertificationState()
     precision_state = initialize_precision_state(settings.precision_config)
-    core_point_state = initialize_core_point_state()
+    core_point_state = initialize_core_point_state(
+        relative_interior_core_point(instance)
+        if settings.cut_strengthening_config.pareto_optimal_enabled
+        else None
+    )
     v3_pattern_memory = V3SecondaryPatternMemory()
     v3_last_secondary_attempt_iteration: int | None = None
     core_point_attempt_count = 0
@@ -854,6 +861,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
     v3_secondary_duplicate_count = 0
     v3_secondary_total_runtime = 0.0
     v3_primary_cuts_added = 0
+    previous_accepted_cut_type: str | None = None
 
     for iteration in range(settings.max_iterations):
         remaining = max(1e-3, settings.time_limit - (time.perf_counter() - start))
@@ -965,6 +973,11 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         core_point_cut_accepted = False
         core_point_cut_fallback_reason: str | None = None
         core_point_auxiliary_bound_used_for_ub = False
+        ordinary_cut_rhs_at_current: float | None = None
+        pareto_cut_rhs_at_current: float | None = None
+        ordinary_cut_value_at_core: float | None = None
+        pareto_cut_value_at_core: float | None = None
+        strengthened_coefficient_norm: float | None = None
         v3_secondary_decision = V3SecondaryCutDecision(
             False,
             None,
@@ -1087,6 +1100,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     if original_primary_cut.has_incumbent
                     else float(theta.X)
                 )
+                ordinary_cut_rhs_at_current = original_primary_rhs
                 original_primary_absolute_violation = calculate_cut_violations(
                     original_primary_rhs,
                     float(theta.X),
@@ -1114,26 +1128,42 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                         raise RuntimeError("Core-point attempt lacks a saved core point")
                     core_point_attempted = True
                     core_point_attempt_count += 1
-                    core_result = solve_core_point_strengthened_dual_cut(
-                        instance,
-                        x_values,
-                        core_point_state.core_x,
-                        original_primary_cut,
-                        stage1_time_limit=(
-                            settings.cut_strengthening_config.core_point_stage1_time_limit
-                        ),
-                        stage2_time_limit=(
-                            settings.cut_strengthening_config.core_point_stage2_time_limit
-                        ),
-                        remaining_global_time=remaining_for_core,
-                        current_abs_tol=(
-                            settings.cut_strengthening_config.core_point_current_abs_tol
-                        ),
-                        current_rel_tol=(
-                            settings.cut_strengthening_config.core_point_current_rel_tol
-                        ),
-                        output_flag=settings.output_flag,
-                    )
+                    if settings.cut_strengthening_config.pareto_optimal_enabled:
+                        core_result = solve_pareto_optimal_mw_cut(
+                            instance,
+                            x_values,
+                            core_point_state.core_x,
+                            original_primary_cut,
+                            stage1_time_limit=(
+                                settings.cut_strengthening_config.core_point_stage1_time_limit
+                            ),
+                            stage2_time_limit=(
+                                settings.cut_strengthening_config.core_point_stage2_time_limit
+                            ),
+                            remaining_global_time=remaining_for_core,
+                            output_flag=settings.output_flag,
+                        )
+                    else:
+                        core_result = solve_core_point_strengthened_dual_cut(
+                            instance,
+                            x_values,
+                            core_point_state.core_x,
+                            original_primary_cut,
+                            stage1_time_limit=(
+                                settings.cut_strengthening_config.core_point_stage1_time_limit
+                            ),
+                            stage2_time_limit=(
+                                settings.cut_strengthening_config.core_point_stage2_time_limit
+                            ),
+                            remaining_global_time=remaining_for_core,
+                            current_abs_tol=(
+                                settings.cut_strengthening_config.core_point_current_abs_tol
+                            ),
+                            current_rel_tol=(
+                                settings.cut_strengthening_config.core_point_current_rel_tol
+                            ),
+                            output_flag=settings.output_flag,
+                        )
                     core_point_stage1_status = core_result.stage1_status
                     core_point_stage1_runtime = core_result.stage1_runtime
                     core_point_stage1_objective = core_result.stage1_objective
@@ -1165,29 +1195,63 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                         core_result.strengthened_cut is not None
                         and _cut_key(core_result.strengthened_cut) in known_cut_keys
                     )
-                    acceptance = core_point_cut_acceptance(
-                        stage1_optimal=core_result.stage1_status == "optimal",
-                        stage2_optimal=core_result.stage2_status == "optimal",
-                        dual_feasible=core_result.dual_feasible,
-                        strengthened_value_at_current=(
-                            core_result.strengthened_value_at_current
-                        ),
-                        current_value_floor=core_result.current_value_floor,
-                        original_value_at_current=core_result.original_value_at_current,
-                        strengthened_value_at_core=core_result.strengthened_value_at_core,
-                        original_value_at_core=core_result.original_value_at_core,
-                        current_tolerance=current_tolerance,
-                        minimum_normalized_improvement=(
-                            settings.cut_strengthening_config
-                            .core_point_min_normalized_improvement
-                        ),
-                        duplicate=strengthened_duplicate,
-                        original_primary_violated=(
-                            original_primary_absolute_violation
-                            > settings.cut_violation_tol
-                        ),
-                        certification_active=certification_active,
-                    )
+                    if settings.cut_strengthening_config.pareto_optimal_enabled:
+                        acceptance = pareto_cut_acceptance(
+                            stage1_optimal=core_result.stage1_status == "optimal",
+                            stage2_optimal=core_result.stage2_status == "optimal",
+                            dual_feasible=core_result.dual_feasible,
+                            pareto_value_at_current=(
+                                core_result.strengthened_value_at_current
+                            ),
+                            current_optimal_value=core_result.stage1_objective,
+                            pareto_value_at_core=core_result.strengthened_value_at_core,
+                            ordinary_value_at_core=core_result.original_value_at_core,
+                            tightness_tolerance=current_tolerance,
+                            minimum_normalized_improvement=(
+                                settings.cut_strengthening_config
+                                .core_point_min_normalized_improvement
+                            ),
+                            duplicate=strengthened_duplicate,
+                            original_primary_violated=(
+                                original_primary_absolute_violation
+                                > settings.cut_violation_tol
+                            ),
+                            certification_active=certification_active,
+                        )
+                    else:
+                        acceptance = core_point_cut_acceptance(
+                            stage1_optimal=core_result.stage1_status == "optimal",
+                            stage2_optimal=core_result.stage2_status == "optimal",
+                            dual_feasible=core_result.dual_feasible,
+                            strengthened_value_at_current=(
+                                core_result.strengthened_value_at_current
+                            ),
+                            current_value_floor=core_result.current_value_floor,
+                            original_value_at_current=core_result.original_value_at_current,
+                            strengthened_value_at_core=core_result.strengthened_value_at_core,
+                            original_value_at_core=core_result.original_value_at_core,
+                            current_tolerance=current_tolerance,
+                            minimum_normalized_improvement=(
+                                settings.cut_strengthening_config
+                                .core_point_min_normalized_improvement
+                            ),
+                            duplicate=strengthened_duplicate,
+                            original_primary_violated=(
+                                original_primary_absolute_violation
+                                > settings.cut_violation_tol
+                            ),
+                            certification_active=certification_active,
+                        )
+                    pareto_cut_rhs_at_current = core_result.strengthened_value_at_current
+                    ordinary_cut_value_at_core = core_result.original_value_at_core
+                    pareto_cut_value_at_core = core_result.strengthened_value_at_core
+                    if core_result.strengthened_cut is not None:
+                        strengthened_coefficient_norm = math.sqrt(
+                            sum(
+                                coefficient * coefficient
+                                for coefficient in core_result.strengthened_cut.x_coefficients.values()
+                            )
+                        )
                     core_point_normalized_improvement = (
                         acceptance.normalized_improvement
                     )
@@ -1600,6 +1664,13 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         lb_improvement = (
             None if previous_lower_bound == -float("inf") else max(0.0, lower_bound - previous_lower_bound)
         )
+        accepted_cut_type = None
+        if cut_added:
+            accepted_cut_type = (
+                settings.cut_strengthening_config.policy
+                if core_point_cut_accepted
+                else "ordinary"
+            )
         ub_improvement = (
             None if previous_upper_bound == float("inf") else max(0.0, previous_upper_bound - upper_bound)
         )
@@ -1672,6 +1743,17 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                     core_point_normalized_improvement
                 ),
                 "core_point_cut_accepted": core_point_cut_accepted,
+                "ordinary_cut_rhs_at_current": ordinary_cut_rhs_at_current,
+                "pareto_cut_rhs_at_current": pareto_cut_rhs_at_current,
+                "ordinary_cut_value_at_core": ordinary_cut_value_at_core,
+                "pareto_cut_value_at_core": pareto_cut_value_at_core,
+                "strengthening_gain": (
+                    None
+                    if ordinary_cut_value_at_core is None or pareto_cut_value_at_core is None
+                    else pareto_cut_value_at_core - ordinary_cut_value_at_core
+                ),
+                "strengthened_coefficient_norm": strengthened_coefficient_norm,
+                "accepted_cut_type": accepted_cut_type,
                 "core_point_cut_fallback_reason": (
                     core_point_cut_fallback_reason
                 ),
@@ -1731,6 +1813,10 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "gap": gap,
                 "global_gap": gap,
                 "lb_improvement": lb_improvement,
+                "lb_gain_after_previous_cut": (
+                    lb_improvement if previous_accepted_cut_type is not None else None
+                ),
+                "previous_accepted_cut_type": previous_accepted_cut_type,
                 "ub_improvement": ub_improvement,
                 "elapsed_time": time.perf_counter() - start,
                 "log_gap": policy_state.log_gap,
@@ -1827,6 +1913,7 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "cuts": cuts,
             }
         )
+        previous_accepted_cut_type = accepted_cut_type
 
         if should_terminate_benders(
             active_gamma,
