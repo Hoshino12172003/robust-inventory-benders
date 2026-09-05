@@ -764,6 +764,9 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
         raise ValueError(f"Unknown Benders method: {method}")
 
     settings = _settings(config, method)
+    record_adversarial_patterns = bool(
+        config.get("diagnostics", {}).get("record_adversarial_patterns", False)
+    )
     target_enum: ScenarioEnumerationResult | None = None
     target_scenarios: list[DemandScenario] = []
     scenario_cache: dict[int, ScenarioEnumerationResult] = {}
@@ -1827,6 +1830,15 @@ def solve_benders(config: dict[str, Any], instance: InventoryInstance, method: s
                 "cuts": cuts,
             }
         )
+        if record_adversarial_patterns:
+            pattern = discretize_robust_pattern(
+                instance, getattr(active_cut, "z_values", {})
+            )
+            log[-1]["adversarial_pattern"] = (
+                [[r, j] for (r, j), value in sorted(pattern.items()) if value]
+                if pattern is not None
+                else None
+            )
 
         if should_terminate_benders(
             active_gamma,
