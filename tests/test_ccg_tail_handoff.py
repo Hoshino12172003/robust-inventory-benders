@@ -5,6 +5,7 @@ from copy import deepcopy
 import pytest
 
 from src.benders import solve_benders
+from src.benders_ccg_tail_handoff_runner import BENDERS_LOG_FIELDS, _compact_benders_log
 from src.ccg_tail_handoff import (
     canonical_pattern,
     deduplicate_patterns,
@@ -58,6 +59,14 @@ def test_pattern_canonicalization_deduplication_and_demand() -> None:
         instance.base_demand[0][1] + instance.demand_deviation[0][1]
     )
     assert scenario.demand[0][0] == pytest.approx(instance.base_demand[0][0])
+
+
+def test_benders_handoff_log_keeps_only_diagnostic_contract_fields() -> None:
+    compact = _compact_benders_log(
+        [{"iteration": 1, "adversarial_pattern": [[0, 1]], "unrelated_nested_field": [1, 2]}]
+    )
+    assert tuple(compact[0]) == BENDERS_LOG_FIELDS
+    assert "unrelated_nested_field" not in compact[0]
 
 
 @pytest.mark.parametrize("seed", [31, 32, 33])

@@ -24,6 +24,19 @@ from .scenarios import count_budget_scenarios
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = REPO_ROOT / "experiments/configs/benders_ccg_tail_handoff_210202.yaml"
 METHODS = ("pure_ccg", "handoff_300", "handoff_600", "handoff_900")
+BENDERS_LOG_FIELDS = (
+    "iteration",
+    "elapsed_time",
+    "lower_bound",
+    "upper_bound",
+    "gap",
+    "master_time",
+    "subproblem_time",
+    "core_point_stage1_runtime",
+    "core_point_stage2_runtime",
+    "cuts_added_total",
+    "adversarial_pattern",
+)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -175,6 +188,13 @@ def _benders_best_incumbent_time(result: Any) -> float | None:
     return None
 
 
+def _compact_benders_log(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {field: row.get(field) for field in BENDERS_LOG_FIELDS}
+        for row in rows
+    ]
+
+
 def _write_method(root: Path, name: str, payload: dict[str, Any]) -> None:
     target = root / "methods" / f"{name}.json"
     _require(not target.exists(), f"Refusing to repeat completed method: {name}")
@@ -239,7 +259,7 @@ def run_method(context: dict[str, Any], method_name: str) -> dict[str, Any]:
             "raw_discovered_pattern_count": len(raw_patterns),
             "unique_inherited_pattern_count": len(inherited),
             "duplicate_patterns_removed": duplicates,
-            "iteration_log": benders.iteration_log,
+            "iteration_log": _compact_benders_log(benders.iteration_log),
         }
 
     payload = {
