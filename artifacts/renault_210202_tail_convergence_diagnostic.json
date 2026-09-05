@@ -1,0 +1,113 @@
+{
+  "schema": "renault_tail_convergence_diagnostic_v1",
+  "generated_at_utc": "2026-09-05T03:19:00.9343778Z",
+  "source": {
+    "pull_request": 82,
+    "path": "real_data_studies/renault_robust_baseline_v1/results/iteration_logs/210202_B1.00_iterations.csv",
+    "sha256": "da5e73ab6bad9afe91f6dfc790468607f8d8766349ae0fb4ba7f9bd1a5e161e9",
+    "iterations": 2154,
+    "runtime_seconds": 1800.1848966998514
+  },
+  "scope": {
+    "read_only_source_analysis": true,
+    "optimization_executed": false,
+    "case_210628_accessed_or_run": false,
+    "algorithm_model_config_or_result_modified": false
+  },
+  "bottleneck_classification": "MASTER_DOMINATED",
+  "classification_evidence": {
+    "master_runtime_share": 0.8452806916592206,
+    "robust_subproblem_runtime_share": 0.14154849764034913,
+    "tail_has_continued_positive_lb_progress": true,
+    "last_500_iterations_with_lb_improvement_above_1e-6": 463,
+    "last_500_cut_violations_all_positive": true,
+    "final_certification_phase_triggered": false
+  },
+  "checkpoints": {
+    "selection_rule": "iteration = ceil(total_iterations * fraction)",
+    "rows": [
+      {"fraction": 0.25, "iteration": 539, "elapsed_seconds": 140.60341480001807, "LB": 116743.51334684002, "UB": 116958.3692105265, "gap": 0.0018370285524394},
+      {"fraction": 0.50, "iteration": 1077, "elapsed_seconds": 459.1511889998801, "LB": 116799.65267332252, "UB": 116849.60129229544, "gap": 0.0004274607565665},
+      {"fraction": 0.75, "iteration": 1616, "elapsed_seconds": 994.854808199918, "LB": 116800.42031564536, "UB": 116840.66551645267, "gap": 0.0003444451521173},
+      {"fraction": 0.90, "iteration": 1939, "elapsed_seconds": 1439.6106163999066, "LB": 116801.0041460454, "UB": 116840.66551645267, "gap": 0.0003394483438788},
+      {"fraction": 0.95, "iteration": 2047, "elapsed_seconds": 1619.4281025000382, "LB": 116801.2920914937, "UB": 116840.66551645267, "gap": 0.0003369839155309},
+      {"fraction": 1.00, "iteration": 2154, "elapsed_seconds": 1800.1848966998514, "LB": 116802.42332725936, "UB": 116840.66551645267, "gap": 0.0003273020486854}
+    ]
+  },
+  "tail_lb_improvement": {
+    "definition": "sum of recorded lb_improvement over the last N iterations; equivalent to final LB minus LB immediately before the window",
+    "substantive_threshold_absolute": 1e-6,
+    "windows": [
+      {"iterations": 500, "wall_seconds": 759.3196131000293, "total_lb_improvement": 1.9245504357968457, "mean_per_iteration": 0.003849100871593673, "iterations_above_threshold": 463},
+      {"iterations": 250, "wall_seconds": 412.1537369999569, "total_lb_improvement": 1.4465239509590901, "mean_per_iteration": 0.0057860958038363445, "iterations_above_threshold": 238},
+      {"iterations": 100, "wall_seconds": 169.74058889993466, "total_lb_improvement": 1.1304177893616725, "mean_per_iteration": 0.011304177893616702, "iterations_above_threshold": 95},
+      {"iterations": 50, "wall_seconds": 83.2174996000249, "total_lb_improvement": 0.367115895554889, "mean_per_iteration": 0.007342317911679835, "iterations_above_threshold": 47}
+    ],
+    "last_substantive_improvement": {
+      "iteration": 2153,
+      "elapsed_seconds": 1799.3028917999472,
+      "lb_improvement": 0.000023323489585891366,
+      "LB": 116802.42332725936
+    }
+  },
+  "last_500_gap": {
+    "baseline_iteration": 1654,
+    "baseline_gap": 0.0003437736292544,
+    "final_iteration": 2154,
+    "final_gap": 0.0003273020486854,
+    "absolute_change": -0.00001647158056899999,
+    "relative_reduction": 0.04791403169790741,
+    "average_wall_seconds_per_iteration": 1.5186392262000585
+  },
+  "ub_diagnostic": {
+    "changed_in_last_500_iterations": false,
+    "distinct_values_in_last_500_iterations": 1,
+    "last_change_iteration": 1222,
+    "last_change_elapsed_seconds": 577.5610203000251,
+    "last_change_amount": 0.0247617575660115,
+    "final_UB": 116840.66551645267
+  },
+  "runtime_decomposition": {
+    "denominator_wall_seconds": 1800.1848966998514,
+    "components": [
+      {"component": "master", "seconds": 1521.661534596933, "share": 0.8452806916592206},
+      {"component": "robust_subproblem", "seconds": 254.81346760271106, "share": 0.14154849764034913},
+      {"component": "core_point_secondary_auxiliary", "seconds": 16.529342701425698, "share": 0.009182024986282102},
+      {"component": "other_secondary", "seconds": 0.0, "share": 0.0},
+      {"component": "certification_phase", "seconds": 0.0, "share": 0.0},
+      {"component": "unattributed_overhead", "seconds": 7.18055179878138, "share": 0.003988785714148011}
+    ],
+    "certification_note": "final_certification_active was false in all iterations"
+  },
+  "last_500_cut_violation_distribution": {
+    "cut_violation": {"count": 500, "min": 47.47866684742621, "p25": 56.24432378301208, "median": 59.556645335769645, "mean": 60.87869097060801, "std": 6.148041436244909, "p75": 65.9839229999061, "p90": 69.97628768768155, "p95": 73.64436676066234, "p99": 74.76290963768813, "max": 78.53173794708346},
+    "normalized_cut_violation": {"count": 500, "min": 0.0014729328659558, "p25": 0.001744396154687925, "median": 0.001846903854077, "mean": 0.0018878111325806675, "std": 0.00019026230031794655, "p75": 0.002045838264372025, "p90": 0.00216936839908705, "p95": 0.002282820631126945, "p99": 0.002317437733825405, "max": 0.0024338868910837}
+  },
+  "worst_case_pattern_repetition": {
+    "status": "INCONCLUSIVE_NOT_RECORDED",
+    "reason": "active_scenario and target_scenario contain only the constant robust_dual_milp label; z-patterns and shocked-component identifiers are absent from the iteration log"
+  },
+  "diagnostic_extrapolation_to_gap_1e-4": {
+    "warning": "Diagnostic linear extrapolation only; it is not a guarantee or a runtime authorization.",
+    "assumptions": "final UB remains fixed and the observed LB improvement per wall-second remains constant",
+    "target_LB": 116828.98144990101,
+    "additional_LB_required": 26.558122641668888,
+    "estimates": [
+      {"rate_window_iterations": 250, "lb_per_second": 0.0035096708366355086, "additional_seconds": 7567.126342574171, "additional_hours": 2.1019795396039362},
+      {"rate_window_iterations": 500, "lb_per_second": 0.0025345722704825146, "additional_seconds": 10478.34498584368, "additional_hours": 2.910651384956578}
+    ]
+  },
+  "time_limit_3600_recommendation": {
+    "recommend_only_doubling_to_3600": false,
+    "reason": "The extra 1800 seconds is only 17-24 percent of the tail-rate extrapolated additional time, so the observed tail does not support expecting certification by 3600 seconds."
+  },
+  "algorithm_or_numerical_defect_evidence": {
+    "evidence_of_defect": false,
+    "LB_decrease_count": 0,
+    "UB_increase_count": 0,
+    "invalid_UB_iteration_count": 0,
+    "robust_subproblem_statuses": {"optimal": 2154},
+    "missing_core_numeric_value_count": 0,
+    "note": "The final master status is time_limit; the existing result-integrity audit passed. This diagnostic does not prove the absence of all defects."
+  }
+}
