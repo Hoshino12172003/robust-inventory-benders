@@ -1,0 +1,664 @@
+{
+  "scale": "small",
+  "seed": 192,
+  "gamma": 2,
+  "rho": 0.025,
+  "scenario_count": 79,
+  "anchors": {
+    "k1": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.08212419995106757,
+      "objective": 8114.680049270881,
+      "bound": 8114.680049270881,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          70.0,
+          40.0,
+          67.0
+        ],
+        [
+          116.96000000000001,
+          128.95913051709533,
+          46.26979258895376
+        ],
+        [
+          92.0,
+          84.41961195482864,
+          59.03840073689765
+        ]
+      ]
+    },
+    "k2": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.0813871999271214,
+      "objective": 6386.970735766066,
+      "bound": 6386.419400336523,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          121.03893077571522,
+          181.99417572171618,
+          0.0
+        ],
+        [
+          124.18648607480074,
+          0.0,
+          121.75927279579304
+        ],
+        [
+          40.96106922428478,
+          83.56181665316042,
+          71.47479388782538
+        ]
+      ]
+    },
+    "full": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.1266509999986738,
+      "objective": 5391.144894229964,
+      "bound": 5391.144894229964,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          144.33460949521216,
+          0.0,
+          92.32938508596223
+        ],
+        [
+          99.09210731350724,
+          0.0,
+          121.03999999999999
+        ],
+        [
+          63.28179164178822,
+          278.3841354584269,
+          0.0
+        ]
+      ]
+    }
+  },
+  "reoptimized": {
+    "k1": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.08482680004090071,
+      "objective_t": 0.27902207214799546,
+      "bound": 0.27902207214799546,
+      "cost_budget": 8317.547050502651,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          70.70323400135986,
+          40.0,
+          67.0
+        ],
+        [
+          100.59069593114089,
+          138.25312365958098,
+          58.01884220234101
+        ],
+        [
+          92.0,
+          78.22986561443192,
+          53.51160013234475
+        ]
+      ],
+      "metrics": {
+        "first_stage_cost": 2690.4200000000005,
+        "warehouse_opening_cost": 502.0,
+        "inventory_cost": 2188.42,
+        "actual_robust_cost": 8317.547050502655,
+        "transportation_cost": 1907.3640167140682,
+        "shortage_cost": 1932.7049673993045,
+        "service_violation_cost": 1787.0580663892815,
+        "worst_region_shortage_rate": 0.27902207214799546,
+        "minimum_regional_fill_rate": 0.7209779278520045,
+        "minimum_weighted_fill_rate": 0.8212649246326729,
+        "number_opened_warehouses": 3,
+        "active_warehouse_region_arcs": 4,
+        "objective_t_consistency_error": 0.0,
+        "regional": [
+          {
+            "region": 0,
+            "worst_shortage_rate": 0.27902207214799546,
+            "fill_rate": 0.7209779278520045,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 12412.407142423037
+          },
+          {
+            "region": 1,
+            "worst_shortage_rate": 0.27902207214799546,
+            "fill_rate": 0.7209779278520045,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 10788.563569253327
+          },
+          {
+            "region": 2,
+            "worst_shortage_rate": 0.18982141857369533,
+            "fill_rate": 0.8101785814263047,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 13821.457883809742
+          },
+          {
+            "region": 3,
+            "worst_shortage_rate": 0.2412457075868941,
+            "fill_rate": 0.7587542924131059,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 17455.815777103202
+          }
+        ]
+      }
+    },
+    "k2": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.18670770013704896,
+      "objective_t": 0.11822235434314975,
+      "bound": 0.11822235434314975,
+      "cost_budget": 6546.6450041602175,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          121.08619434948574,
+          181.9148404371728,
+          0.0
+        ],
+        [
+          121.40981231186544,
+          0.0,
+          124.77089587713056
+        ],
+        [
+          49.1577591667524,
+          81.3267588841779,
+          65.6903469076195
+        ]
+      ],
+      "metrics": {
+        "first_stage_cost": 2690.42,
+        "warehouse_opening_cost": 502.0,
+        "inventory_cost": 2188.42,
+        "actual_robust_cost": 6546.645004160222,
+        "transportation_cost": 2156.2514671778617,
+        "shortage_cost": 1397.2178524510189,
+        "service_violation_cost": 302.75568453134116,
+        "worst_region_shortage_rate": 0.11822235434314976,
+        "minimum_regional_fill_rate": 0.8817776456568502,
+        "minimum_weighted_fill_rate": 0.8817776456568502,
+        "number_opened_warehouses": 3,
+        "active_warehouse_region_arcs": 8,
+        "objective_t_consistency_error": 1.3877787807814457e-17,
+        "regional": [
+          {
+            "region": 0,
+            "worst_shortage_rate": 0.11822235434314975,
+            "fill_rate": 0.8817776456568502,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 14441.244599494059
+          },
+          {
+            "region": 1,
+            "worst_shortage_rate": 0.11822235434314976,
+            "fill_rate": 0.8817776456568502,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 12456.837944240782
+          },
+          {
+            "region": 2,
+            "worst_shortage_rate": 0.11822235434314975,
+            "fill_rate": 0.8817776456568502,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 12973.9661363159
+          },
+          {
+            "region": 3,
+            "worst_shortage_rate": 0.11822235434314976,
+            "fill_rate": 0.8817776456568502,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 18155.525598312965
+          }
+        ]
+      }
+    },
+    "full": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.22152139991521835,
+      "objective_t": 0.06244267320694682,
+      "bound": 0.06244267320694682,
+      "cost_budget": 5525.923516585713,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ],
+      "metrics": {
+        "first_stage_cost": 2690.42,
+        "warehouse_opening_cost": 502.0,
+        "inventory_cost": 2188.42,
+        "actual_robust_cost": 5525.923516585717,
+        "transportation_cost": 2192.6369642841687,
+        "shortage_cost": 469.17296783842806,
+        "service_violation_cost": 173.6935844631199,
+        "worst_region_shortage_rate": 0.062442673206946825,
+        "minimum_regional_fill_rate": 0.9375573267930531,
+        "minimum_weighted_fill_rate": 0.9375573267930531,
+        "number_opened_warehouses": 3,
+        "active_warehouse_region_arcs": 12,
+        "objective_t_consistency_error": 6.938893903907228e-18,
+        "regional": [
+          {
+            "region": 0,
+            "worst_shortage_rate": 0.062442673206946825,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 15315.335778825422
+          },
+          {
+            "region": 1,
+            "worst_shortage_rate": 0.062442673206946825,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 13261.48359735794
+          },
+          {
+            "region": 2,
+            "worst_shortage_rate": 0.06244267320694682,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 13957.826477914065
+          },
+          {
+            "region": 3,
+            "worst_shortage_rate": 0.062442673206946825,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 19352.002193662447
+          }
+        ]
+      }
+    }
+  },
+  "fixed_first_stage_anchors": {
+    "k1": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.03798540006391704,
+      "objective": 20607.542550352176,
+      "bound": 20607.542550352176,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ]
+    },
+    "k2": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.0473776999861002,
+      "objective": 15102.903735629965,
+      "bound": 15102.903735629965,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ]
+    },
+    "full": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.03794329985976219,
+      "objective": 5486.340161534388,
+      "bound": 5486.340161534388,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ]
+    }
+  },
+  "fixed_first_stage_common_anchor": 20607.542550352176,
+  "fixed_first_stage": {
+    "k1": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.04106089984998107,
+      "objective_t": 0.652701882210079,
+      "bound": 0.652701882210079,
+      "cost_budget": 21122.73111411098,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ],
+      "metrics": {
+        "first_stage_cost": 2690.42,
+        "warehouse_opening_cost": 502.0,
+        "inventory_cost": 2188.42,
+        "actual_robust_cost": 21122.731114110982,
+        "transportation_cost": 1159.9866832651928,
+        "shortage_cost": 5889.940087588056,
+        "service_violation_cost": 11382.384343257734,
+        "worst_region_shortage_rate": 0.6527018822100791,
+        "minimum_regional_fill_rate": 0.3472981177899209,
+        "minimum_weighted_fill_rate": 0.48728627509862865,
+        "number_opened_warehouses": 3,
+        "active_warehouse_region_arcs": 4,
+        "objective_t_consistency_error": 1.1102230246251565e-16,
+        "regional": [
+          {
+            "region": 0,
+            "worst_shortage_rate": 0.652701882210079,
+            "fill_rate": 0.34729811778992103,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 5617.872683667278
+          },
+          {
+            "region": 1,
+            "worst_shortage_rate": 0.6527018822100791,
+            "fill_rate": 0.3472981177899209,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 5435.355731633273
+          },
+          {
+            "region": 2,
+            "worst_shortage_rate": 0.3614020500892501,
+            "fill_rate": 0.6385979499107499,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 10416.66669424139
+          },
+          {
+            "region": 3,
+            "worst_shortage_rate": 0.49672826057608765,
+            "fill_rate": 0.5032717394239123,
+            "number_eligible_warehouses": 1,
+            "number_actually_used_warehouses": 1,
+            "total_inbound_shipment": 11573.979415469226
+          }
+        ]
+      }
+    },
+    "k2": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.04707610001787543,
+      "objective_t": 0.45064923272496143,
+      "bound": 0.45064923272496143,
+      "cost_budget": 21122.73111411098,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ],
+      "metrics": {
+        "first_stage_cost": 2690.42,
+        "warehouse_opening_cost": 502.0,
+        "inventory_cost": 2188.42,
+        "actual_robust_cost": 21122.731114110982,
+        "transportation_cost": 1640.762028249184,
+        "shortage_cost": 4430.463931889585,
+        "service_violation_cost": 12361.085153972212,
+        "worst_region_shortage_rate": 0.45064923272496155,
+        "minimum_regional_fill_rate": 0.5493507672750384,
+        "minimum_weighted_fill_rate": 0.5493507672750385,
+        "number_opened_warehouses": 3,
+        "active_warehouse_region_arcs": 8,
+        "objective_t_consistency_error": 1.1102230246251565e-16,
+        "regional": [
+          {
+            "region": 0,
+            "worst_shortage_rate": 0.4506492327249615,
+            "fill_rate": 0.5493507672750385,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 9740.895962902678
+          },
+          {
+            "region": 1,
+            "worst_shortage_rate": 0.4506492327249615,
+            "fill_rate": 0.5493507672750385,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 8149.026004690401
+          },
+          {
+            "region": 2,
+            "worst_shortage_rate": 0.45064923272496155,
+            "fill_rate": 0.5493507672750384,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 9062.677393550974
+          },
+          {
+            "region": 3,
+            "worst_shortage_rate": 0.4506492327249615,
+            "fill_rate": 0.5493507672750385,
+            "number_eligible_warehouses": 2,
+            "number_actually_used_warehouses": 2,
+            "total_inbound_shipment": 13026.792476478382
+          }
+        ]
+      }
+    },
+    "full": {
+      "status": "optimal",
+      "certified": true,
+      "runtime": 0.04038460017181933,
+      "objective_t": 0.062442673206946825,
+      "bound": 0.062442673206946825,
+      "cost_budget": 21122.73111411098,
+      "y_values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "x_values": [
+        [
+          175.53781575981864,
+          0.0,
+          58.48590752204287
+        ],
+        [
+          71.0,
+          0.0,
+          154.34614567214626
+        ],
+        [
+          64.31518247429395,
+          276.64951513243517,
+          0.0
+        ]
+      ],
+      "metrics": {
+        "first_stage_cost": 2690.42,
+        "warehouse_opening_cost": 502.0,
+        "inventory_cost": 2188.42,
+        "actual_robust_cost": 21122.73111411099,
+        "transportation_cost": 2649.0831549825175,
+        "shortage_cost": 637.8148458375031,
+        "service_violation_cost": 15145.413113290966,
+        "worst_region_shortage_rate": 0.06244267320694683,
+        "minimum_regional_fill_rate": 0.9375573267930531,
+        "minimum_weighted_fill_rate": 0.9375573267930531,
+        "number_opened_warehouses": 3,
+        "active_warehouse_region_arcs": 12,
+        "objective_t_consistency_error": 6.938893903907228e-18,
+        "regional": [
+          {
+            "region": 0,
+            "worst_shortage_rate": 0.062442673206946825,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 15303.52806328629
+          },
+          {
+            "region": 1,
+            "worst_shortage_rate": 0.062442673206946825,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 13302.184225756913
+          },
+          {
+            "region": 2,
+            "worst_shortage_rate": 0.062442673206946825,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 13860.122197057479
+          },
+          {
+            "region": 3,
+            "worst_shortage_rate": 0.06244267320694683,
+            "fill_rate": 0.9375573267930531,
+            "number_eligible_warehouses": 3,
+            "number_actually_used_warehouses": 3,
+            "total_inbound_shipment": 19082.595850047674
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+experiment_name: fulfillment_flexibility_diagnostic
+phase: development_screening
+output_dir: experiments/results_fulfillment_flexibility/development
+scales: [small, medium]
+seeds: [190, 191, 192]
+modes: [k1, k2, full]
+gamma: 2
+rho: 0.025
+max_scenarios: 5000
+time_limit: 300
+mip_gap: 0.0001
+feasibility_tolerance: 1.0e-7
+threads: 1
+solver_seed: 0
+lexicographic_cost_stage: false
+screening:
+  strong_median_relative_reduction: 0.05
+  negligible_median_relative_reduction: 0.01
+  majority_required: 4
+  thresholds_frozen_before_run: true
